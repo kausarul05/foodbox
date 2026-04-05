@@ -23,7 +23,7 @@ export default function OrdersPage() {
 
       {/* Orders List */}
       {orders.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+        <div className="bg-white rounded-2xl shadow-lg p-12 text-center mb-4">
           <div className=" w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 p-4">
             <ShoppingBag className="w-10 h-10 text-gray-400" />
           </div>

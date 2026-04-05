@@ -27,8 +27,8 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 pt-20">
-        <div className="flex md:flex-row flex-col gap-8">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex md:flex-row flex-col gap-8 pt-4">
           {/* Sidebar */}
           <div className="lg:w-80">
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden sticky top-24">

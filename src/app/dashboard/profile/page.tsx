@@ -79,7 +79,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Subscription Status */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
+      <div className="bg-white rounded-2xl shadow-lg p-6 mb-4">
         <div className="flex items-start gap-4">
           <div className="bg-orange-100 p-3 rounded-xl">
             <Package className="w-6 h-6 text-orange-600" />
