@@ -5,7 +5,7 @@ import WeeklyMenu from "./Components/Home/WeeklyMenu";
 
 export default function Home() {
   return (
-    <div>
+    <div className="bg-white">
      <Bannar/>
      <WeeklyMenu/>
      <Order/>
