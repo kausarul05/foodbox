@@ -35,7 +35,7 @@ const Navbar = () => {
           <Link href="/" className="group">
             <div className="flex items-center gap-2">
               <span className="text-2xl md:text-3xl font-bold text-white">
-                FOODBOX
+                FCS
               </span>
               <span className="hidden sm:inline-block text-xs bg-white/20 px-2 py-1 rounded-full text-white">
                 হোমমেইড
@@ -104,7 +104,7 @@ const Navbar = () => {
           <div className="flex justify-between items-center mb-8 pb-4 border-b">
             <div>
               <span className="text-xl font-bold bg-gradient-to-br from-[#3B82F6] to-[#111827] bg-clip-text text-transparent">
-                FOODBOX
+                FCS
               </span>
               <p className="text-xs text-gray-500 mt-1">মেনু</p>
             </div>

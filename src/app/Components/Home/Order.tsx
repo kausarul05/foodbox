@@ -85,7 +85,7 @@ export default function Order() {
 
   return (
     <section className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white mb-4">
@@ -243,7 +243,7 @@ export default function Order() {
                   )}
                   <div className="border-t border-gray-200 pt-2 mt-2">
                     <p className="flex justify-between font-bold text-lg">
-                      <span>মোট:</span>
+                      <span className='text-black'>মোট:</span>
                       <span className="text-[#3B82F6]">
                         ৳ {subscription 
                           ? (packages.find(p => p.id === selectedPackage)?.price || 0) - 200
