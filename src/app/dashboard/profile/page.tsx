@@ -19,7 +19,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
+      <div className="bg-white rounded-2xl shadow-lg p-6 mb-4">
         <div className="flex items-center gap-3 mb-2">
           <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] p-2 rounded-xl">
             <User className="w-6 h-6 text-white" />
@@ -32,7 +32,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Profile Info Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
         {/* Personal Information */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -106,11 +106,11 @@ export default function ProfilePage() {
       </div>
 
       {/* Edit Profile Button */}
-      <div className="flex justify-end">
+      {/* <div className="flex justify-end">
         <button className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-6 py-2 rounded-lg font-medium transition-colors">
           প্রোফাইল এডিট করুন
         </button>
-      </div>
+      </div> */}
     </div>
   );
 }
