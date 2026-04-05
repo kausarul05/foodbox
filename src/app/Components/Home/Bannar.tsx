@@ -6,14 +6,14 @@ import bannerImage from '@/../public/Images/bannar.jpg';
 
 export default function Banner() {
   return (
-    <div className="relative w-full h-[500px] sm:h-[550px] md:h-[600px] lg:h-[700px] max-w-6xl mx-auto bg-white pt-10">
+    <div className="relative w-full h-[250px] sm:h-[400px] md:h-[500px] lg:h-[500px] max-w-6xl mx-auto bg-white">
       {/* Background Image - Full visible */}
       <Image
         src={bannerImage}
         alt='Food banner'
-        // fill
+        fill
         // priority
-        className=""
+        className="md:mt-10 mt-2"
         // sizes="100vw"
         // quality={95}
       />
