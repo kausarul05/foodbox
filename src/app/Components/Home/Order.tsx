@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Package, 
-  Calendar, 
-  Phone, 
-  MapPin, 
-  Home, 
-  CheckCircle, 
+import {
+  Package,
+  Calendar,
+  Phone,
+  MapPin,
+  Home,
+  CheckCircle,
   CreditCard,
   Loader2,
   LogIn,
@@ -59,17 +59,17 @@ export default function OrderPage() {
   const checkLoginStatus = async () => {
     const token = localStorage.getItem('userToken');
     const user = localStorage.getItem('userData');
-    
+
     if (token && user) {
       setIsLoggedIn(true);
       const userInfo = JSON.parse(user);
       setUserData(userInfo);
-      
+
       // Auto-fill user data if available
       if (userInfo.phoneNumber) setPhoneNumber(userInfo.phoneNumber);
       if (userInfo.zone) setSelectedZone(userInfo.zone);
       if (userInfo.address) setAddress(userInfo.address);
-      
+
       // Check subscription status
       await checkSubscriptionStatus();
     } else {
@@ -82,7 +82,7 @@ export default function OrderPage() {
     try {
       const response = await subscriptionAPI.getMySubscriptions();
       console.log('Subscription response:', response);
-      
+
       if (response.success && response.data) {
         const activeSub = response.data.find((sub: any) => sub.status === 'active');
         if (activeSub) {
@@ -113,60 +113,60 @@ export default function OrderPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Check if user is logged in
     if (!isLoggedIn) {
       toast.error('অর্ডার করতে দয়া করে লগইন করুন');
       router.push('/login');
       return;
     }
-    
+
     // Check if user has active subscription
     if (!hasActiveSubscription) {
       toast.error('অর্ডার করতে সক্রিয় সাবস্ক্রিপশন প্রয়োজন');
       router.push('/subscription');
       return;
     }
-    
+
     // Validate required fields
     if (!selectedDate) {
       toast.error('দয়া করে ডেলিভারির তারিখ সিলেক্ট করুন');
       return;
     }
-    
+
     if (!phoneNumber) {
       toast.error('দয়া করে ফোন নাম্বার দিন');
       return;
     }
-    
+
     if (!selectedZone) {
       toast.error('দয়া করে জোন সিলেক্ট করুন');
       return;
     }
-    
+
     if (!address) {
       toast.error('দয়া করে ঠিকানা দিন');
       return;
     }
-    
+
     try {
       setSubmitting(true);
-      
+
       // Get today's menu based on subscription package
       const today = new Date();
       const days = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
       const todayName = days[today.getDay()];
-      
+
       // Create order items (this should come from your menu API)
       const orderItems: MealItem[] = [
         { name: `${subscriptionData?.packageName || subscriptionData?.package} Package - Today's Meal`, price: 0, quantity: 1 }
       ];
-      
+
       const orderData = {
         items: orderItems,
-        totalAmount: 0, // Subscription package amount
-        deliveryCharge: 50,
-        paymentMethod: 'subscription',
+        totalAmount: 0,
+        deliveryCharge: 0,
+        paymentMethod: 'subscription', // Change from 'cash' to 'subscription'
         deliveryDate: selectedDate,
         deliveryTime: 'lunch',
         address: address,
@@ -174,9 +174,9 @@ export default function OrderPage() {
         specialInstructions: '',
         package: subscriptionData?.packageName || subscriptionData?.package,
       };
-      
+
       const orderResponse = await orderAPI.createOrder(orderData);
-      
+
       if (orderResponse.success) {
         toast.success('অর্ডার সফলভাবে সম্পন্ন হয়েছে!');
         // Reset form
@@ -184,7 +184,7 @@ export default function OrderPage() {
       } else {
         toast.error(orderResponse.message || 'অর্ডার করতে ব্যর্থ হয়েছে');
       }
-      
+
     } catch (error: any) {
       console.error('Error placing order:', error);
       toast.error(error.message || 'অর্ডার করতে ব্যর্থ হয়েছে');
@@ -275,7 +275,7 @@ export default function OrderPage() {
                 {/* Date Selection */}
                 <div className="mb-6">
                   <label className="block text-gray-700 font-medium mb-2">
-                    <Calendar className="w-4 h-4 inline mr-2 text-[#3B82F6]" /> 
+                    <Calendar className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                     ডেলিভারির তারিখ নির্বাচন করুন
                   </label>
                   <input
@@ -292,7 +292,7 @@ export default function OrderPage() {
                 {/* Phone Number */}
                 <div className="mb-6">
                   <label className="block text-gray-700 font-medium mb-2">
-                    <Phone className="w-4 h-4 inline mr-2 text-[#3B82F6]" /> 
+                    <Phone className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                     ফোন নাম্বার
                   </label>
                   <input
@@ -308,7 +308,7 @@ export default function OrderPage() {
                 {/* Zone Selection */}
                 <div className="mb-6">
                   <label className="block text-gray-700 font-medium mb-2">
-                    <MapPin className="w-4 h-4 inline mr-2 text-[#3B82F6]" /> 
+                    <MapPin className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                     জোন / এলাকা
                   </label>
                   <select
@@ -327,7 +327,7 @@ export default function OrderPage() {
                 {/* Address */}
                 <div className="mb-6">
                   <label className="block text-gray-700 font-medium mb-2">
-                    <Home className="w-4 h-4 inline mr-2 text-[#3B82F6]" /> 
+                    <Home className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                     ডেলিভারি ঠিকানা
                   </label>
                   <textarea
@@ -343,7 +343,7 @@ export default function OrderPage() {
                 {/* Order Summary */}
                 <div className="bg-gradient-to-br from-[#3B82F6]/10 to-[#111827]/5 rounded-xl p-4 mb-6 border border-[#3B82F6]/20">
                   <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-[#3B82F6]" /> 
+                    <CreditCard className="w-4 h-4 text-[#3B82F6]" />
                     অর্ডার সামারি
                   </h3>
                   <div className="space-y-1 text-sm">
