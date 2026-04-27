@@ -17,7 +17,7 @@ export default function AuthCallback() {
 
     if (error) {
       toast.error('Google লগইন ব্যর্থ হয়েছে');
-      router.push('/login');
+      window.location.href = '/login';
       return;
     }
 
@@ -26,10 +26,10 @@ export default function AuthCallback() {
       localStorage.setItem('userData', userData);
       
       toast.success('Google লগইন সফল!');
-      router.push('/');
+      window.location.href = '/';
     } else {
       toast.error('লগইন তথ্য পাওয়া যায়নি');
-      router.push('/login');
+      window.location.href = '/login';
     }
   }, [searchParams, router]);
 

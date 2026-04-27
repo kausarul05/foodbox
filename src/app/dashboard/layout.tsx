@@ -50,7 +50,7 @@ export default function DashboardLayout({
   const handleLogout = () => {
     authAPI.logout();
     toast.success('লগআউট সফল!');
-    router.push('/');
+    window.location.href = '/';
   };
 
   const getPackageName = () => {
