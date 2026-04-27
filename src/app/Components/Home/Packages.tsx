@@ -276,7 +276,7 @@ export default function Packages() {
       {showPaymentModal && selectedPackage && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-4 text-black">
               <h3 className="text-xl font-bold text-gray-800">সাবস্ক্রিপশন কনফার্মেশন</h3>
               <button
                 onClick={() => setShowPaymentModal(false)}
@@ -290,14 +290,14 @@ export default function Packages() {
 
             <div className="space-y-4">
               {/* Package Info */}
-              <div className="bg-blue-50 rounded-xl p-4">
+              <div className="bg-blue-50 rounded-xl p-4 text-black">
                 <p className="text-sm text-gray-600">আপনি সাবস্ক্রাইব করতে যাচ্ছেন:</p>
                 <p className="font-bold text-lg text-[#3B82F6]">{selectedPackage.title}</p>
                 <p className="text-2xl font-bold">৳ {selectedPackage.price}</p>
               </div>
 
               {/* Payment Method */}
-              <div>
+              <div className='text-black'>
                 <label className="block text-gray-700 font-medium mb-2">
                   <CreditCard className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                   পেমেন্ট মেথড

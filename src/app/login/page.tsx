@@ -1,8 +1,9 @@
+// app/login/page.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, LogIn, UserPlus, Eye, EyeOff, Shield } from 'lucide-react';
+import { Mail, Lock, LogIn, UserPlus, Eye, EyeOff, Shield, Chrome } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { authAPI } from '@/lib/api';
@@ -51,6 +52,10 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleLogin = () => {
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#3B82F6] to-[#111827] flex items-center justify-center p-4">
       <div className="max-w-md w-full">
@@ -65,6 +70,24 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Google Login Button */}
+          <button
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all duration-300 mb-4"
+          >
+            <Chrome size={20} className="text-[#3B82F6]" />
+            Google দিয়ে লগইন করুন
+          </button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">অথবা</span>
+            </div>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <label className="block text-gray-700 font-medium mb-2">

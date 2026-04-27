@@ -3,20 +3,44 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useState } from 'react';
-import { User, Menu, X, Home, ShoppingBag, Users, Calendar, LayoutDashboard } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Menu, X, Home, ShoppingBag, Users, Calendar, LayoutDashboard, LogIn } from 'lucide-react';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    checkLoginStatus();
+  }, []);
+
+  const checkLoginStatus = () => {
+    const token = localStorage.getItem('userToken');
+    const userData = localStorage.getItem('userData');
+    
+    if (token && userData) {
+      setIsLoggedIn(true);
+      const user = JSON.parse(userData);
+      setUserName(user.fullName || user.name || 'User');
+    } else {
+      setIsLoggedIn(false);
+      setUserName('');
+    }
+  };
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
   const handleProfileClick = () => {
-    router.push('/dashboard/profile');
+    if (isLoggedIn) {
+      router.push('/dashboard/profile');
+    } else {
+      router.push('/login');
+    }
   };
 
   const navLinks = [
@@ -29,14 +53,11 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 bg-gradient-to-br from-[#3B82F6] to-[#111827] shadow-lg">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Main Navigation Bar */}
         <div className="flex items-center justify-between py-3 md:py-4">
           {/* Logo */}
           <Link href="/" className="group">
             <div className="flex items-center gap-2">
-              <span className="text-2xl md:text-3xl font-bold text-white">
-                FCS
-              </span>
+              <span className="text-2xl md:text-3xl font-bold text-white">FCS</span>
               <span className="hidden sm:inline-block text-xs bg-white/20 px-2 py-1 rounded-full text-white">
                 হোমমেইড
               </span>
@@ -64,15 +85,27 @@ const Navbar = () => {
             })}
           </div>
 
-          {/* Right Section - Profile Only */}
+          {/* Right Section - Profile */}
           <div className="flex items-center gap-4">
-            {/* Profile Button */}
+            {isLoggedIn && (
+              <div className="hidden md:flex items-center gap-2 text-white/80 text-sm">
+                <span>স্বাগতম,</span>
+                <span className="font-semibold text-white">{userName}</span>
+              </div>
+            )}
+            
             <button
               onClick={handleProfileClick}
               className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg transition-all duration-200 group"
             >
-              <User size={20} className="group-hover:scale-110 transition-transform" />
-              <span className="hidden md:inline text-sm font-medium">প্রোফাইল</span>
+              {isLoggedIn ? (
+                <User size={20} className="group-hover:scale-110 transition-transform" />
+              ) : (
+                <LogIn size={20} className="group-hover:scale-110 transition-transform" />
+              )}
+              <span className="hidden md:inline text-sm font-medium">
+                {isLoggedIn ? 'প্রোফাইল' : 'লগইন'}
+              </span>
             </button>
 
             {/* Mobile Menu Button */}
@@ -100,7 +133,6 @@ const Navbar = () => {
         `}
       >
         <div className="p-6">
-          {/* Mobile Menu Header */}
           <div className="flex justify-between items-center mb-8 pb-4 border-b">
             <div>
               <span className="text-xl font-bold bg-gradient-to-br from-[#3B82F6] to-[#111827] bg-clip-text text-transparent">
@@ -108,16 +140,11 @@ const Navbar = () => {
               </span>
               <p className="text-xs text-gray-500 mt-1">মেনু</p>
             </div>
-            <button
-              onClick={toggleMenu}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              aria-label="Close menu"
-            >
+            <button onClick={toggleMenu} className="p-2 hover:bg-gray-100 rounded-full">
               <X size={24} />
             </button>
           </div>
 
-          {/* Mobile Navigation Links */}
           <div className="space-y-2 mb-8">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
@@ -134,31 +161,33 @@ const Navbar = () => {
                 >
                   <link.icon size={20} />
                   <span className="font-medium">{link.name}</span>
-                  {isActive && (
-                    <span className="ml-auto text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                      এখন
-                    </span>
-                  )}
                 </Link>
               );
             })}
           </div>
 
-          {/* Mobile Profile Section */}
           <div className="border-t pt-6">
             <button
               onClick={() => {
-                handleProfileClick();
+                if (isLoggedIn) {
+                  handleProfileClick();
+                } else {
+                  router.push('/login');
+                }
                 toggleMenu();
               }}
               className="w-full flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-100 transition-colors group"
             >
               <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] p-2 rounded-full text-white">
-                <User size={18} />
+                {isLoggedIn ? <User size={18} /> : <LogIn size={18} />}
               </div>
               <div className="text-left">
-                <p className="font-medium text-gray-800">আমার অ্যাকাউন্ট</p>
-                <p className="text-xs text-gray-500">প্রোফাইল দেখুন ও এডিট করুন</p>
+                <p className="font-medium text-gray-800">
+                  {isLoggedIn ? 'আমার অ্যাকাউন্ট' : 'লগইন / সাইনআপ'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {isLoggedIn ? 'প্রোফাইল দেখুন ও এডিট করুন' : 'অ্যাকাউন্টে লগইন করুন'}
+                </p>
               </div>
               <LayoutDashboard size={16} className="ml-auto text-gray-400 group-hover:text-[#3B82F6]" />
             </button>
