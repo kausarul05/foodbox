@@ -53,7 +53,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+    window.location.href = `https://foodbox-backend.vercel.app/api/auth/google`;
   };
 
   return (
