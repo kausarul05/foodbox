@@ -13,14 +13,11 @@ const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
 
-  useEffect(() => {
-    checkLoginStatus();
-  }, []);
-
+  
   const checkLoginStatus = () => {
     const token = localStorage.getItem('userToken');
     const userData = localStorage.getItem('userData');
-    
+    console.log('Checking login status:', { token, userData });
     if (token && userData) {
       setIsLoggedIn(true);
       const user = JSON.parse(userData);
@@ -30,6 +27,10 @@ const Navbar = () => {
       setUserName('');
     }
   };
+
+  useEffect(() => {
+    checkLoginStatus();
+  }, []);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
