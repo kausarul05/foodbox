@@ -13,7 +13,7 @@ export default function Banner() {
         alt='Food banner'
         fill
         // priority
-        className="md:mt-10 mt-2"
+        className="md:mt-18 mt-10"
         // sizes="100vw"
         // quality={95}
       />

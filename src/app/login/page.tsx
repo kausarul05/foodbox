@@ -1,16 +1,15 @@
-// app/login/page.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, LogIn, UserPlus, Eye, EyeOff, Shield, Chrome } from 'lucide-react';
+import { Phone, Lock, LogIn, UserPlus, Eye, EyeOff, Shield, Chrome } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { authAPI } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -18,14 +17,19 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      toast.error('ইমেইল এবং পাসওয়ার্ড দিন');
+    if (!phoneNumber || !password) {
+      toast.error('ফোন নাম্বার এবং পাসওয়ার্ড দিন');
+      return;
+    }
+    
+    if (phoneNumber.length < 11) {
+      toast.error('সঠিক ফোন নাম্বার দিন');
       return;
     }
     
     try {
       setLoading(true);
-      const response = await authAPI.userLogin(email, password);
+      const response = await authAPI.userLogin(phoneNumber, password);
       console.log('Login response:', response);
       
       if (response.success) {
@@ -35,14 +39,17 @@ export default function LoginPage() {
         localStorage.setItem('userToken', token);
         localStorage.setItem('userData', JSON.stringify(userData));
         
+        // Dispatch custom event for navbar update
+        window.dispatchEvent(new Event('loginStatusChanged'));
+        
         toast.success('লগইন সফল!');
         
-        // Redirect to home or previous page
+        // Redirect to home
         setTimeout(() => {
-          router.push('/');
+          window.location.href = '/';
         }, 500);
       } else {
-        toast.error(response.message || 'ইমেইল বা পাসওয়ার্ড ভুল');
+        toast.error(response.message || 'ফোন নাম্বার বা পাসওয়ার্ড ভুল');
       }
     } catch (error: any) {
       console.error('Login error:', error);
@@ -91,16 +98,16 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <label className="block text-gray-700 font-medium mb-2">
-                ইমেইল এড্রেস
+                ফোন নাম্বার
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="you@example.com"
+                  placeholder="+8801XXXXXXXXX"
                   required
                 />
               </div>

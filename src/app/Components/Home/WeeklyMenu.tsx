@@ -129,7 +129,7 @@ const WeeklyMenu: React.FC = () => {
   }
 
   return (
-    <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white">
+    <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white mt-12">
       <div className="max-w-6xl mx-auto">
 
         {/* Full Weekly Menu Table */}

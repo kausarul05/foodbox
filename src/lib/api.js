@@ -67,12 +67,12 @@ export const packageAPI = {
 
 // Auth APIs
 export const authAPI = {
-  // User login
-  userLogin: (email, password) => {
+  // User login with phone number
+  userLogin: (phoneNumber, password) => {
     return apiCall('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password })
-    })
+      body: JSON.stringify({ phoneNumber, password }),
+    });
   },
 
   // User register

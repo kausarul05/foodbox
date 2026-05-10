@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useState, useEffect } from 'react';
 import { User, Menu, X, Home, ShoppingBag, Users, Calendar, LayoutDashboard, LogIn } from 'lucide-react';
+import Image from 'next/image';
+import logo from '../../../public/Images/logo.jpg'
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -52,16 +54,23 @@ const Navbar = () => {
   ];
 
   return (
-    <nav className="sticky top-0 z-50 bg-gradient-to-br from-[#3B82F6] to-[#111827] shadow-lg">
+    <nav className="sticky md:top-13 top-10 z-50 bg-gradient-to-br from-[#3B82F6] to-[#111827] shadow-lg">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-3 md:py-4">
           {/* Logo */}
           <Link href="/" className="group">
             <div className="flex items-center gap-2">
-              <span className="text-2xl md:text-3xl font-bold text-white">FCS</span>
+              {/* <span className="text-2xl md:text-3xl font-bold text-white">FCS</span>
               <span className="hidden sm:inline-block text-xs bg-white/20 px-2 py-1 rounded-full text-white">
                 হোমমেইড
-              </span>
+              </span> */}
+              <Image
+                src={logo}
+                alt='Logo'
+                width={40}
+                height={40}
+                className=""
+              />
             </div>
           </Link>
 

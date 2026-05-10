@@ -118,14 +118,14 @@ export default function SignupPage() {
         
         // Redirect to home
         setTimeout(() => {
-          router.push('/');
+          window.location.href = '/';
         }, 500);
       } else {
         toast.error(response.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
       }
     } catch (error: any) {
-      console.error('Signup error:', error);
-      toast.error(error.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
+      toast.error(error?.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
+      console.error('Signup error xx:', error?.message);
     } finally {
       setLoading(false);
     }
