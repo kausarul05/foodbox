@@ -15,86 +15,61 @@ export default function SupportBanner() {
           }
         }
         .animate-scroll {
-          animation: scroll 15s linear infinite;
+          animation: scroll 18s linear infinite;
           width: fit-content;
         }
-        /* Pause animation on hover (optional) */
         .banner-container:hover .animate-scroll {
           animation-play-state: paused;
         }
+        
+        @media (max-width: 640px) {
+          .animate-scroll {
+            animation-duration: 12s;
+          }
+        }
       `}</style>
       
-      <div className="banner-container overflow-hidden py-3 md:py-4">
+      <div className="banner-container overflow-hidden py-2.5 md:py-3">
         <div className="animate-scroll">
-          <div className="flex items-center gap-6 md:gap-8 px-4">
+          <div className="flex items-center gap-4 md:gap-6 px-3 md:px-4">
             {/* First set */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm md:text-base whitespace-nowrap">
-                📞 আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন: 
+            <div className="flex items-center">
+              <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">
+                📞 ওয়েবসাইটে অর্ডার/পেমেন্ট সংক্রান্ত যেকোন সমস্যা হলে সরাসরি 
+                <a 
+                  href="tel:+8801792695939" 
+                  className="font-bold underline hover:no-underline mx-1"
+                >
+                  ০১৭৯২৬৯৫৯৩৯
+                </a>
+                এই নাম্বারে যোগাযোগ করুন।
               </span>
-              <a 
-                href="tel:+8801868703130" 
-                className="text-sm md:text-base font-semibold underline hover:no-underline whitespace-nowrap"
-              >
-                ০১৮৬৮৭০৩১৩০
-              </a>
             </div>
             
             {/* Duplicate set for seamless loop */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm md:text-base whitespace-nowrap">
-                📞 আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন: 
+            <div className="flex items-center">
+              <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">
+                📞 ওয়েবসাইটে অর্ডার/পেমেন্ট সংক্রান্ত যেকোন সমস্যা হলে সরাসরি 
+                <a 
+                  href="tel:+8801792695939" 
+                  className="font-bold underline hover:no-underline mx-1"
+                >
+                  ০১৭৯২৬৯৫৯৩৯
+                </a>
+                এই নাম্বারে যোগাযোগ করুন।
               </span>
-              <a 
-                href="tel:+8801868703130" 
-                className="text-sm md:text-base font-semibold underline hover:no-underline whitespace-nowrap"
-              >
-                ০১৮৬৮৭০৩১৩০
-              </a>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm md:text-base whitespace-nowrap">
-                📞 আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন: 
+            <div className="flex items-center">
+              <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">
+                📞 ওয়েবসাইটে অর্ডার/পেমেন্ট সংক্রান্ত যেকোন সমস্যা হলে সরাসরি 
+                <a 
+                  href="tel:+8801792695939" 
+                  className="font-bold underline hover:no-underline mx-1"
+                >
+                  ০১৭৯২৬৯৫৯৩৯
+                </a>
+                এই নাম্বারে যোগাযোগ করুন।
               </span>
-              <a 
-                href="tel:+8801868703130" 
-                className="text-sm md:text-base font-semibold underline hover:no-underline whitespace-nowrap"
-              >
-                ০১৮৬৮৭০৩১৩০
-              </a>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm md:text-base whitespace-nowrap">
-                📞 আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন: 
-              </span>
-              <a 
-                href="tel:+8801868703130" 
-                className="text-sm md:text-base font-semibold underline hover:no-underline whitespace-nowrap"
-              >
-                ০১৮৬৮৭০৩১৩০
-              </a>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm md:text-base whitespace-nowrap">
-                📞 আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন: 
-              </span>
-              <a 
-                href="tel:+8801868703130" 
-                className="text-sm md:text-base font-semibold underline hover:no-underline whitespace-nowrap"
-              >
-                ০১৮৬৮৭০৩১৩০
-              </a>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm md:text-base whitespace-nowrap">
-                📞 আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন: 
-              </span>
-              <a 
-                href="tel:+8801868703130" 
-                className="text-sm md:text-base font-semibold underline hover:no-underline whitespace-nowrap"
-              >
-                ০১৮৬৮৭০৩১৩০
-              </a>
             </div>
           </div>
         </div>
