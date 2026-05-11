@@ -116,7 +116,15 @@ export const orderAPI = {
   // Get my orders
   getMyOrders: () => {
     return apiCall('/orders/myorders')
-  }
+  },
+
+  // Check if order is within deadline
+  checkDeadline: (deliveryDate, deliveryTime) => {
+    return apiCall('/orders/check-deadline', {
+      method: 'POST',
+      body: JSON.stringify({ deliveryDate, deliveryTime }),
+    });
+  },
 }
 
 // Subscription APIs

@@ -13,23 +13,49 @@ import {
   LogIn,
   AlertCircle,
   ShoppingBag,
-  Clock
+  Clock,
+  Wallet,
+  Truck,
+  Crown,
+  X,
+  Coffee,
+  Sun,
+  Moon,
+  ChevronDown,
+  ChevronUp,
+  Info
 } from 'lucide-react';
 import { orderAPI, subscriptionAPI, menuAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-
-interface MealItem {
-  name: string;
-  price: number;
-  quantity: number;
-}
 
 interface MenuItem {
   day: string;
   morning: string;
   lunch: string;
   dinner: string;
+}
+
+interface MealSelection {
+  morning: boolean;
+  lunch: boolean;
+  dinner: boolean;
+}
+
+interface DayOrder {
+  date: string;
+  dayName: string;
+  meals: MealSelection;
+  morningMeal?: string;
+  lunchMeal?: string;
+  dinnerMeal?: string;
+  isExpanded: boolean;
+}
+
+interface MealPrice {
+  morning: number;
+  lunch: number;
+  dinner: number;
 }
 
 export default function OrderPage() {
@@ -46,31 +72,53 @@ export default function OrderPage() {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [availableMenu, setAvailableMenu] = useState<MenuItem[]>([]);
-  const [orderSummary, setOrderSummary] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'cod'>('cod');
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [dailyOrders, setDailyOrders] = useState<DayOrder[]>([]);
+  const [mealsPerDay, setMealsPerDay] = useState<'1' | '2' | '3'>('3');
+  const [selectedMealType, setSelectedMealType] = useState<'all' | 'morning' | 'lunch' | 'dinner'>('all');
+
+  const mealPrices: MealPrice = {
+    morning: 50,
+    lunch: 80,
+    dinner: 100
+  };
+
+  const deliveryChargePerDay = 15;
+  const daysOfWeek = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
 
   const zones = ['উত্তরা', 'ধানমন্ডি', 'গুলশান', 'বনানী', 'মিরপুর', 'মোহাম্মদপুর', 'পুরান ঢাকা', 'যাত্রাবাড়ী', 'নিউ মার্কেট', 'বসুন্ধরা'];
 
-  // Set default dates
+  // Meal type options
+  const mealTypeOptions = [
+    { value: 'all', label: 'সব বেলা', icon: null },
+    { value: 'morning', label: 'সকাল', icon: Coffee },
+    { value: 'lunch', label: 'দুপুর', icon: Sun },
+    { value: 'dinner', label: 'রাত', icon: Moon },
+  ];
+
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    setStartDate(today);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setStartDate(tomorrow.toISOString().split('T')[0]);
     
-    const end = new Date(today);
+    const end = new Date(tomorrow);
     end.setDate(end.getDate() + 6);
     setEndDate(end.toISOString().split('T')[0]);
   }, []);
 
-  // Check login and subscription status
   useEffect(() => {
     checkLoginStatus();
   }, []);
 
-  // Update order summary when dates change
   useEffect(() => {
     if (startDate && endDate && availableMenu.length > 0) {
-      calculateOrderSummary();
+      initializeDailyOrders();
     }
-  }, [startDate, endDate, availableMenu]);
+  }, [startDate, endDate, availableMenu, mealsPerDay, selectedMealType]);
 
   const checkLoginStatus = async () => {
     const token = localStorage.getItem('userToken');
@@ -80,6 +128,7 @@ export default function OrderPage() {
       setIsLoggedIn(true);
       const userInfo = JSON.parse(user);
       setUserData(userInfo);
+      setWalletBalance(userInfo.walletBalance || 0);
 
       if (userInfo.phoneNumber) setPhoneNumber(userInfo.phoneNumber);
       if (userInfo.zone) setSelectedZone(userInfo.zone);
@@ -95,21 +144,31 @@ export default function OrderPage() {
   const checkSubscriptionStatus = async () => {
     try {
       const response = await subscriptionAPI.getMySubscriptions();
-      console.log('Subscription response:', response);
-
       if (response.success && response.data) {
         const activeSub = response.data.find((sub: any) => sub.status === 'active');
         if (activeSub) {
           setHasActiveSubscription(true);
           setSubscriptionData(activeSub);
           await fetchMenu(activeSub.package);
+          setPaymentMethod('wallet');
         } else {
           setHasActiveSubscription(false);
+          await fetchMenu('golden');
+          setPaymentMethod('cod');
+          setShowSubscriptionModal(true);
         }
+      } else {
+        setHasActiveSubscription(false);
+        await fetchMenu('golden');
+        setPaymentMethod('cod');
+        setShowSubscriptionModal(true);
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
       setHasActiveSubscription(false);
+      await fetchMenu('golden');
+      setPaymentMethod('cod');
+      setShowSubscriptionModal(true);
     } finally {
       setLoading(false);
     }
@@ -126,28 +185,14 @@ export default function OrderPage() {
     }
   };
 
-  const getDatesInRange = (start: string, end: string) => {
-    const dates = [];
-    let currentDate = new Date(start);
-    const endDate = new Date(end);
-    
-    while (currentDate <= endDate) {
-      dates.push(new Date(currentDate).toISOString().split('T')[0]);
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    return dates;
-  };
-
   const getDayName = (date: string) => {
-    const days = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
     const dayIndex = new Date(date).getDay();
-    return days[dayIndex];
+    return daysOfWeek[dayIndex];
   };
 
   const getMealForDay = (dayName: string, mealType: string) => {
     const menu = availableMenu.find(m => m.day === dayName);
     if (!menu) return null;
-    
     switch(mealType) {
       case 'morning': return menu.morning;
       case 'lunch': return menu.lunch;
@@ -156,121 +201,187 @@ export default function OrderPage() {
     }
   };
 
-  const calculateOrderSummary = () => {
+  const getDatesInRange = (start: string, end: string) => {
+    const dates = [];
+    let currentDate = new Date(start);
+    const endDate = new Date(end);
+    while (currentDate <= endDate) {
+      dates.push(new Date(currentDate).toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return dates;
+  };
+
+  const initializeDailyOrders = () => {
     const dates = getDatesInRange(startDate, endDate);
-    const mealTypes = ['morning', 'lunch', 'dinner'];
-    const mealNames = { morning: 'সকালের খাবার', lunch: 'দুপুরের খাবার', dinner: 'রাতের খাবার' };
-    
-    let totalMeals = 0;
-    let availableMeals = 0;
-    const details = [];
+    const orders: DayOrder[] = [];
 
     for (const date of dates) {
       const dayName = getDayName(date);
-      const dayMeals = [];
+      let meals: MealSelection = { morning: false, lunch: false, dinner: false };
       
-      for (const mealType of mealTypes) {
-        const meal = getMealForDay(dayName, mealType);
-        totalMeals++;
-        if (meal) {
-          availableMeals++;
-          dayMeals.push({ type: mealType, name: mealNames[mealType as keyof typeof mealNames], meal });
-        }
+      if (selectedMealType === 'morning') {
+        meals = { morning: true, lunch: false, dinner: false };
+      } else if (selectedMealType === 'lunch') {
+        meals = { morning: false, lunch: true, dinner: false };
+      } else if (selectedMealType === 'dinner') {
+        meals = { morning: false, lunch: false, dinner: true };
+      } else if (mealsPerDay === '3') {
+        meals = { morning: true, lunch: true, dinner: true };
+      } else if (mealsPerDay === '2') {
+        meals = { morning: true, lunch: true, dinner: false };
+      } else if (mealsPerDay === '1') {
+        meals = { morning: true, lunch: false, dinner: false };
       }
-      
-      if (dayMeals.length > 0) {
-        details.push({ date, dayName, meals: dayMeals });
+
+      orders.push({
+        date,
+        dayName,
+        meals,
+        morningMeal: getMealForDay(dayName, 'morning') || undefined,
+        lunchMeal: getMealForDay(dayName, 'lunch') || undefined,
+        dinnerMeal: getMealForDay(dayName, 'dinner') || undefined,
+        isExpanded: false,
+      });
+    }
+    setDailyOrders(orders);
+  };
+
+  const toggleDayExpand = (date: string) => {
+    setDailyOrders(prev => prev.map(order => 
+      order.date === date ? { ...order, isExpanded: !order.isExpanded } : order
+    ));
+  };
+
+  const updateMealSelection = (date: string, mealType: keyof MealSelection) => {
+    setDailyOrders(prev => prev.map(order => {
+      if (order.date === date) {
+        return {
+          ...order,
+          meals: { ...order.meals, [mealType]: !order.meals[mealType] }
+        };
+      }
+      return order;
+    }));
+  };
+
+  const updateMealsPerDay = (value: '1' | '2' | '3') => {
+    setMealsPerDay(value);
+    setSelectedMealType('all');
+  };
+
+  const updateSelectedMealType = (value: 'all' | 'morning' | 'lunch' | 'dinner') => {
+    setSelectedMealType(value);
+    if (value !== 'all') {
+      setMealsPerDay('1');
+    }
+  };
+
+  const calculateTotalPrice = () => {
+    let totalMealPrice = 0;
+    let totalDeliveryCharge = 0;
+    let daysWithOrders = 0;
+
+    for (const order of dailyOrders) {
+      let hasAnyMeal = false;
+      if (order.meals.morning) {
+        totalMealPrice += mealPrices.morning;
+        hasAnyMeal = true;
+      }
+      if (order.meals.lunch) {
+        totalMealPrice += mealPrices.lunch;
+        hasAnyMeal = true;
+      }
+      if (order.meals.dinner) {
+        totalMealPrice += mealPrices.dinner;
+        hasAnyMeal = true;
+      }
+      if (hasAnyMeal) {
+        daysWithOrders++;
       }
     }
 
-    setOrderSummary({
-      totalDays: dates.length,
-      totalMeals: availableMeals,
-      expectedMeals: totalMeals,
-      details,
-      startDate,
-      endDate
-    });
+    totalDeliveryCharge = daysWithOrders * deliveryChargePerDay;
+    
+    return {
+      mealPrice: totalMealPrice,
+      deliveryCharge: totalDeliveryCharge,
+      total: totalMealPrice + totalDeliveryCharge,
+      daysWithOrders
+    };
   };
 
-  const handleLoginRedirect = () => {
-    router.push('/login');
-  };
-
+  const handleLoginRedirect = () => router.push('/login');
   const handleSubscribeRedirect = () => {
+    setShowSubscriptionModal(false);
     router.push('/subscription');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!isLoggedIn) {
-      toast.error('অর্ডার করতে দয়া করে লগইন করুন');
-      router.push('/login');
+  const openConfirmModal = () => {
+    const total = calculateTotalPrice().total;
+    if (total === 0) {
+      toast.error('দয়া করে কমপক্ষে একটি খাবার নির্বাচন করুন');
       return;
     }
+    setShowConfirmModal(true);
+  };
 
-    if (!hasActiveSubscription) {
-      toast.error('অর্ডার করতে সক্রিয় সাবস্ক্রিপশন প্রয়োজন');
-      router.push('/subscription');
-      return;
-    }
-
-    if (!phoneNumber) {
-      toast.error('দয়া করে ফোন নাম্বার দিন');
-      return;
-    }
-
-    if (!selectedZone) {
-      toast.error('দয়া করে জোন সিলেক্ট করুন');
-      return;
-    }
-
-    if (!address) {
-      toast.error('দয়া করে ঠিকানা দিন');
-      return;
-    }
-
-    if (!startDate || !endDate) {
-      toast.error('দয়া করে শুরু এবং শেষ তারিখ সিলেক্ট করুন');
-      return;
-    }
-
-    if (new Date(startDate) > new Date(endDate)) {
-      toast.error('শেষ তারিখ শুরু তারিখের পরে হতে হবে');
-      return;
-    }
+  const handleSubmit = async () => {
+    setShowConfirmModal(false);
 
     try {
       setSubmitting(true);
-      
-      const dates = getDatesInRange(startDate, endDate);
-      const mealTypes = ['morning', 'lunch', 'dinner'];
       const orders = [];
 
-      for (const date of dates) {
-        const dayName = getDayName(date);
-        
-        for (const mealType of mealTypes) {
-          const meal = getMealForDay(dayName, mealType);
-          
-          if (meal) {
-            const orderData = {
-              items: [{ name: meal, price: 0, quantity: 1 }],
-              totalAmount: 0,
-              deliveryCharge: 0,
-              paymentMethod: 'subscription',
-              deliveryDate: date,
-              deliveryTime: mealType,
-              address: address,
-              zone: selectedZone,
-              specialInstructions: '',
-              package: subscriptionData?.packageName || subscriptionData?.package,
-            };
+      for (const order of dailyOrders) {
+        const meals = [];
+        if (order.meals.morning && order.morningMeal) {
+          meals.push({ 
+            name: order.morningMeal, 
+            price: mealPrices.morning, 
+            quantity: 1,
+            time: 'morning'
+          });
+        }
+        if (order.meals.lunch && order.lunchMeal) {
+          meals.push({ 
+            name: order.lunchMeal, 
+            price: mealPrices.lunch, 
+            quantity: 1,
+            time: 'lunch'
+          });
+        }
+        if (order.meals.dinner && order.dinnerMeal) {
+          meals.push({ 
+            name: order.dinnerMeal, 
+            price: mealPrices.dinner, 
+            quantity: 1,
+            time: 'dinner'
+          });
+        }
 
-            const orderResponse = await orderAPI.createOrder(orderData);
-            if (orderResponse.success) {
-              orders.push(orderResponse.data);
+        for (const meal of meals) {
+          const orderData = {
+            items: [{ name: meal.name, price: meal.price, quantity: 1 }],
+            totalAmount: meal.price,
+            deliveryCharge: 0,
+            paymentMethod: hasActiveSubscription ? 'wallet' : 'cash',
+            deliveryDate: order.date,
+            deliveryTime: meal.time,
+            address: address,
+            zone: selectedZone,
+            specialInstructions: '',
+            package: subscriptionData?.packageName || 'Regular',
+          };
+
+          const orderResponse = await orderAPI.createOrder(orderData);
+          if (orderResponse.success) {
+            orders.push(orderResponse.data);
+            if (orderResponse.walletBalance) {
+              setWalletBalance(orderResponse.walletBalance);
+              const updatedUser = { ...userData, walletBalance: orderResponse.walletBalance };
+              localStorage.setItem('userData', JSON.stringify(updatedUser));
+              setUserData(updatedUser);
             }
           }
         }
@@ -279,11 +390,10 @@ export default function OrderPage() {
       if (orders.length > 0) {
         toast.success(`${orders.length}টি অর্ডার সফলভাবে সম্পন্ন হয়েছে!`);
         
-        // Reset to next week
+        // Reset dates to next week
         const nextWeek = new Date(endDate);
         nextWeek.setDate(nextWeek.getDate() + 1);
         setStartDate(nextWeek.toISOString().split('T')[0]);
-        
         const nextWeekEnd = new Date(nextWeek);
         nextWeekEnd.setDate(nextWeekEnd.getDate() + 6);
         setEndDate(nextWeekEnd.toISOString().split('T')[0]);
@@ -299,6 +409,8 @@ export default function OrderPage() {
     }
   };
 
+  const totalPrice = calculateTotalPrice();
+
   if (loading) {
     return (
       <section className="min-h-screen bg-gray-50 py-12 px-4">
@@ -313,16 +425,113 @@ export default function OrderPage() {
   }
 
   return (
-    <section className="min-h-screen bg-gray-50 py-12 px-4 mt-10 md:mt-5">
+    <section className="min-h-screen bg-gray-50 py-8 px-4 mt-10 md:mt-5">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white mb-4">
             <ShoppingBag className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">অর্ডার করুন</h1>
-          <p className="text-gray-600">আপনার সাবস্ক্রিপশনের খাবার অর্ডার করুন</p>
+          <p className="text-gray-600">আপনার পছন্দের খাবার অর্ডার করুন</p>
         </div>
+
+        {/* Subscription Prompt Modal */}
+        {showSubscriptionModal && !hasActiveSubscription && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-6 h-6 text-[#3B82F6]" />
+                  <h3 className="text-xl font-bold text-gray-800">সাবস্ক্রিপশন অফার!</h3>
+                </div>
+                <button onClick={() => setShowSubscriptionModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="text-center mb-6">
+                <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white p-4 rounded-xl mb-4">
+                  <p className="text-lg font-bold">সাবস্ক্রাইব করুন এবং ছাড় নিন!</p>
+                  <p className="text-sm mt-2">সাবস্ক্রিপশন নিলে অর্ডারে ছাড় + ফ্রি ডেলিভারি</p>
+                </div>
+                <ul className="text-left space-y-2 text-gray-600">
+                  <li className="flex items-center gap-2">✓ সপ্তাহের ৭ দিন ডেলিভারি</li>
+                  <li className="flex items-center gap-2">✓ প্রতিদিন ৩ বেলা খাবার</li>
+                  <li className="flex items-center gap-2">✓ ফ্রি হোম ডেলিভারি</li>
+                </ul>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSubscriptionModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  পরবর্তীতে
+                </button>
+                <button
+                  onClick={handleSubscribeRedirect}
+                  className="flex-1 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold"
+                >
+                  সাবস্ক্রাইব করুন
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Order Modal */}
+        {showConfirmModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">অর্ডার কনফার্মেশন</h3>
+                <button onClick={() => setShowConfirmModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <p className="text-gray-600">অর্ডার বিবরণ:</p>
+                  <div className="mt-2 space-y-1 text-black">
+                    <div className="flex justify-between">
+                      <span>খাবারের মূল্য:</span>
+                      <span className="font-semibold">৳ {totalPrice.mealPrice}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>ডেলিভারি চার্জ:</span>
+                      <span className="font-semibold">৳ {totalPrice.deliveryCharge}</span>
+                    </div>
+                    <div className="border-t pt-2 mt-2">
+                      <div className="flex justify-between font-bold">
+                        <span>মোট:</span>
+                        <span className="text-[#3B82F6]">৳ {totalPrice.total}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-yellow-50 rounded-xl p-3">
+                  <p className="text-sm text-yellow-800">পেমেন্ট মেথড: {hasActiveSubscription ? 'ওয়ালেট' : 'ক্যাশ অন ডেলিভারি'}</p>
+                  <p className="text-sm text-yellow-800 mt-1">ডেলিভারি ঠিকানা: {address}</p>
+                  <p className="text-sm text-yellow-800">ফোন: {phoneNumber}</p>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  বাতিল
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="flex-1 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all"
+                >
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'অর্ডার নিশ্চিত করুন'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Login Required */}
         {!isLoggedIn && (
@@ -342,44 +551,88 @@ export default function OrderPage() {
           </div>
         )}
 
-        {/* No Active Subscription */}
-        {isLoggedIn && !hasActiveSubscription && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
-            <div className="bg-red-100 p-4 rounded-full w-fit mx-auto mb-4">
-              <AlertCircle className="w-12 h-12 text-red-600" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">কোনো সক্রিয় সাবস্ক্রিপশন নেই</h2>
-            <p className="text-gray-600 mb-6">অর্ডার করতে সক্রিয় সাবস্ক্রিপশন প্রয়োজন। অনুগ্রহ করে একটি প্যাকেজ সাবস্ক্রাইব করুন।</p>
-            <button
-              onClick={handleSubscribeRedirect}
-              className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white px-8 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 mx-auto"
-            >
-              <Package size={20} />
-              সাবস্ক্রাইব করুন
-            </button>
-          </div>
-        )}
-
         {/* Order Form */}
-        {isLoggedIn && hasActiveSubscription && (
+        {isLoggedIn && (
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            <div className="p-6 md:p-8">
-              <form onSubmit={handleSubmit}>
-                {/* Active Subscription Info */}
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+            <div className="p-6">
+              <form onSubmit={(e) => { e.preventDefault(); openConfirmModal(); }}>
+                {/* User Info & Wallet */}
+                <div className="bg-gray-50 rounded-xl p-4 mb-6">
+                  <div className="flex justify-between items-center">
                     <div>
-                      <h3 className="font-semibold text-green-800">সক্রিয় সাবস্ক্রিপশন</h3>
-                      <p className="text-green-700 text-sm">
-                        {subscriptionData?.packageName || subscriptionData?.package} প্যাকেজ
-                      </p>
-                      <p className="text-green-600 text-xs mt-1">
-                        বৈধ: {new Date(subscriptionData?.startDate).toLocaleDateString('bn-BD')} - {new Date(subscriptionData?.endDate).toLocaleDateString('bn-BD')}
-                      </p>
+                      <p className="text-gray-600 text-sm">স্বাগতম,</p>
+                      <p className="font-semibold text-gray-800">{userData?.fullName}</p>
                     </div>
+                    {hasActiveSubscription && (
+                      <div className="text-right">
+                        <p className="text-gray-600 text-sm flex items-center gap-1">
+                          <Wallet size={14} /> ওয়ালেট ব্যালেন্স
+                        </p>
+                        <p className="text-2xl font-bold text-[#3B82F6]">৳ {walletBalance}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Meal Type Selection - Single Meal Option */}
+                <div className="mb-6">
+                  <label className="block text-gray-700 font-medium mb-2">
+                    <Info className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
+                    খাবার নির্বাচন
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {mealTypeOptions.map((option) => {
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateSelectedMealType(option.value as any)}
+                          className={`py-2 px-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-1 ${
+                            selectedMealType === option.value
+                              ? 'bg-[#3B82F6] text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {Icon && <Icon size={14} />}
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Meals Per Day Selection - Only show when 'all' is selected */}
+                {selectedMealType === 'all' && (
+                  <div className="mb-6">
+                    <label className="block text-gray-700 font-medium mb-2">
+                      প্রতিদিন কত বেলা খাবার নিবেন?
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => updateMealsPerDay('1')}
+                        className={`py-2 rounded-lg font-semibold transition-all ${mealsPerDay === '1' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+                      >
+                        ১ বেলা (সকাল)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateMealsPerDay('2')}
+                        className={`py-2 rounded-lg font-semibold transition-all ${mealsPerDay === '2' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+                      >
+                        ২ বেলা (সকাল+দুপুর)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateMealsPerDay('3')}
+                        className={`py-2 rounded-lg font-semibold transition-all ${mealsPerDay === '3' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+                      >
+                        ৩ বেলা (সকাল+দুপুর+রাত)
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Date Range Selection */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
@@ -413,57 +666,113 @@ export default function OrderPage() {
                   </div>
                 </div>
 
-                {/* Order Summary */}
-                {orderSummary && orderSummary.totalMeals > 0 && (
-                  <div className="bg-blue-50 rounded-xl p-4 mb-6">
-                    <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-[#3B82F6]" />
-                      অর্ডার সামারি
-                    </h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">মোট দিন:</span>
-                        <span className="font-semibold text-black">{orderSummary.totalDays} দিন</span>
-                      </div>
-                      <div className="flex justify-between text-black">
-                        <span className="text-gray-600">মোট খাবার:</span>
-                        <span className="font-semibold text-green-600">{orderSummary.totalMeals} টি (সকাল, দুপুর, রাত)</span>
-                      </div>
-                      <div className="border-t pt-2 mt-2">
-                        <div className="flex justify-between font-bold text-lg">
-                          <span className="text-gray-800">মোট মূল্য:</span>
-                          <span className="text-[#3B82F6]">৳ ০ (সাবস্ক্রিপশনে অন্তর্ভুক্ত)</span>
+                {/* Daily Order Cards - Collapsible */}
+                <div className="mb-6 space-y-3 max-h-[500px] overflow-y-auto">
+                  <h3 className="font-semibold text-gray-800 mb-2 sticky top-0 bg-white py-2">দৈনিক খাবার নির্বাচন</h3>
+                  {dailyOrders.map((order) => (
+                    <div key={order.date} className="border border-gray-200 rounded-xl overflow-hidden">
+                      {/* Collapsible Header */}
+                      <button
+                        type="button"
+                        onClick={() => toggleDayExpand(order.date)}
+                        className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                      >
+                        <div>
+                          <div className="font-semibold text-gray-800">
+                            {order.dayName} - {new Date(order.date).toLocaleDateString('bn-BD')}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {order.meals.morning && '🌅 সকাল '}
+                            {order.meals.lunch && '☀️ দুপুর '}
+                            {order.meals.dinner && '🌙 রাত '}
+                            {!order.meals.morning && !order.meals.lunch && !order.meals.dinner && 'কোন খাবার নির্বাচিত হয়নি'}
+                          </div>
                         </div>
+                        {order.isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                      </button>
+
+                      {/* Collapsible Content */}
+                      {order.isExpanded && (
+                        <div className="p-4 space-y-3 border-t border-gray-200">
+                          {/* Morning */}
+                          <label className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={order.meals.morning}
+                                onChange={() => updateMealSelection(order.date, 'morning')}
+                                className="w-5 h-5 text-[#3B82F6] rounded"
+                              />
+                              <Coffee size={18} className="text-amber-500" />
+                              <span className="text-gray-700">সকালের খাবার</span>
+                              <span className="text-sm text-gray-500">({order.morningMeal})</span>
+                            </div>
+                            <span className="text-[#3B82F6] font-semibold">৳{mealPrices.morning}</span>
+                          </label>
+                          
+                          {/* Lunch */}
+                          <label className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={order.meals.lunch}
+                                onChange={() => updateMealSelection(order.date, 'lunch')}
+                                className="w-5 h-5 text-[#3B82F6] rounded"
+                              />
+                              <Sun size={18} className="text-yellow-500" />
+                              <span className="text-gray-700">দুপুরের খাবার</span>
+                              <span className="text-sm text-gray-500">({order.lunchMeal})</span>
+                            </div>
+                            <span className="text-[#3B82F6] font-semibold">৳{mealPrices.lunch}</span>
+                          </label>
+                          
+                          {/* Dinner */}
+                          <label className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={order.meals.dinner}
+                                onChange={() => updateMealSelection(order.date, 'dinner')}
+                                className="w-5 h-5 text-[#3B82F6] rounded"
+                              />
+                              <Moon size={18} className="text-blue-500" />
+                              <span className="text-gray-700">রাতের খাবার</span>
+                              <span className="text-sm text-gray-500">({order.dinnerMeal})</span>
+                            </div>
+                            <span className="text-[#3B82F6] font-semibold">৳{mealPrices.dinner}</span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Order Summary */}
+                <div className="bg-blue-50 rounded-xl p-4 mb-6">
+                  <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-[#3B82F6]" />
+                    অর্ডার সামারি
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">খাবারের মূল্য:</span>
+                      <span className="font-semibold text-black">৳ {totalPrice.mealPrice}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">ডেলিভারি চার্জ ({totalPrice.daysWithOrders} দিন x ৳{deliveryChargePerDay}):</span>
+                      <span className="font-semibold text-black">৳ {totalPrice.deliveryCharge}</span>
+                    </div>
+                    <div className="border-t pt-2 mt-2">
+                      <div className="flex justify-between font-bold text-lg">
+                        <span className="text-gray-800">মোট মূল্য:</span>
+                        <span className="text-[#3B82F6]">৳ {totalPrice.total}</span>
                       </div>
                     </div>
-                    
-                    {/* Weekly Menu Preview */}
-                    <details className="mt-3">
-                      <summary className="text-sm text-[#3B82F6] cursor-pointer hover:underline">
-                        সাপ্তাহিক মেনু দেখুন
-                      </summary>
-                      <div className="mt-3 space-y-2">
-                        {orderSummary.details.map((day: any) => (
-                          <div key={day.date} className="bg-white rounded-lg p-3 text-sm">
-                            <div className="font-semibold text-gray-800">
-                              {day.dayName} - {new Date(day.date).toLocaleDateString('bn-BD')}
-                            </div>
-                            <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
-                              {day.meals.map((meal: any) => (
-                                <div key={meal.type} className="text-gray-600">
-                                  <span className="font-medium">{meal.name}:</span> {meal.meal}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
                   </div>
-                )}
+                </div>
 
                 {/* Contact Information */}
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-gray-700 font-medium mb-2">
                     <Phone className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                     ফোন নাম্বার
@@ -479,7 +788,7 @@ export default function OrderPage() {
                 </div>
 
                 {/* Zone Selection */}
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-gray-700 font-medium mb-2">
                     <MapPin className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                     জোন / এলাকা
@@ -516,11 +825,11 @@ export default function OrderPage() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={submitting || !orderSummary || orderSummary.totalMeals === 0}
+                  disabled={submitting}
                   className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] hover:shadow-xl text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 shadow-lg text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-                  {submitting ? 'অর্ডার প্রসেস হচ্ছে...' : `${orderSummary?.totalMeals || 0}টি খাবার অর্ডার করুন`}
+                  {submitting ? 'অর্ডার প্রসেস হচ্ছে...' : `অর্ডার করুন (৳${totalPrice.total})`}
                 </button>
               </form>
             </div>
@@ -529,9 +838,9 @@ export default function OrderPage() {
 
         {/* Info Note */}
         <div className="text-center mt-6 text-gray-500 text-sm">
-          <p>অর্ডার কনফার্ম হলে প্রতিদিন সকাল, দুপুর ও রাতের খাবার ডেলিভারি করা হবে</p>
+          <p>ডেলিভারি চার্জ: ৳{deliveryChargePerDay} প্রতি ডেলিভারি</p>
           <p className="mt-1">ডেলিভারি টাইম: সকাল ৮টা - ১০টা, দুপুর ১২টা - ২টা, রাত ৭টা - ৯টা</p>
-          <p className="mt-1 text-[#3B82F6]">সাবস্ক্রিপশন সক্রিয় থাকলে ডেলিভারি চার্জ ফ্রি</p>
+          {!hasActiveSubscription && <p className="mt-1 text-orange-600">পেমেন্ট: ক্যাশ অন ডেলিভারি</p>}
         </div>
       </div>
     </section>
