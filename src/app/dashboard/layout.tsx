@@ -61,7 +61,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 mt-8 md:mt-8">
       <div className="container mx-auto px-4 py-8">
         <div className="flex md:flex-row flex-col gap-8 pt-4">
           {/* Sidebar */}

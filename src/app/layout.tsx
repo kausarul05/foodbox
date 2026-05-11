@@ -5,6 +5,7 @@ import './globals.css'
 import Navbar from './Common/Navbar'
 import Footer from './Common/Footer'
 import { Toaster } from 'react-hot-toast'
+import SupportBanner from './Components/Home/SupportBanner'
 
 
 const inter = Inter({ subsets: ['latin'] })
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <SupportBanner />
         <Navbar />
         <main className="min-h-screen">
           {children}

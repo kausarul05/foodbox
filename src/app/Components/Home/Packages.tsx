@@ -140,7 +140,7 @@ export default function Packages() {
 
   if (packages.length === 0) {
     return (
-      <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white">
+      <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white mt-10 md:mt-5">
         <div className="max-w-6xl mx-auto">
           <div className="text-center py-12">
             <div className="bg-red-50 rounded-full p-4 mx-auto w-fit mb-4">

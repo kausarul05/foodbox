@@ -313,7 +313,7 @@ export default function OrderPage() {
   }
 
   return (
-    <section className="min-h-screen bg-gray-50 py-12 px-4">
+    <section className="min-h-screen bg-gray-50 py-12 px-4 mt-10 md:mt-5">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
