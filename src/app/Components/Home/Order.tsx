@@ -145,10 +145,12 @@ export default function OrderPage() {
     try {
       const response = await subscriptionAPI.getMySubscriptions();
       if (response.success && response.data) {
+        console.log("response data", response?.walletBalance)
         const activeSub = response.data.find((sub: any) => sub.status === 'active');
         if (activeSub) {
           setHasActiveSubscription(true);
           setSubscriptionData(activeSub);
+          setWalletBalance(response.walletBalance || 0);
           await fetchMenu(activeSub.package);
           setPaymentMethod('wallet');
         } else {

@@ -143,6 +143,39 @@ export const subscriptionAPI = {
   }
 }
 
+// Wallet APIs
+export const walletAPI = {
+  getBalance: () => {
+    return apiCall('/wallet/balance');
+  },
+};
+
+export const transactionAPI = {
+  getMyTransactions: () => {
+    return apiCall('/wallet/transactions');
+  },
+  createRechargeRequest: (data) => {
+    return apiCall('/wallet/recharge', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  getPendingTransactions: () => {
+    return apiCall('/admin/transactions/pending');
+  },
+  approveTransaction: (id) => {
+    return apiCall(`/admin/transactions/${id}/approve`, {
+      method: 'PUT',
+    });
+  },
+  rejectTransaction: (id, reason) => {
+    return apiCall(`/admin/transactions/${id}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    });
+  },
+};
+
 export default {
   menu: menuAPI,
   packages: packageAPI,

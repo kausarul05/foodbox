@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 export default function ProfilePage() {
   const [userData, setUserData] = useState<any>(null);
   const [subscription, setSubscription] = useState<any>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,7 +44,9 @@ export default function ProfilePage() {
       const response = await subscriptionAPI.getMySubscriptions();
       if (response.success && response.data) {
         const activeSub = response.data.find((sub: any) => sub.status === 'active');
+        // console.log("response test", response)
         setSubscription(activeSub || null);
+        setWalletBalance(response.walletBalance || 0);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -53,6 +56,7 @@ export default function ProfilePage() {
     }
   };
 
+  // console.log("wallet", walletBalance)
   const handleEdit = () => {
     setIsEditing(true);
   };
@@ -188,7 +192,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="text-gray-500 text-sm">ওয়ালেট ব্যালেন্স</p>
-                <p className="text-2xl font-bold text-[#3B82F6]">BDT {userData?.walletBalance || 0}</p>
+                <p className="text-2xl font-bold text-[#3B82F6]">BDT {walletBalance || 0}</p>
               </div>
             </div>
           ) : (
@@ -203,7 +207,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="text-gray-500 text-sm">ওয়ালেট ব্যালেন্স</p>
-                <p className="text-2xl font-bold text-[#3B82F6]">BDT {userData?.walletBalance || 0}</p>
+                <p className="text-2xl font-bold text-[#3B82F6]">BDT {walletBalance || 0}</p>
               </div>
             </div>
           )}
