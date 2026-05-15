@@ -71,8 +71,8 @@ export const authAPI = {
   userLogin: (phoneNumber, password) => {
     return apiCall('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ phoneNumber, password }),
-    });
+      body: JSON.stringify({ phoneNumber, password })
+    })
   },
 
   // User register
@@ -113,6 +113,14 @@ export const orderAPI = {
     })
   },
 
+  // Cancel order
+  cancelOrder: (orderId, reason) => {
+    return apiCall(`/orders/${orderId}/cancel`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason })
+    })
+  },
+
   // Get my orders
   getMyOrders: () => {
     return apiCall('/orders/myorders')
@@ -122,9 +130,9 @@ export const orderAPI = {
   checkDeadline: (deliveryDate, deliveryTime) => {
     return apiCall('/orders/check-deadline', {
       method: 'POST',
-      body: JSON.stringify({ deliveryDate, deliveryTime }),
-    });
-  },
+      body: JSON.stringify({ deliveryDate, deliveryTime })
+    })
+  }
 }
 
 // Subscription APIs
@@ -146,87 +154,87 @@ export const subscriptionAPI = {
 // Wallet APIs
 export const walletAPI = {
   getBalance: () => {
-    return apiCall('/wallet/balance');
-  },
-};
+    return apiCall('/wallet/balance')
+  }
+}
 
 export const transactionAPI = {
   getMyTransactions: () => {
-    return apiCall('/wallet/transactions');
+    return apiCall('/wallet/transactions')
   },
-  createRechargeRequest: (data) => {
+  createRechargeRequest: data => {
     return apiCall('/wallet/recharge', {
       method: 'POST',
-      body: JSON.stringify(data),
-    });
+      body: JSON.stringify(data)
+    })
   },
   getPendingTransactions: () => {
-    return apiCall('/admin/transactions/pending');
+    return apiCall('/admin/transactions/pending')
   },
-  approveTransaction: (id) => {
+  approveTransaction: id => {
     return apiCall(`/admin/transactions/${id}/approve`, {
-      method: 'PUT',
-    });
+      method: 'PUT'
+    })
   },
   rejectTransaction: (id, reason) => {
     return apiCall(`/admin/transactions/${id}/reject`, {
       method: 'PUT',
-      body: JSON.stringify({ reason }),
-    });
-  },
-};
+      body: JSON.stringify({ reason })
+    })
+  }
+}
 
 export const zoneAPI = {
   // Get all zones (public)
   getAllZones: () => {
-    return apiCall('/zones');
+    return apiCall('/zones')
   },
-  
+
   // Get zone by ID
-  getZoneById: (id) => {
-    return apiCall(`/zones/${id}`);
+  getZoneById: id => {
+    return apiCall(`/zones/${id}`)
   },
-  
+
   // Create new zone (user)
-  createZone: (zoneData) => {
+  createZone: zoneData => {
     return apiCall('/zones', {
       method: 'POST',
-      body: JSON.stringify(zoneData),
-    });
+      body: JSON.stringify(zoneData)
+    })
   },
-  
+
   // Admin: Get all zones
   adminGetAllZones: () => {
-    return apiCall('/admin/zones');
+    return apiCall('/admin/zones')
   },
-  
+
   // Admin: Update zone
   adminUpdateZone: (id, zoneData) => {
     return apiCall(`/admin/zones/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(zoneData),
-    });
+      body: JSON.stringify(zoneData)
+    })
   },
-  
+
   // Admin: Delete zone
-  adminDeleteZone: (id) => {
+  adminDeleteZone: id => {
     return apiCall(`/admin/zones/${id}`, {
-      method: 'DELETE',
-    });
+      method: 'DELETE'
+    })
   },
-  
+
   // Admin: Toggle zone status
-  adminToggleZoneStatus: (id) => {
+  adminToggleZoneStatus: id => {
     return apiCall(`/admin/zones/${id}/toggle`, {
-      method: 'PUT',
-    });
-  },
-};
+      method: 'PUT'
+    })
+  }
+}
 
 export default {
   menu: menuAPI,
   packages: packageAPI,
   auth: authAPI,
   orders: orderAPI,
-  subscriptions: subscriptionAPI,
+  subscriptions: subscriptionAPI
 }
