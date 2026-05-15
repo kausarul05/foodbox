@@ -176,10 +176,57 @@ export const transactionAPI = {
   },
 };
 
+export const zoneAPI = {
+  // Get all zones (public)
+  getAllZones: () => {
+    return apiCall('/zones');
+  },
+  
+  // Get zone by ID
+  getZoneById: (id) => {
+    return apiCall(`/zones/${id}`);
+  },
+  
+  // Create new zone (user)
+  createZone: (zoneData) => {
+    return apiCall('/zones', {
+      method: 'POST',
+      body: JSON.stringify(zoneData),
+    });
+  },
+  
+  // Admin: Get all zones
+  adminGetAllZones: () => {
+    return apiCall('/admin/zones');
+  },
+  
+  // Admin: Update zone
+  adminUpdateZone: (id, zoneData) => {
+    return apiCall(`/admin/zones/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(zoneData),
+    });
+  },
+  
+  // Admin: Delete zone
+  adminDeleteZone: (id) => {
+    return apiCall(`/admin/zones/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  
+  // Admin: Toggle zone status
+  adminToggleZoneStatus: (id) => {
+    return apiCall(`/admin/zones/${id}/toggle`, {
+      method: 'PUT',
+    });
+  },
+};
+
 export default {
   menu: menuAPI,
   packages: packageAPI,
   auth: authAPI,
   orders: orderAPI,
-  subscriptions: subscriptionAPI
+  subscriptions: subscriptionAPI,
 }

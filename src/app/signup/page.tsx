@@ -2,22 +2,22 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Mail, 
-  Lock, 
-  UserPlus, 
-  Eye, 
-  EyeOff, 
-  Shield, 
-  User, 
-  Phone, 
-  MapPin, 
+import {
+  Mail,
+  Lock,
+  UserPlus,
+  Eye,
+  EyeOff,
+  Shield,
+  User,
+  Phone,
+  MapPin,
   Home,
-  CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { authAPI } from '@/lib/api';
+import ZoneSelect from '@/components/ui/ZoneSelect';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -28,19 +28,36 @@ export default function SignupPage() {
     password: '',
     confirmPassword: '',
     zone: '',
+    zoneName: '', // For custom zone name
     address: '',
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [selectedZone, setSelectedZone] = useState('');
 
-  const zones = ['উত্তরা', 'ধানমন্ডি', 'গুলশান', 'বনানী', 'মিরপুর', 'মোহাম্মদপুর', 'পুরান ঢাকা', 'যাত্রাবাড়ী', 'নিউ মার্কেট', 'বসুন্ধরা'];
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+  };
+
+  const handleZoneChange = (zoneId: string, customZoneName?: string) => {
+    setSelectedZone(zoneId);
+    if (customZoneName) {
+      setFormData({ 
+        ...formData, 
+        zone: zoneId,
+        zoneName: customZoneName 
+      });
+    } else {
+      setFormData({ 
+        ...formData, 
+        zone: zoneId,
+        zoneName: '' 
+      });
+    }
   };
 
   const validateForm = () => {
@@ -76,7 +93,7 @@ export default function SignupPage() {
       toast.error('পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না');
       return false;
     }
-    if (!formData.zone) {
+    if (!selectedZone) {
       toast.error('দয়া করে জোন সিলেক্ট করুন');
       return false;
     }
@@ -89,43 +106,50 @@ export default function SignupPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     try {
       setLoading(true);
-      
+
       const signupData = {
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
         email: formData.email,
         password: formData.password,
-        zone: formData.zone,
+        zone: selectedZone,
+        zoneName: formData.zoneName, // Send custom zone name if any
         address: formData.address,
       };
-      
+
       const response = await authAPI.userRegister(signupData);
       console.log('Signup response:', response);
-      
+
       if (response.success) {
         const { token, ...userData } = response.data;
-        
+
         // Store token and user data
         localStorage.setItem('userToken', token);
         localStorage.setItem('userData', JSON.stringify(userData));
-        
+
         toast.success('অ্যাকাউন্ট তৈরি সফল!');
-        
-        // Redirect to home
+
         setTimeout(() => {
-          window.location.href = '/';
-        }, 500);
+          router.push('/');
+        }, 1500);
       } else {
         toast.error(response.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
       }
     } catch (error: any) {
-      toast.error(error?.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
-      console.error('Signup error xx:', error?.message);
+      console.error('Signup error:', error);
+      
+      if (error.message?.includes('phone')) {
+        toast.error('এই ফোন নাম্বার already registered');
+      } else if (error.message?.includes('email')) {
+        toast.error('এই ইমেইল already registered');
+      } else {
+        toast.error(error?.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
+      }
     } finally {
       setLoading(false);
     }
@@ -262,18 +286,12 @@ export default function SignupPage() {
               </label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <select
-                  name="zone"
-                  value={formData.zone}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-white text-gray-800"
+                <ZoneSelect
+                  value={selectedZone}
+                  onChange={handleZoneChange}
                   required
-                >
-                  <option value="">সিলেক্ট করুন</option>
-                  {zones.map((zone) => (
-                    <option key={zone} value={zone}>{zone}</option>
-                  ))}
-                </select>
+                  label="জোন / এলাকা"
+                />
               </div>
             </div>
 

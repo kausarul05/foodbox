@@ -4,8 +4,10 @@
 import React, { useEffect, useState } from 'react';
 import { User, MapPin, Phone, Package, AlertCircle, Loader2, Edit2, Save, X } from 'lucide-react';
 import Link from 'next/link';
-import { authAPI, subscriptionAPI } from '@/lib/api';
+import { authAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
+import ZoneSelect from '@/components/ui/ZoneSelect';
+// import { authAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 
 export default function ProfilePage() {
   const [userData, setUserData] = useState<any>(null);
@@ -20,6 +22,7 @@ export default function ProfilePage() {
     zone: '',
     address: '',
   });
+  const [selectedZone, setSelectedZone] = useState<string>('');
 
   const zones = ['উত্তরা', 'ধানমন্ডি', 'গুলশান', 'বনানী', 'মিরপুর', 'মোহাম্মদপুর', 'পুরান ঢাকা', 'যাত্রাবাড়ী', 'নিউ মার্কেট', 'বসুন্ধরা'];
 
@@ -27,12 +30,35 @@ export default function ProfilePage() {
     fetchProfileData();
   }, []);
 
+  const handleZoneChange = (zoneId: string, customZoneName?: string) => {
+    setSelectedZone(zoneId);
+    // Update editForm.zone with the selected zone ID
+    setEditForm({
+      ...editForm,
+      zone: zoneId,
+    });
+  };
+
   const fetchProfileData = async () => {
     try {
       const storedUser = localStorage.getItem('userData');
       if (storedUser) {
         const user = JSON.parse(storedUser);
-        setUserData(user);
+
+        // If zone is an ID, fetch the zone details
+        let zoneName = user.zone;
+        if (user.zone && !user.zoneName) {
+          try {
+            const zoneResponse = await zoneAPI.getZoneById(user.zone);
+            if (zoneResponse.success) {
+              zoneName = zoneResponse.data.name;
+            }
+          } catch (error) {
+            console.error('Error fetching zone:', error);
+          }
+        }
+
+        setUserData({ ...user, zoneName });
         setEditForm({
           fullName: user.fullName || '',
           phoneNumber: user.phoneNumber || '',
@@ -40,11 +66,10 @@ export default function ProfilePage() {
           address: user.address || '',
         });
       }
-      
+
       const response = await subscriptionAPI.getMySubscriptions();
       if (response.success && response.data) {
         const activeSub = response.data.find((sub: any) => sub.status === 'active');
-        // console.log("response test", response)
         setSubscription(activeSub || null);
         setWalletBalance(response.walletBalance || 0);
       }
@@ -93,13 +118,13 @@ export default function ProfilePage() {
     try {
       setSaving(true);
       const response = await authAPI.updateUserProfile(editForm);
-      
+
       if (response.success) {
         // Update local storage
         const updatedUser = { ...userData, ...editForm };
         localStorage.setItem('userData', JSON.stringify(updatedUser));
         setUserData(updatedUser);
-        
+
         toast.success('প্রোফাইল আপডেট করা হয়েছে!');
         setIsEditing(false);
       } else {
@@ -142,7 +167,7 @@ export default function ProfilePage() {
               <p className="text-gray-500 text-sm">আপনার ব্যক্তিগত তথ্য</p>
             </div>
           </div>
-          
+
           {!isEditing && (
             <button
               onClick={handleEdit}
@@ -162,7 +187,7 @@ export default function ProfilePage() {
             <User className="w-5 h-5 text-[#3B82F6]" />
             ব্যক্তিগত তথ্য
           </h2>
-          
+
           {isEditing ? (
             <div className="space-y-4">
               <div>
@@ -178,17 +203,12 @@ export default function ProfilePage() {
               </div>
               <div>
                 <label className="block text-gray-700 font-medium mb-1">জোন</label>
-                <select
-                  name="zone"
-                  value={editForm.zone}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-white text-gray-800"
-                >
-                  <option value="">সিলেক্ট করুন</option>
-                  {zones.map((zone) => (
-                    <option key={zone} value={zone}>{zone}</option>
-                  ))}
-                </select>
+                <ZoneSelect
+                  value={selectedZone}
+                  onChange={handleZoneChange}
+                  required
+                  label="জোন / এলাকা"
+                />
               </div>
               <div>
                 <p className="text-gray-500 text-sm">ওয়ালেট ব্যালেন্স</p>
@@ -219,7 +239,7 @@ export default function ProfilePage() {
             <Phone className="w-5 h-5 text-[#3B82F6]" />
             যোগাযোগের তথ্য
           </h2>
-          
+
           {isEditing ? (
             <div className="space-y-4">
               <div>
@@ -304,8 +324,8 @@ export default function ProfilePage() {
               {subscription ? '✅ সক্রিয় সাবস্ক্রিপশন' : '⚠️ নো অ্যাকটিভ সাবস্ক্রিপশন'}
             </h3>
             <p className="text-gray-600 mb-4">
-              {subscription 
-                ? `আপনার ${subscription.package === 'golden' ? 'গোল্ডেন' : 'ডায়মন্ড'} প্যাকেজ সক্রিয় আছে। ${new Date(subscription.endDate).toLocaleDateString('bn-BD')} পর্যন্ত বৈধ।` 
+              {subscription
+                ? `আপনার ${subscription.package === 'golden' ? 'গোল্ডেন' : 'ডায়মন্ড'} প্যাকেজ সক্রিয় আছে। ${new Date(subscription.endDate).toLocaleDateString('bn-BD')} পর্যন্ত বৈধ।`
                 : 'সরি, আপনার কোনো সক্রিয় সাবস্ক্রিপশন নেই। খাবার অর্ডার করতে অনুগ্রহ করে সাবস্ক্রাইব করুন।'}
             </p>
             {!subscription && (

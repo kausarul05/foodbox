@@ -28,6 +28,7 @@ import {
 import { orderAPI, subscriptionAPI, menuAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import ZoneSelect from '@/components/ui/ZoneSelect';
 
 interface MenuItem {
   day: string;
@@ -79,6 +80,7 @@ export default function OrderPage() {
   const [dailyOrders, setDailyOrders] = useState<DayOrder[]>([]);
   const [mealsPerDay, setMealsPerDay] = useState<'1' | '2' | '3'>('3');
   const [selectedMealType, setSelectedMealType] = useState<'all' | 'morning' | 'lunch' | 'dinner'>('all');
+  //  const [selectedZone, setSelectedZone] = useState('');
 
   const mealPrices: MealPrice = {
     morning: 50,
@@ -104,7 +106,7 @@ export default function OrderPage() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     setStartDate(tomorrow.toISOString().split('T')[0]);
-    
+
     const end = new Date(tomorrow);
     end.setDate(end.getDate() + 6);
     setEndDate(end.toISOString().split('T')[0]);
@@ -195,7 +197,7 @@ export default function OrderPage() {
   const getMealForDay = (dayName: string, mealType: string) => {
     const menu = availableMenu.find(m => m.day === dayName);
     if (!menu) return null;
-    switch(mealType) {
+    switch (mealType) {
       case 'morning': return menu.morning;
       case 'lunch': return menu.lunch;
       case 'dinner': return menu.dinner;
@@ -221,7 +223,7 @@ export default function OrderPage() {
     for (const date of dates) {
       const dayName = getDayName(date);
       let meals: MealSelection = { morning: false, lunch: false, dinner: false };
-      
+
       if (selectedMealType === 'morning') {
         meals = { morning: true, lunch: false, dinner: false };
       } else if (selectedMealType === 'lunch') {
@@ -250,7 +252,7 @@ export default function OrderPage() {
   };
 
   const toggleDayExpand = (date: string) => {
-    setDailyOrders(prev => prev.map(order => 
+    setDailyOrders(prev => prev.map(order =>
       order.date === date ? { ...order, isExpanded: !order.isExpanded } : order
     ));
   };
@@ -304,7 +306,7 @@ export default function OrderPage() {
     }
 
     totalDeliveryCharge = daysWithOrders * deliveryChargePerDay;
-    
+
     return {
       mealPrice: totalMealPrice,
       deliveryCharge: totalDeliveryCharge,
@@ -328,6 +330,10 @@ export default function OrderPage() {
     setShowConfirmModal(true);
   };
 
+  const handleZoneChange = (zoneId: string, customZoneName?: string) => {
+    setSelectedZone(zoneId);
+  };
+
   const handleSubmit = async () => {
     setShowConfirmModal(false);
 
@@ -338,25 +344,25 @@ export default function OrderPage() {
       for (const order of dailyOrders) {
         const meals = [];
         if (order.meals.morning && order.morningMeal) {
-          meals.push({ 
-            name: order.morningMeal, 
-            price: mealPrices.morning, 
+          meals.push({
+            name: order.morningMeal,
+            price: mealPrices.morning,
             quantity: 1,
             time: 'morning'
           });
         }
         if (order.meals.lunch && order.lunchMeal) {
-          meals.push({ 
-            name: order.lunchMeal, 
-            price: mealPrices.lunch, 
+          meals.push({
+            name: order.lunchMeal,
+            price: mealPrices.lunch,
             quantity: 1,
             time: 'lunch'
           });
         }
         if (order.meals.dinner && order.dinnerMeal) {
-          meals.push({ 
-            name: order.dinnerMeal, 
-            price: mealPrices.dinner, 
+          meals.push({
+            name: order.dinnerMeal,
+            price: mealPrices.dinner,
             quantity: 1,
             time: 'dinner'
           });
@@ -391,7 +397,7 @@ export default function OrderPage() {
 
       if (orders.length > 0) {
         toast.success(`${orders.length}টি অর্ডার সফলভাবে সম্পন্ন হয়েছে!`);
-        
+
         // Reset dates to next week
         const nextWeek = new Date(endDate);
         nextWeek.setDate(nextWeek.getDate() + 1);
@@ -590,11 +596,10 @@ export default function OrderPage() {
                           key={option.value}
                           type="button"
                           onClick={() => updateSelectedMealType(option.value as any)}
-                          className={`py-2 px-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-1 ${
-                            selectedMealType === option.value
-                              ? 'bg-[#3B82F6] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
+                          className={`py-2 px-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-1 ${selectedMealType === option.value
+                            ? 'bg-[#3B82F6] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
                         >
                           {Icon && <Icon size={14} />}
                           {option.label}
@@ -711,7 +716,7 @@ export default function OrderPage() {
                             </div>
                             <span className="text-[#3B82F6] font-semibold">৳{mealPrices.morning}</span>
                           </label>
-                          
+
                           {/* Lunch */}
                           <label className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
                             <div className="flex items-center gap-3">
@@ -727,7 +732,7 @@ export default function OrderPage() {
                             </div>
                             <span className="text-[#3B82F6] font-semibold">৳{mealPrices.lunch}</span>
                           </label>
-                          
+
                           {/* Dinner */}
                           <label className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
                             <div className="flex items-center gap-3">
@@ -795,17 +800,12 @@ export default function OrderPage() {
                     <MapPin className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                     জোন / এলাকা
                   </label>
-                  <select
+                  <ZoneSelect
                     value={selectedZone}
-                    onChange={(e) => setSelectedZone(e.target.value)}
-                    className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-white"
+                    onChange={handleZoneChange}
                     required
-                  >
-                    <option value="">সিলেক্ট করুন</option>
-                    {zones.map((zone) => (
-                      <option key={zone} value={zone}>{zone}</option>
-                    ))}
-                  </select>
+                    label="জোন / এলাকা"
+                  />
                 </div>
 
                 {/* Address */}
