@@ -74,7 +74,7 @@ export default function OrdersPage() {
         // Expand current and future dates by default
         const today = new Date().toDateString();
         const expanded = new Set<string>();
-        sortedOrders.forEach(order => {
+        sortedOrders.forEach((order: any) => {
           const orderDate = new Date(order.deliveryDate);
           if (orderDate >= new Date(today)) {
             const dateKey = orderDate.toLocaleDateString('bn-BD');
