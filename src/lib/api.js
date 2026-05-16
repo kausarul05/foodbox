@@ -132,7 +132,14 @@ export const orderAPI = {
       method: 'POST',
       body: JSON.stringify({ deliveryDate, deliveryTime })
     })
-  }
+  },
+
+  checkDateBlocked: (date) => {
+    return apiCall('/blocked-dates/check', {
+      method: 'POST',
+      body: JSON.stringify({ date }),
+    });
+  },
 }
 
 // Subscription APIs

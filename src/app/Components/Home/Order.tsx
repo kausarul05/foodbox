@@ -149,18 +149,18 @@ export default function OrderPage() {
           await fetchMenu(activeSub.package);
         } else {
           setHasActiveSubscription(false);
-          await fetchMenu('golden');
+          await fetchMenu('basic');
           setShowSubscriptionModal(true);
         }
       } else {
         setHasActiveSubscription(false);
-        await fetchMenu('golden');
+        await fetchMenu('basic');
         setShowSubscriptionModal(true);
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
       setHasActiveSubscription(false);
-      await fetchMenu('golden');
+      await fetchMenu('basic');
       setShowSubscriptionModal(true);
     } finally {
       setLoading(false);
@@ -217,16 +217,15 @@ export default function OrderPage() {
 
     for (const date of dates) {
       const dayName = getDayName(date);
-      let meals: MealSelection = { morning: false, lunch: false, dinner: false };
+      let meals: MealSelection = { morning: true, lunch: true, dinner: true }; // Default all true for self meals
 
+      // Override based on selectedMealType
       if (selectedMealType === 'morning') {
         meals = { morning: true, lunch: false, dinner: false };
       } else if (selectedMealType === 'lunch') {
         meals = { morning: false, lunch: true, dinner: false };
       } else if (selectedMealType === 'dinner') {
         meals = { morning: false, lunch: false, dinner: true };
-      } else if (mealsPerDay === '3') {
-        meals = { morning: true, lunch: true, dinner: true };
       } else if (mealsPerDay === '2') {
         meals = { morning: true, lunch: true, dinner: false };
       } else if (mealsPerDay === '1') {
@@ -243,7 +242,9 @@ export default function OrderPage() {
         dinnerMeal: getMealForDay(dayName, 'dinner')?.name,
         isExpanded: false,
       });
+
     }
+    // console.log("orders yyyy", orders)
     setDailyOrders(orders);
   };
 
@@ -276,6 +277,8 @@ export default function OrderPage() {
       return order;
     }));
   };
+
+  console.log("daily orders", dailyOrders)
 
   const updateMealsPerDay = (value: '1' | '2' | '3') => {
     setMealsPerDay(value);
@@ -635,7 +638,7 @@ export default function OrderPage() {
 
         {/* Confirm Order Modal */}
         {showConfirmModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 text-black">
             <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-800">অর্ডার কনফার্মেশন</h3>
@@ -1026,12 +1029,10 @@ export default function OrderPage() {
                       <span className="text-gray-600">আমার খাবারের মূল্য:</span>
                       <span className="font-semibold text-black">৳ {totals.selfMealPrice}</span>
                     </div>
-                    {!hasActiveSubscription && totals.selfDeliveryCharge > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">আমার ডেলিভারি চার্জ:</span>
-                        <span className="font-semibold text-black">৳ {totals.selfDeliveryCharge}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">ডেলিভারি চার্জ ({totals.selfDays} দিন x ৳{deliveryChargePerDay}):</span>
+                      <span className="font-semibold text-black">৳ {totals.selfDeliveryCharge}</span>
+                    </div>
                     {enableGuestMeal && totals.guestMealPrice > 0 && (
                       <>
                         <div className="flex justify-between">
