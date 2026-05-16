@@ -16,7 +16,8 @@ import {
   Loader2,
   AlertCircle,
   CreditCard,
-  Wallet
+  Wallet,
+  Package
 } from 'lucide-react';
 import { packageAPI, subscriptionAPI, authAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -64,8 +65,8 @@ export default function Packages() {
       const response = await packageAPI.getAllPackages();
       console.log('Packages response:', response);
       
-      if (response.success && response.data) {
-        // Filter only active packages (golden and diamond)
+      if (response.success && response?.data) {
+        // Filter only active packages
         const activePackages = response.data.filter((pkg: PackageType) => pkg.isActive);
         setPackages(activePackages);
       } else {
@@ -125,6 +126,50 @@ export default function Packages() {
     }
   };
 
+  const getPackageIcon = (packageName: string, index: number) => {
+    const name = packageName.toLowerCase();
+    if (name.includes('basic') || name.includes('বেসিক')) {
+      return <Package size={32} className="text-blue-400" />;
+    } else if (name.includes('standard') || name.includes('স্ট্যান্ডার্ড')) {
+      return <Star className="w-10 h-10 text-yellow-300" />;
+    } else if (name.includes('premium') || name.includes('প্রিমিয়াম')) {
+      return <Diamond className="w-10 h-10 text-blue-300" />;
+    } else {
+      // Default based on index
+      return index === 0 ? <Star className="w-10 h-10 text-yellow-300" /> : <Diamond className="w-10 h-10 text-blue-300" />;
+    }
+  };
+
+  const getPackageGradient = (packageName: string, index: number) => {
+    const name = packageName.toLowerCase();
+    if (name.includes('basic') || name.includes('বেসিক')) {
+      return 'from-green-500 to-teal-600';
+    } else if (name.includes('standard') || name.includes('স্ট্যান্ডার্ড')) {
+      return 'from-amber-500 to-orange-500';
+    } else if (name.includes('premium') || name.includes('প্রিমিয়াম')) {
+      return 'from-purple-500 to-pink-600';
+    } else {
+      // Default based on index
+      return index === 0 ? 'from-amber-500 to-orange-500' : 'from-purple-500 to-pink-600';
+    }
+  };
+
+  const getFeatureIcon = (feature: string, idx: number) => {
+    if (feature.includes('ডেলিভারি') || feature.includes('Delivery')) {
+      return <Truck className="w-5 h-5 text-[#3B82F6]" />;
+    } else if (feature.includes('খাবার') || feature.includes('Meal')) {
+      return <Coffee className="w-5 h-5 text-[#3B82F6]" />;
+    } else if (feature.includes('হোম') || feature.includes('Home')) {
+      return <Home className="w-5 h-5 text-[#3B82F6]" />;
+    } else if (feature.includes('আইটেম') || feature.includes('Item') || feature.includes('এক্সট্রা')) {
+      return <Gift className="w-5 h-5 text-[#3B82F6]" />;
+    } else if (feature.includes('সাপোর্ট') || feature.includes('Support')) {
+      return <Shield className="w-5 h-5 text-[#3B82F6]" />;
+    } else {
+      return <CheckCircle className="w-5 h-5 text-[#3B82F6]" />;
+    }
+  };
+
   if (loading) {
     return (
       <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white">
@@ -154,10 +199,6 @@ export default function Packages() {
     );
   }
 
-  // Find golden and diamond packages
-  const goldenPackage = packages.find(pkg => pkg.name === 'golden');
-  const diamondPackage = packages.find(pkg => pkg.name === 'diamond');
-
   return (
     <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white">
       <div className='max-w-6xl mx-auto'>
@@ -167,106 +208,62 @@ export default function Packages() {
           <p className="text-gray-500">আপনার প্রয়োজন অনুযায়ী প্যাকেজ সিলেক্ট করুন</p>
         </div>
 
-        {/* Package Cards - Golden & Diamond */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          {/* Golden Package */}
-          {goldenPackage && (
-            <div className="border-2 border-[#3B82F6] rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-              <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] px-6 py-5 text-center">
+        {/* Package Cards - Dynamic Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+          {packages.map((pkg, index) => (
+            <div key={pkg._id} className="border-2 border-[#3B82F6] rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+              <div className={`bg-gradient-to-br ${getPackageGradient(pkg.name, index)} px-6 py-5 text-center text-white`}>
                 <div className="flex justify-center mb-2">
-                  <Star className="w-10 h-10 text-yellow-300" />
+                  {getPackageIcon(pkg.name, index)}
                 </div>
-                <h3 className="text-white text-2xl font-bold">✨ {goldenPackage.title} ✨</h3>
-                <p className="text-blue-200 text-sm">সপ্তাহিক স্পেশাল অফার</p>
+                <h3 className="text-2xl font-bold">{pkg.title}</h3>
+                <p className="text-white/80 text-sm">
+                  {pkg.duration} দিনের প্যাকেজ
+                </p>
+                {index === 1 && (
+                  <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                    BEST SELLER
+                  </div>
+                )}
               </div>
               <div className="p-6 bg-gradient-to-br from-blue-50 to-white">
                 <ul className="space-y-3 mb-6">
-                  {goldenPackage.features.map((feature, idx) => (
+                  {pkg.features.map((feature, idx) => (
                     <li key={idx} className="flex items-center gap-3 text-gray-700">
-                      {idx === 0 && <Truck className="w-5 h-5 text-[#3B82F6]" />}
-                      {idx === 1 && <Coffee className="w-5 h-5 text-[#3B82F6]" />}
-                      {idx === 2 && <Home className="w-5 h-5 text-[#3B82F6]" />}
-                      {idx === 3 && <Gift className="w-5 h-5 text-[#3B82F6]" />}
-                      <span className="font-medium">⭐ {feature}</span>
+                      {getFeatureIcon(feature, idx)}
+                      <span className="font-medium">✓ {feature}</span>
                     </li>
                   ))}
                 </ul>
                 <div className="text-center pt-4 border-t border-blue-100">
                   <div className="mb-3">
-                    <span className="text-3xl font-bold text-[#3B82F6]">৳ {goldenPackage.price}</span>
-                    <span className="text-gray-400 line-through ml-3">৳ {goldenPackage.originalPrice}</span>
+                    <span className="text-3xl font-bold text-[#3B82F6]">৳ {pkg.price}</span>
+                    <span className="text-gray-400 line-through ml-3">৳ {pkg.originalPrice}</span>
+                    <span className="text-green-600 text-sm ml-2">(-{pkg.discount}%)</span>
                   </div>
                   <button
-                    onClick={() => handleSubscribe(goldenPackage)}
-                    disabled={subscribing === goldenPackage._id}
+                    onClick={() => handleSubscribe(pkg)}
+                    disabled={subscribing === pkg._id}
                     className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] hover:shadow-lg text-white font-bold py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {subscribing === goldenPackage._id ? (
+                    {subscribing === pkg._id ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <Sparkles className="w-5 h-5" />
                     )}
-                    {subscribing === goldenPackage._id ? 'সাবস্ক্রাইব হচ্ছে...' : 'গোল্ডেন প্যাকেজ সাবস্ক্রাইব করুন'}
+                    {subscribing === pkg._id ? 'সাবস্ক্রাইব হচ্ছে...' : `${pkg.title} সাবস্ক্রাইব করুন`}
                   </button>
                 </div>
               </div>
             </div>
-          )}
-
-          {/* Diamond Package */}
-          {diamondPackage && (
-            <div className="border-2 border-[#3B82F6] rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 relative">
-              <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                BEST SELLER
-              </div>
-              <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] px-6 py-5 text-center">
-                <div className="flex justify-center mb-2">
-                  <Diamond className="w-10 h-10 text-blue-300" />
-                </div>
-                <h3 className="text-white text-2xl font-bold">💎 {diamondPackage.title} 💎</h3>
-                <p className="text-blue-200 text-sm">প্রিমিয়াম সার্ভিস</p>
-              </div>
-              <div className="p-6 bg-gradient-to-br from-blue-50 to-white">
-                <ul className="space-y-3 mb-6">
-                  {diamondPackage.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-center gap-3 text-gray-700">
-                      {idx === 0 && <Truck className="w-5 h-5 text-[#3B82F6]" />}
-                      {idx === 1 && <Coffee className="w-5 h-5 text-[#3B82F6]" />}
-                      {idx === 2 && <Home className="w-5 h-5 text-[#3B82F6]" />}
-                      {idx === 3 && <Gift className="w-5 h-5 text-[#3B82F6]" />}
-                      {idx === 4 && <Shield className="w-5 h-5 text-[#3B82F6]" />}
-                      <span className="font-medium">💎 {feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="text-center pt-4 border-t border-blue-100">
-                  <div className="mb-3">
-                    <span className="text-3xl font-bold text-[#3B82F6]">৳ {diamondPackage.price}</span>
-                    <span className="text-gray-400 line-through ml-3">৳ {diamondPackage.originalPrice}</span>
-                  </div>
-                  <button
-                    onClick={() => handleSubscribe(diamondPackage)}
-                    disabled={subscribing === diamondPackage._id}
-                    className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] hover:shadow-lg text-white font-bold py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {subscribing === diamondPackage._id ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Crown className="w-5 h-5" />
-                    )}
-                    {subscribing === diamondPackage._id ? 'সাবস্ক্রাইব হচ্ছে...' : 'ডায়মন্ড প্যাকেজ সাবস্ক্রাইব করুন'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          ))}
         </div>
 
         {/* Extra Info */}
         <div className="text-center mt-8">
           <p className="text-gray-500 text-sm flex items-center justify-center gap-2">
             <Zap className="w-4 h-4 text-[#3B82F6]" />
-            উভয় প্যাকেজেই রয়েছে স্পেশাল ডিসকাউন্ট
+            সব প্যাকেজেই রয়েছে স্পেশাল ডিসকাউন্ট
             <Zap className="w-4 h-4 text-[#3B82F6]" />
           </p>
         </div>
@@ -276,7 +273,7 @@ export default function Packages() {
       {showPaymentModal && selectedPackage && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4 text-black">
+            <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-800">সাবস্ক্রিপশন কনফার্মেশন</h3>
               <button
                 onClick={() => setShowPaymentModal(false)}
@@ -290,14 +287,15 @@ export default function Packages() {
 
             <div className="space-y-4">
               {/* Package Info */}
-              <div className="bg-blue-50 rounded-xl p-4 text-black">
+              <div className="bg-blue-50 rounded-xl p-4">
                 <p className="text-sm text-gray-600">আপনি সাবস্ক্রাইব করতে যাচ্ছেন:</p>
                 <p className="font-bold text-lg text-[#3B82F6]">{selectedPackage.title}</p>
-                <p className="text-2xl font-bold">৳ {selectedPackage.price}</p>
+                <p className="text-2xl font-bold text-gray-800">৳ {selectedPackage.price}</p>
+                <p className="text-xs text-gray-500 mt-1">{selectedPackage.duration} দিনের জন্য</p>
               </div>
 
               {/* Payment Method */}
-              <div className='text-black'>
+              <div>
                 <label className="block text-gray-700 font-medium mb-2">
                   <CreditCard className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
                   পেমেন্ট মেথড
@@ -305,7 +303,7 @@ export default function Packages() {
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
                 >
                   <option value="bkash">bKash</option>
                   <option value="nagad">Nagad</option>
