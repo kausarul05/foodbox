@@ -49,7 +49,6 @@ const WeeklyMenu: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [menuLoading, setMenuLoading] = useState(false);
   const [packageErrors, setPackageErrors] = useState<{ [key: string]: string | null }>({});
-  const [showAllDays, setShowAllDays] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Get current day and next day in Bengali
@@ -77,11 +76,12 @@ const WeeklyMenu: React.FC = () => {
       if (response.success && response.data && response.data.length > 0) {
         const activePackages = response.data.filter((pkg: PackageType) => pkg.isActive);
         setPackages(activePackages);
+        
         if (activePackages.length > 0) {
           const firstPackageId = activePackages[0]._id;
           setSelectedPackageId(firstPackageId);
-          // Fetch menu for first package immediately
-          await fetchMenuForPackage(firstPackageId);
+          // Fetch menu for first package directly using the package name
+          await fetchMenuForPackageDirect(activePackages[0].name, firstPackageId);
         }
       }
     } catch (error) {
@@ -92,15 +92,13 @@ const WeeklyMenu: React.FC = () => {
     }
   };
 
-  const fetchMenuForPackage = async (packageId: string) => {
+  // Direct fetch without depending on packages state
+  const fetchMenuForPackageDirect = async (packageName: string, packageId: string) => {
     try {
       setMenuLoading(true);
-      const pkg = packages.find(p => p._id === packageId);
-      if (!pkg) return;
-      
       setPackageErrors(prev => ({ ...prev, [packageId]: null }));
-      const response = await menuAPI.getMenuByPackage(pkg.name);
-      console.log(`Menu for ${pkg.name}:`, response);
+      const response = await menuAPI.getMenuByPackage(packageName);
+      console.log(`Menu for ${packageName}:`, response);
       
       if (response.success && response.data && response.data.length > 0) {
         const dayOrder = ['শনিবার', 'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার'];
@@ -121,9 +119,14 @@ const WeeklyMenu: React.FC = () => {
     }
   };
 
+  const fetchMenuForPackage = async (packageId: string) => {
+    const pkg = packages.find(p => p._id === packageId);
+    if (!pkg) return;
+    await fetchMenuForPackageDirect(pkg.name, packageId);
+  };
+
   const handlePackageChange = async (packageId: string) => {
     setSelectedPackageId(packageId);
-    setShowAllDays(false);
     if (!menuData[packageId]) {
       await fetchMenuForPackage(packageId);
     }
@@ -193,14 +196,6 @@ const WeeklyMenu: React.FC = () => {
 
         {/* Package Selection - Horizontal Scroll on Mobile */}
         <div className="relative mb-8">
-          {/* <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 lg:hidden">
-            <button
-              onClick={scrollLeft}
-              className="bg-white shadow-md rounded-full p-2 hover:bg-gray-100 transition"
-            >
-              <ChevronLeft size={20} />
-            </button>
-          </div> */}
           <div
             ref={scrollRef}
             className="flex overflow-x-auto scrollbar-hide gap-3 pb-4 px-8 lg:px-0 lg:justify-center lg:flex-wrap lg:overflow-visible"
@@ -221,18 +216,10 @@ const WeeklyMenu: React.FC = () => {
               </button>
             ))}
           </div>
-          {/* <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 lg:hidden">
-            <button
-              onClick={scrollRight}
-              className="bg-white shadow-md rounded-full p-2 hover:bg-gray-100 transition"
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div> */}
         </div>
 
         {/* Menu Content */}
-        {menuLoading ? (
+        {menuLoading && currentMenu.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="w-10 h-10 text-[#3B82F6] animate-spin mb-3" />
             <p className="text-gray-500">মেনু লোড হচ্ছে...</p>

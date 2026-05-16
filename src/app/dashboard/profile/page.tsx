@@ -1,4 +1,3 @@
-// app/dashboard/profile/page.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -7,7 +6,6 @@ import Link from 'next/link';
 import { authAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import ZoneSelect from '@/components/ui/ZoneSelect';
-// import { authAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 
 export default function ProfilePage() {
   const [userData, setUserData] = useState<any>(null);
@@ -16,15 +14,14 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [zoneName, setZoneName] = useState<string>('');
+  const [selectedZone, setSelectedZone] = useState<string>('');
   const [editForm, setEditForm] = useState({
     fullName: '',
     phoneNumber: '',
     zone: '',
     address: '',
   });
-  const [selectedZone, setSelectedZone] = useState<string>('');
-
-  const zones = ['উত্তরা', 'ধানমন্ডি', 'গুলশান', 'বনানী', 'মিরপুর', 'মোহাম্মদপুর', 'পুরান ঢাকা', 'যাত্রাবাড়ী', 'নিউ মার্কেট', 'বসুন্ধরা'];
 
   useEffect(() => {
     fetchProfileData();
@@ -32,7 +29,6 @@ export default function ProfilePage() {
 
   const handleZoneChange = (zoneId: string, customZoneName?: string) => {
     setSelectedZone(zoneId);
-    // Update editForm.zone with the selected zone ID
     setEditForm({
       ...editForm,
       zone: zoneId,
@@ -44,25 +40,42 @@ export default function ProfilePage() {
       const storedUser = localStorage.getItem('userData');
       if (storedUser) {
         const user = JSON.parse(storedUser);
-
-        // If zone is an ID, fetch the zone details
-        let zoneName = user.zone;
-        if (user.zone && !user.zoneName) {
-          try {
-            const zoneResponse = await zoneAPI.getZoneById(user.zone);
-            if (zoneResponse.success) {
-              zoneName = zoneResponse.data.name;
+        
+        let zoneDisplayName = '';
+        let zoneId = '';
+        
+        // Check if zone is an ID (MongoDB ObjectId) or a name string
+        if (user.zone) {
+          // Check if it's a MongoDB ObjectId (24 characters hex string)
+          const isObjectId = /^[0-9a-fA-F]{24}$/.test(user.zone);
+          
+          if (isObjectId) {
+            // It's an ID, fetch the zone name
+            try {
+              const zoneResponse = await zoneAPI.getZoneById(user.zone);
+              if (zoneResponse.success && zoneResponse.data) {
+                zoneDisplayName = zoneResponse.data.name;
+                zoneId = zoneResponse.data._id;
+              }
+            } catch (error) {
+              console.error('Error fetching zone:', error);
+              zoneDisplayName = user.zone;
+              zoneId = user.zone;
             }
-          } catch (error) {
-            console.error('Error fetching zone:', error);
+          } else {
+            // It's already a name string
+            zoneDisplayName = user.zone;
+            zoneId = user.zone;
           }
         }
 
-        setUserData({ ...user, zoneName });
+        setUserData({ ...user, zoneDisplay: zoneDisplayName });
+        setZoneName(zoneDisplayName);
+        setSelectedZone(zoneId);
         setEditForm({
           fullName: user.fullName || '',
           phoneNumber: user.phoneNumber || '',
-          zone: user.zone || '',
+          zone: zoneId || '',
           address: user.address || '',
         });
       }
@@ -81,18 +94,16 @@ export default function ProfilePage() {
     }
   };
 
-  // console.log("wallet", walletBalance)
   const handleEdit = () => {
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    // Reset form to original data
     setEditForm({
       fullName: userData?.fullName || '',
       phoneNumber: userData?.phoneNumber || '',
-      zone: userData?.zone || '',
+      zone: selectedZone || '',
       address: userData?.address || '',
     });
   };
@@ -120,13 +131,38 @@ export default function ProfilePage() {
       const response = await authAPI.updateUserProfile(editForm);
 
       if (response.success) {
+        // Get the zone name for display
+        let newZoneName = editForm.zone;
+        let zoneId = editForm.zone;
+        
+        // Check if it's an ObjectId
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(editForm.zone);
+        if (isObjectId) {
+          try {
+            const zoneResponse = await zoneAPI.getZoneById(editForm.zone);
+            if (zoneResponse.success && zoneResponse.data) {
+              newZoneName = zoneResponse.data.name;
+              zoneId = zoneResponse.data._id;
+            }
+          } catch (error) {
+            console.error('Error fetching new zone:', error);
+          }
+        }
+        
         // Update local storage
-        const updatedUser = { ...userData, ...editForm };
+        const updatedUser = { 
+          ...userData, 
+          ...editForm,
+          zoneDisplay: newZoneName
+        };
         localStorage.setItem('userData', JSON.stringify(updatedUser));
         setUserData(updatedUser);
-
+        setZoneName(newZoneName);
+        setSelectedZone(zoneId);
+        
         toast.success('প্রোফাইল আপডেট করা হয়েছে!');
         setIsEditing(false);
+        await fetchProfileData();
       } else {
         toast.error(response.message || 'আপডেট করতে ব্যর্থ হয়েছে');
       }
@@ -223,7 +259,7 @@ export default function ProfilePage() {
               </div>
               <div className="border-b border-gray-100 pb-3">
                 <p className="text-gray-500 text-sm">জোন</p>
-                <p className="text-gray-800 font-medium">{userData?.zone || 'N/A'}</p>
+                <p className="text-gray-800 font-medium">{zoneName || userData?.zoneDisplay || userData?.zone || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-gray-500 text-sm">ওয়ালেট ব্যালেন্স</p>

@@ -135,7 +135,7 @@ export default function SignupPage() {
         toast.success('অ্যাকাউন্ট তৈরি সফল!');
 
         setTimeout(() => {
-          router.push('/');
+          router.push('/login');
         }, 1500);
       } else {
         toast.error(response.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
