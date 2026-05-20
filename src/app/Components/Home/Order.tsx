@@ -24,7 +24,8 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
-  Users
+  Users,
+  PlusCircle
 } from 'lucide-react';
 import { orderAPI, subscriptionAPI, menuAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -59,7 +60,7 @@ interface DayOrder {
 }
 
 export default function OrderPage() {
-  const router = useRouter();
+   const router = useRouter();
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
@@ -75,10 +76,12 @@ export default function OrderPage() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showInsufficientBalanceModal, setShowInsufficientBalanceModal] = useState(false);
   const [dailyOrders, setDailyOrders] = useState<DayOrder[]>([]);
   const [enableGuestMeal, setEnableGuestMeal] = useState(false);
   const [mealsPerDay, setMealsPerDay] = useState<'1' | '2' | '3'>('3');
   const [selectedMealType, setSelectedMealType] = useState<'all' | 'morning' | 'lunch' | 'dinner'>('all');
+  const [requiredAmount, setRequiredAmount] = useState(0);
 
   const mealPrices = {
     morning: 50,
@@ -244,7 +247,6 @@ export default function OrderPage() {
       });
 
     }
-    // console.log("orders yyyy", orders)
     setDailyOrders(orders);
   };
 
@@ -277,8 +279,6 @@ export default function OrderPage() {
       return order;
     }));
   };
-
-  console.log("daily orders", dailyOrders)
 
   const updateMealsPerDay = (value: '1' | '2' | '3') => {
     setMealsPerDay(value);
@@ -362,6 +362,11 @@ export default function OrderPage() {
     router.push('/subscription');
   };
 
+  const handleAddMoneyRedirect = () => {
+    setShowInsufficientBalanceModal(false);
+    router.push('/dashboard/wallet');
+  };
+
   const openConfirmModal = () => {
     const totals = calculateTotalPrice();
     if (totals.selfTotal === 0 && totals.guestTotal === 0) {
@@ -370,7 +375,8 @@ export default function OrderPage() {
     }
 
     if (hasActiveSubscription && totals.selfMealPrice > walletBalance) {
-      toast.error(`অপর্যাপ্ত ওয়ালেট ব্যালেন্স। প্রয়োজন: ৳${totals.selfMealPrice}, বর্তমান: ৳${walletBalance}`);
+      setRequiredAmount(totals.selfMealPrice);
+      setShowInsufficientBalanceModal(true);
       return;
     }
 
@@ -581,7 +587,6 @@ export default function OrderPage() {
       </section>
     );
   }
-
   return (
     <section className="min-h-screen bg-gray-50 py-8 px-4 mt-10 md:mt-5">
       <div className="max-w-4xl mx-auto">
@@ -593,6 +598,52 @@ export default function OrderPage() {
           <h1 className="text-3xl font-bold text-gray-800 mb-2">অর্ডার করুন</h1>
           <p className="text-gray-600">আপনার পছন্দের খাবার অর্ডার করুন</p>
         </div>
+
+        {/* Insufficient Balance Modal */}
+        {showInsufficientBalanceModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-6 h-6 text-red-500" />
+                  <h3 className="text-xl font-bold text-gray-800">অপর্যাপ্ত ওয়ালেট ব্যালেন্স</h3>
+                </div>
+                <button onClick={() => setShowInsufficientBalanceModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="bg-red-50 rounded-xl p-4 text-center">
+                  <p className="text-gray-700 mb-2">আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই।</p>
+                  <p className="text-sm text-gray-600">
+                    প্রয়োজন: <span className="font-bold text-red-600">৳ {requiredAmount}</span><br />
+                    বর্তমান ব্যালেন্স: <span className="font-bold text-[#3B82F6]">৳ {walletBalance}</span>
+                  </p>
+                </div>
+                <div className="bg-yellow-50 rounded-lg p-3">
+                  <p className="text-xs text-yellow-800">
+                    💡 অনুগ্রহ করে আপনার ওয়ালেট রিচার্জ করুন। রিচার্জ করার পর আবার অর্ডার চেষ্টা করুন।
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowInsufficientBalanceModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    onClick={handleAddMoneyRedirect}
+                    className="flex-1 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+                  >
+                    {/* <PlusCircle size={18} /> */}
+                    ওয়ালেট রিচার্জ করুন
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Subscription Modal */}
         {showSubscriptionModal && !hasActiveSubscription && (

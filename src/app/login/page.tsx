@@ -49,7 +49,7 @@ export default function LoginPage() {
           window.location.href = '/';
         }, 500);
       } else {
-        toast.error(response.message || 'ফোন নাম্বার বা পাসওয়ার্ড ভুল');
+        toast.error(response.message || 'ফোন নাম্বার বা পাসওয়ারড ভুল');
       }
     } catch (error: any) {
       console.error('Login error:', error);
