@@ -60,7 +60,7 @@ interface DayOrder {
 }
 
 export default function OrderPage() {
-   const router = useRouter();
+  const router = useRouter();
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
@@ -82,6 +82,11 @@ export default function OrderPage() {
   const [mealsPerDay, setMealsPerDay] = useState<'1' | '2' | '3'>('3');
   const [selectedMealType, setSelectedMealType] = useState<'all' | 'morning' | 'lunch' | 'dinner'>('all');
   const [requiredAmount, setRequiredAmount] = useState(0);
+  const [selectedMeals, setSelectedMeals] = useState({
+    morning: true,  // সকাল ডিফল্ট true
+    lunch: true,    // দুপুর ডিফল্ট true
+    dinner: true    // রাত ডিফল্ট true
+  });
 
   const mealPrices = {
     morning: 50,
@@ -98,6 +103,12 @@ export default function OrderPage() {
     { value: 'lunch', label: 'দুপুর', icon: Sun },
     { value: 'dinner', label: 'রাত', icon: Moon },
   ];
+
+  useEffect(() => {
+    if (startDate && endDate && availableMenu.length > 0) {
+      initializeDailyOrders();
+    }
+  }, [startDate, endDate, availableMenu, selectedMeals]);
 
   useEffect(() => {
     const today = new Date();
@@ -220,32 +231,16 @@ export default function OrderPage() {
 
     for (const date of dates) {
       const dayName = getDayName(date);
-      let meals: MealSelection = { morning: true, lunch: true, dinner: true }; // Default all true for self meals
-
-      // Override based on selectedMealType
-      if (selectedMealType === 'morning') {
-        meals = { morning: true, lunch: false, dinner: false };
-      } else if (selectedMealType === 'lunch') {
-        meals = { morning: false, lunch: true, dinner: false };
-      } else if (selectedMealType === 'dinner') {
-        meals = { morning: false, lunch: false, dinner: true };
-      } else if (mealsPerDay === '2') {
-        meals = { morning: true, lunch: true, dinner: false };
-      } else if (mealsPerDay === '1') {
-        meals = { morning: true, lunch: false, dinner: false };
-      }
-
       orders.push({
         date,
         dayName,
-        selfMeals: meals,
+        selfMeals: selectedMeals,  // স্টেট থেকে নিবে
         guestMeals: { morning: false, lunch: false, dinner: false },
         morningMeal: getMealForDay(dayName, 'morning')?.name,
         lunchMeal: getMealForDay(dayName, 'lunch')?.name,
         dinnerMeal: getMealForDay(dayName, 'dinner')?.name,
         isExpanded: false,
       });
-
     }
     setDailyOrders(orders);
   };
@@ -836,31 +831,50 @@ export default function OrderPage() {
                 {selectedMealType === 'all' && (
                   <div className="mb-6">
                     <label className="block text-gray-700 font-medium mb-2">
-                      প্রতিদিন কত বেলা খাবার নিবেন?
+                      <Info className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
+                      কোন বেলার খাবার নিবেন? (একাধিক নির্বাচন করতে পারেন)
                     </label>
                     <div className="grid grid-cols-3 gap-3">
                       <button
                         type="button"
-                        onClick={() => updateMealsPerDay('1')}
-                        className={`py-2 rounded-lg font-semibold transition-all ${mealsPerDay === '1' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+                        onClick={() => setSelectedMeals(prev => ({ ...prev, morning: !prev.morning }))}
+                        className={`py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${selectedMeals.morning
+                          ? 'bg-[#3B82F6] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                       >
-                        ১ বেলা (সকাল)
+                        <Coffee size={18} />
+                        সকাল
+                        {selectedMeals.morning && <CheckCircle size={16} />}
                       </button>
                       <button
                         type="button"
-                        onClick={() => updateMealsPerDay('2')}
-                        className={`py-2 rounded-lg font-semibold transition-all ${mealsPerDay === '2' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+                        onClick={() => setSelectedMeals(prev => ({ ...prev, lunch: !prev.lunch }))}
+                        className={`py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${selectedMeals.lunch
+                          ? 'bg-[#3B82F6] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                       >
-                        ২ বেলা (সকাল+দুপুর)
+                        <Sun size={18} />
+                        দুপুর
+                        {selectedMeals.lunch && <CheckCircle size={16} />}
                       </button>
                       <button
                         type="button"
-                        onClick={() => updateMealsPerDay('3')}
-                        className={`py-2 rounded-lg font-semibold transition-all ${mealsPerDay === '3' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+                        onClick={() => setSelectedMeals(prev => ({ ...prev, dinner: !prev.dinner }))}
+                        className={`py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${selectedMeals.dinner
+                          ? 'bg-[#3B82F6] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                       >
-                        ৩ বেলা (সকাল+দুপুর+রাত)
+                        <Moon size={18} />
+                        রাত
+                        {selectedMeals.dinner && <CheckCircle size={16} />}
                       </button>
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      ✓ আপনার পছন্দ অনুযায়ী এক বা একাধিক বেলা নির্বাচন করতে পারেন
+                    </p>
                   </div>
                 )}
 
@@ -930,7 +944,13 @@ export default function OrderPage() {
                       >
                         <div>
                           <div className="font-semibold text-gray-800">
-                            {order.dayName} - {new Date(order.date).toLocaleDateString('bn-BD')}
+                            {order.dayName} - {(() => {
+                              const date = new Date(order.date);
+                              const day = date.getDate();
+                              const month = date.getMonth() + 1;
+                              const year = date.getFullYear();
+                              return `${day}/${month}/${year}`;
+                            })()}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
                             {/* Show self meal summary */}
