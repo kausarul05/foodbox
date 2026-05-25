@@ -1,7 +1,7 @@
 // API Base URL configuration
 // const API_BASE_URL =
 //   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api' || 'https://foodbox-admin-backend.vercel.app/api'
-const API_BASE_URL = 'https://foodbox-admin-backend.vercel.app/api'
+const API_BASE_URL = 'https://api.fcsbd.com/api'
 
 // Get token from localStorage
 const getToken = () => {
