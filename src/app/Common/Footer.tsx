@@ -1,90 +1,111 @@
-'use client'
+import Link from 'next/link';
+import { Clock, Mail, MapPin, Phone } from 'lucide-react';
+import { MEAL_SLOTS } from '@/lib/format';
 
-import React from 'react'
-import Link from 'next/link'
+const LINK_GROUPS = [
+  {
+    title: 'সার্ভিস',
+    links: [
+      { label: 'অর্ডার করুন', href: '/order' },
+      { label: 'সাবস্ক্রিপশন', href: '/subscription' },
+      { label: 'গেস্ট মিল', href: '/guest-meal' },
+      { label: 'সাপ্তাহিক মেনু', href: '/#weekly-menu' },
+    ],
+  },
+  {
+    title: 'অ্যাকাউন্ট',
+    links: [
+      { label: 'লগইন', href: '/login' },
+      { label: 'রেজিস্ট্রেশন', href: '/signup' },
+      { label: 'আমার অর্ডার', href: '/dashboard/orders' },
+      { label: 'ওয়ালেট', href: '/dashboard/wallet' },
+    ],
+  },
+];
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-white">
-      <div className="container mx-auto px-4 py-12 md:px-6 lg:px-8">
-        
-        {/* Main Footer Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
-          
-          {/* Brand Section */}
-          <div className="text-start sm:text-left">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">FCS</h2>
-            <p className="text-gray-400 text-sm md:text-base leading-relaxed">
-              আপনার পছন্দের খাবার এখন হাতের নাগালে। সুস্বাদু, সাশ্রয়ী এবং সময়মত ডেলিভারি।
+    <footer className="bg-ink-900 text-ink-300">
+      <div className="container-page py-14 md:py-16">
+        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-12 lg:gap-8">
+          {/* Brand */}
+          <div className="lg:col-span-4">
+            <span className="text-2xl font-bold text-white">FoodBox</span>
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-400">
+              ময়মনসিংহে ঘরের মতো রান্না করা খাবারের সাবস্ক্রিপশন সার্ভিস। তাজা রান্না,
+              সাশ্রয়ী দাম, সময়মতো ডেলিভারি।
             </p>
+            <div className="mt-6 space-y-3 text-sm">
+              <a href="tel:+8801868703130" className="flex items-center gap-3 transition-colors hover:text-brand-400">
+                <Phone size={16} className="shrink-0 text-brand-500" />
+                +8801868703130
+              </a>
+              <a
+                href="mailto:foodbox947@gmail.com"
+                className="flex items-center gap-3 break-all transition-colors hover:text-brand-400"
+              >
+                <Mail size={16} className="shrink-0 text-brand-500" />
+                foodbox947@gmail.com
+              </a>
+              <p className="flex items-start gap-3 text-ink-400">
+                <MapPin size={16} className="mt-0.5 shrink-0 text-brand-500" />
+                Mile Quarter, Academic Road, Mymensingh Sadar
+              </p>
+            </div>
           </div>
 
-          {/* Quick Links */}
-          <div className="text-start sm:text-left">
-            <h3 className="text-lg md:text-xl font-semibold mb-4 text-white">Quick Links</h3>
-            <ul className="space-y-2 md:space-y-3">
-              <li>
-                <Link href="/" className="text-gray-400 hover:text-orange-500 transition-colors duration-200 text-sm md:text-base inline-block">
-                  হোম
-                </Link>
-              </li>
-              <li>
-                <Link href="/order" className="text-gray-400 hover:text-orange-500 transition-colors duration-200 text-sm md:text-base inline-block">
-                  অর্ডার
-                </Link>
-              </li>
-              <li>
-                <Link href="/about" className="text-gray-400 hover:text-orange-500 transition-colors duration-200 text-sm md:text-base inline-block">
-                  আমাদের সম্পর্কে
-                </Link>
-              </li>
-              <li>
-                <Link href="/privacy" className="text-gray-400 hover:text-orange-500 transition-colors duration-200 text-sm md:text-base inline-block">
-                  প্রাইভেসি পলিসি
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" className="text-gray-400 hover:text-orange-500 transition-colors duration-200 text-sm md:text-base inline-block">
-                  টার্মস এন্ড কন্ডিশনস
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {/* Link groups */}
+          {LINK_GROUPS.map((group) => (
+            <div key={group.title} className="lg:col-span-2">
+              <h3 className="text-sm font-semibold tracking-wide text-white uppercase">{group.title}</h3>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                {group.links.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-ink-400 transition-colors hover:text-brand-400">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
-          {/* Contact Info */}
-          <div className="text-start sm:text-left">
-            <h3 className="text-lg md:text-xl font-semibold mb-4 text-white">Contact</h3>
-            <ul className="space-y-3 md:space-y-4">
-              <li className="flex items-center justify-start sm:justify-start gap-3 text-gray-400 text-sm md:text-base">
-                <span className="text-orange-500 text-lg">📞</span>
-                <a href="tel:+8801868703130" className="hover:text-orange-500 transition-colors">
-                  +8801868703130
-                </a>
-              </li>
-              <li className="flex items-center justify-start sm:justify-start gap-3 text-gray-400 text-sm md:text-base break-all">
-                <span className="text-orange-500 text-lg">✉️</span>
-                <a href="mailto:foodbox947@gmail.com" className="hover:text-orange-500 transition-colors">
-                  foodbox947@gmail.com
-                </a>
-              </li>
-              <li className="flex items-center justify-center sm:justify-start gap-3 text-gray-400 text-sm md:text-base">
-                <span className="text-orange-500 text-lg">📍</span>
-                <span>Mile Quarter, Academic Road, Mymensingh Sadar.</span>
-              </li>
+          {/* Ordering cut-offs — the single most-asked question, so it lives in
+              the footer of every page rather than only on the home page. */}
+          <div className="lg:col-span-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-white uppercase">
+              <Clock size={15} className="text-brand-500" />
+              অর্ডারের শেষ সময়
+            </h3>
+            <ul className="mt-4 space-y-2.5">
+              {MEAL_SLOTS.map((slot) => (
+                <li
+                  key={slot.key}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3.5 py-2.5 text-sm"
+                >
+                  <span className="text-ink-300">{slot.label}</span>
+                  <span className="text-right text-xs font-medium text-brand-400">{slot.cutoff}</span>
+                </li>
+              ))}
             </ul>
+            <p className="mt-3 text-xs text-ink-500">
+              প্রতি মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।
+            </p>
           </div>
         </div>
 
-        {/* Copyright */}
-        <div className="mt-10 pt-6 border-t border-gray-800 text-start">
-          <p className="text-gray-500 text-xs md:text-sm">
-            &copy; {new Date().getFullYear()} FoodBox. সর্বস্বত্ব সংরক্ষিত।
-          </p>
-          <p className="text-gray-600 text-xs mt-1">
-            ডিজাইন ও ডেভেলপড by FoodBox টিম
-          </p>
+        <div className="mt-12 flex flex-col gap-2 border-t border-white/10 pt-6 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} FoodBox. সর্বস্বত্ব সংরক্ষিত।</p>
+          <div className="flex gap-5">
+            <Link href="/privacy" className="transition-colors hover:text-ink-300">
+              প্রাইভেসি পলিসি
+            </Link>
+            <Link href="/terms" className="transition-colors hover:text-ink-300">
+              টার্মস ও কন্ডিশনস
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
-  )
+  );
 }

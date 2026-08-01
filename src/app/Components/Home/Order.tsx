@@ -386,7 +386,7 @@ export default function OrderPage() {
     try {
       const response = await orderAPI.checkDateBlocked(date);
       if (response.success && response.isBlocked) {
-        toast.error(response.message);
+        toast.error(response.message || 'এই তারিখে ডেলিভারি বন্ধ আছে');
         return true;
       }
       return false;

@@ -1,211 +1,232 @@
-// components/Navbar.tsx
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import React, { useState, useEffect } from 'react';
-import { User, Menu, X, Home, ShoppingBag, Users, Calendar, LayoutDashboard, LogIn } from 'lucide-react';
 import Image from 'next/image';
-import logo from '../../../public/Images/logo.jpg'
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import {
+  CalendarRange,
+  ChevronRight,
+  LayoutDashboard,
+  LogIn,
+  Menu,
+  ShoppingBag,
+  UserRound,
+  Users,
+  UtensilsCrossed,
+  X,
+} from 'lucide-react';
+import logo from '../../../public/Images/logo.jpg';
 
-const Navbar = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
+const NAV_LINKS = [
+  { name: 'হোম', href: '/', icon: UtensilsCrossed },
+  { name: 'অর্ডার', href: '/order', icon: ShoppingBag },
+  { name: 'গেস্ট মিল', href: '/guest-meal', icon: Users },
+  { name: 'সাবস্ক্রিপশন', href: '/subscription', icon: CalendarRange },
+];
+
+/**
+ * The session lives in localStorage, which is an external store — so it is read
+ * through useSyncExternalStore rather than an effect + setState. getSnapshot
+ * runs on every render, so a client-side navigation after login picks the new
+ * session up, and the `storage` subscription keeps a second tab in sync.
+ */
+function subscribeToSession(onChange: () => void) {
+  window.addEventListener('storage', onChange);
+  return () => window.removeEventListener('storage', onChange);
+}
+
+/** Returns the raw userData string, or null when logged out. */
+function readSession() {
+  return localStorage.getItem('userToken') ? localStorage.getItem('userData') : null;
+}
+
+/** The server has no localStorage, so it always renders the logged-out header. */
+const readServerSession = () => null;
+
+export default function Navbar() {
+  const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
-  
-  const checkLoginStatus = () => {
-    const token = localStorage.getItem('userToken');
-    const userData = localStorage.getItem('userData');
-    console.log('Checking login status:', { token, userData });
-    if (token && userData) {
-      setIsLoggedIn(true);
-      const user = JSON.parse(userData);
-      setUserName(user.fullName || user.name || 'User');
-    } else {
-      setIsLoggedIn(false);
-      setUserName('');
+  const rawUser = useSyncExternalStore(subscribeToSession, readSession, readServerSession);
+  const user = useMemo(() => {
+    if (!rawUser) return null;
+    try {
+      const parsed = JSON.parse(rawUser);
+      return { name: parsed.fullName || parsed.name || 'ইউজার' };
+    } catch {
+      return null;
     }
-  };
+  }, [rawUser]);
 
+  // Lock body scroll while the drawer is open.
   useEffect(() => {
-    checkLoginStatus();
-  }, []);
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const handleProfileClick = () => {
-    if (isLoggedIn) {
-      router.push('/dashboard/profile');
-    } else {
-      router.push('/login');
-    }
-  };
-
-  const navLinks = [
-    { name: 'হোম', href: '/', icon: Home },
-    { name: 'অর্ডার', href: '/order', icon: ShoppingBag },
-    { name: 'গেস্ট মিল', href: '/guest-meal', icon: Users },
-    { name: 'সাবস্ক্রিপশন', href: '/subscription', icon: Calendar },
-  ];
+  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+  const accountHref = user ? '/dashboard/profile' : '/login';
 
   return (
-    <nav className="sticky md:top-12 top-9 z-50 bg-gradient-to-br from-[#3B82F6] to-[#111827] shadow-lg">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-3 md:py-4">
-          {/* Logo */}
-          <Link href="/" className="group">
-            <div className="flex items-center gap-2">
-              {/* <span className="text-2xl md:text-3xl font-bold text-white">FCS</span>
-              <span className="hidden sm:inline-block text-xs bg-white/20 px-2 py-1 rounded-full text-white">
-                হোমমেইড
-              </span> */}
-              <Image
-                src={logo}
-                alt='Logo'
-                width={40}
-                height={40}
-                className=""
-              />
-            </div>
+    <nav className="border-b border-ink-200/70 bg-cream/90 backdrop-blur-md">
+      <div className="container-page flex h-16 items-center justify-between gap-4 md:h-[4.5rem]">
+        {/* Brand */}
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <Image
+            src={logo}
+            alt=""
+            width={40}
+            height={40}
+            className="size-9 rounded-xl object-cover ring-1 ring-ink-200 md:size-10"
+            priority
+          />
+          <span className="flex flex-col leading-none">
+            <span className="text-lg font-bold tracking-tight text-ink-900 md:text-xl">FoodBox</span>
+            <span className="mt-0.5 text-[11px] font-medium text-ink-500">ঘরের মতো রান্না</span>
+          </span>
+        </Link>
+
+        {/* Desktop links */}
+        <div className="hidden items-center gap-1 lg:flex">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={isActive(link.href) ? 'page' : undefined}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                isActive(link.href)
+                  ? 'bg-brand-100 text-brand-800'
+                  : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
+              }`}
+            >
+              {link.name}
+            </Link>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {user ? (
+            <Link
+              href="/dashboard/profile"
+              className="hidden items-center gap-2 rounded-full border border-ink-200 bg-white py-1.5 pr-4 pl-1.5 transition-colors hover:border-brand-300 sm:flex"
+            >
+              <span className="grid size-8 place-items-center rounded-full bg-brand-100 text-brand-700">
+                <UserRound size={16} />
+              </span>
+              <span className="max-w-28 truncate text-sm font-medium text-ink-800">{user.name}</span>
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-100 sm:flex"
+            >
+              <LogIn size={16} />
+              লগইন
+            </Link>
+          )}
+
+          <Link
+            href="/order"
+            className="hidden rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 md:inline-flex"
+          >
+            অর্ডার করুন
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center space-x-1">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
-                    isActive
-                      ? 'bg-white/20 text-white shadow-md'
-                      : 'text-white/80 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <link.icon size={18} />
-                  <span>{link.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Right Section - Profile */}
-          <div className="flex items-center gap-4">
-            {isLoggedIn && (
-              <div className="hidden md:flex items-center gap-2 text-white/80 text-sm">
-                <span>স্বাগতম,</span>
-                <span className="font-semibold text-white">{userName}</span>
-              </div>
-            )}
-            
-            <button
-              onClick={handleProfileClick}
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg transition-all duration-200 group"
-            >
-              {isLoggedIn ? (
-                <User size={20} className="group-hover:scale-110 transition-transform" />
-              ) : (
-                <LogIn size={20} className="group-hover:scale-110 transition-transform" />
-              )}
-              <span className="hidden md:inline text-sm font-medium">
-                {isLoggedIn ? 'প্রোফাইল' : 'লগইন'}
-              </span>
-            </button>
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={toggleMenu}
-              className="lg:hidden p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-              aria-label="Menu"
-            >
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="grid size-10 place-items-center rounded-full text-ink-700 transition-colors hover:bg-ink-100 lg:hidden"
+            aria-label="মেনু খুলুন"
+            aria-expanded={open}
+          >
+            <Menu size={22} />
+          </button>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {isMenuOpen && (
-        <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={toggleMenu} />
-      )}
-
-      {/* Mobile Menu Panel */}
+      {/* Mobile drawer */}
       <div
-        className={`
-          lg:hidden fixed top-0 right-0 h-full w-80 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out
-          ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}
-        `}
+        className={`fixed inset-0 z-50 bg-ink-900/40 backdrop-blur-[2px] transition-opacity lg:hidden ${
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+        onClick={() => setOpen(false)}
+        aria-hidden
+      />
+      <aside
+        className={`fixed inset-y-0 right-0 z-50 flex w-[19rem] max-w-[85vw] flex-col bg-cream shadow-2xl transition-transform duration-300 ease-out lg:hidden ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        aria-hidden={!open}
       >
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-8 pb-4 border-b">
-            <div>
-              <span className="text-xl font-bold bg-gradient-to-br from-[#3B82F6] to-[#111827] bg-clip-text text-transparent">
-                FCS
-              </span>
-              <p className="text-xs text-gray-500 mt-1">মেনু</p>
-            </div>
-            <button onClick={toggleMenu} className="p-2 hover:bg-gray-100 rounded-full">
-              <X size={24} />
-            </button>
-          </div>
-
-          <div className="space-y-2 mb-8">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={toggleMenu}
-                  className={`flex items-center gap-3 py-3 px-4 rounded-lg transition-all duration-200 ${
-                    isActive
-                      ? 'bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <link.icon size={20} />
-                  <span className="font-medium">{link.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-
-          <div className="border-t pt-6">
-            <button
-              onClick={() => {
-                if (isLoggedIn) {
-                  handleProfileClick();
-                } else {
-                  router.push('/login');
-                }
-                toggleMenu();
-              }}
-              className="w-full flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-100 transition-colors group"
-            >
-              <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] p-2 rounded-full text-white">
-                {isLoggedIn ? <User size={18} /> : <LogIn size={18} />}
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-gray-800">
-                  {isLoggedIn ? 'আমার অ্যাকাউন্ট' : 'লগইন / সাইনআপ'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {isLoggedIn ? 'প্রোফাইল দেখুন ও এডিট করুন' : 'অ্যাকাউন্টে লগইন করুন'}
-                </p>
-              </div>
-              <LayoutDashboard size={16} className="ml-auto text-gray-400 group-hover:text-[#3B82F6]" />
-            </button>
-          </div>
+        <div className="flex items-center justify-between border-b border-ink-200 px-5 py-4">
+          <span className="text-lg font-bold text-ink-900">মেনু</span>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="grid size-9 place-items-center rounded-full text-ink-600 hover:bg-ink-100"
+            aria-label="মেনু বন্ধ করুন"
+            tabIndex={open ? 0 : -1}
+          >
+            <X size={20} />
+          </button>
         </div>
-      </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              tabIndex={open ? 0 : -1}
+              onClick={() => setOpen(false)}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-[15px] font-medium transition-colors ${
+                isActive(link.href) ? 'bg-brand-600 text-white' : 'text-ink-700 hover:bg-ink-100'
+              }`}
+            >
+              <link.icon size={19} />
+              {link.name}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="space-y-3 border-t border-ink-200 p-4">
+          <button
+            type="button"
+            tabIndex={open ? 0 : -1}
+            onClick={() => {
+              setOpen(false);
+              router.push(accountHref);
+            }}
+            className="flex w-full items-center gap-3 rounded-xl border border-ink-200 bg-white p-3 text-left transition-colors hover:border-brand-300"
+          >
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-700">
+              {user ? <LayoutDashboard size={18} /> : <LogIn size={18} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-ink-900">
+                {user ? user.name : 'লগইন / সাইনআপ'}
+              </span>
+              <span className="block text-xs text-ink-500">
+                {user ? 'ড্যাশবোর্ড ও প্রোফাইল' : 'অ্যাকাউন্টে প্রবেশ করুন'}
+              </span>
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-ink-400" />
+          </button>
+
+          <Link
+            href="/order"
+            tabIndex={open ? 0 : -1}
+            onClick={() => setOpen(false)}
+            className="block rounded-xl bg-brand-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            অর্ডার করুন
+          </Link>
+        </div>
+      </aside>
     </nav>
   );
-};
-
-export default Navbar;
+}

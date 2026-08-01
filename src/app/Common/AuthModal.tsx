@@ -127,7 +127,8 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
     };
 
     const handleGoogleLogin = () => {
-        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+        // Google OAuth is disabled while the app runs on mock data.
+        toast.error('গুগল লগইন শীঘ্রই আসছে');
     };
 
     return (

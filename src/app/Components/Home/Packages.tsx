@@ -1,27 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Star, 
-  Diamond, 
-  CheckCircle, 
-  Truck, 
-  Coffee, 
-  Home, 
-  Gift, 
-  Sparkles, 
-  Crown, 
-  Zap, 
-  Shield,
-  Loader2,
-  AlertCircle,
-  CreditCard,
-  Wallet,
-  Package
-} from 'lucide-react';
-import { packageAPI, subscriptionAPI, authAPI } from '@/lib/api';
-import toast from 'react-hot-toast';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { AlertCircle, Check, Loader2, Sparkles, X } from 'lucide-react';
+import { packageAPI, subscriptionAPI } from '@/lib/api';
+import SectionHeading from '@/components/ui/SectionHeading';
+import { bn, taka } from '@/lib/format';
 
 interface PackageType {
   _id: string;
@@ -35,311 +20,236 @@ interface PackageType {
   isActive: boolean;
 }
 
+const PAYMENT_METHODS = [
+  { value: 'bkash', label: 'bKash' },
+  { value: 'nagad', label: 'Nagad' },
+  { value: 'rocket', label: 'Rocket' },
+  { value: 'bank', label: 'ব্যাংক ট্রান্সফার' },
+];
+
 export default function Packages() {
   const router = useRouter();
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [subscribing, setSubscribing] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [selected, setSelected] = useState<PackageType | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('bkash');
 
   useEffect(() => {
-    checkLoginStatus();
-    fetchPackages();
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await packageAPI.getAllPackages();
+        if (!cancelled) setPackages((res.data ?? []).filter((p: PackageType) => p.isActive));
+      } catch {
+        if (!cancelled) toast.error('প্যাকেজ লোড করা যায়নি');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const checkLoginStatus = () => {
-    const token = localStorage.getItem('userToken');
-    if (token) {
-      setIsLoggedIn(true);
-    } else {
-      setIsLoggedIn(false);
-    }
-  };
-
-  const fetchPackages = async () => {
-    try {
-      setLoading(true);
-      const response = await packageAPI.getAllPackages();
-      console.log('Packages response:', response);
-      
-      if (response.success && response?.data) {
-        // Filter only active packages
-        const activePackages = response.data.filter((pkg: PackageType) => pkg.isActive);
-        setPackages(activePackages);
-      } else {
-        setPackages([]);
-      }
-    } catch (error) {
-      console.error('Error fetching packages:', error);
-      toast.error('প্যাকেজ লোড করতে ব্যর্থ হয়েছে');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubscribe = (pkg: PackageType) => {
-    if (!isLoggedIn) {
-      toast.error('সাবস্ক্রাইব করতে দয়া করে লগইন করুন');
+  const startSubscribe = (pkg: PackageType) => {
+    if (!localStorage.getItem('userToken')) {
+      toast.error('সাবস্ক্রাইব করতে আগে লগইন করুন');
       router.push('/login');
       return;
     }
-    
-    setSelectedPackage(pkg);
-    setShowPaymentModal(true);
+    setSelected(pkg);
   };
 
-  const handlePayment = async () => {
-    if (!selectedPackage) return;
-    
+  const confirmSubscribe = async () => {
+    if (!selected) return;
+    setSubmitting(true);
     try {
-      setSubscribing(selectedPackage._id);
-      
-      const subscriptionData = {
-        package: selectedPackage.name,
-        paymentMethod: paymentMethod,
-        address: '', // Will be taken from user profile
-        zone: '', // Will be taken from user profile
-      };
-      
-      const response = await subscriptionAPI.requestSubscription(subscriptionData);
-      console.log('Subscription response:', response);
-      
-      if (response.success) {
-        toast.success('সাবস্ক্রিপশন রিকোয়েস্ট সফল! অ্যাডমিন অনুমোদনের অপেক্ষায়');
-        setShowPaymentModal(false);
-        
-        // Redirect to dashboard or subscription page
-        setTimeout(() => {
-          router.push('/dashboard/profile');
-        }, 2000);
+      // address and zone are left empty on purpose — the API fills them from
+      // the user's saved profile.
+      const res = await subscriptionAPI.requestSubscription({
+        package: selected.name,
+        paymentMethod,
+        address: '',
+        zone: '',
+      });
+      if (res.success) {
+        toast.success('রিকোয়েস্ট পাঠানো হয়েছে! অ্যাডমিন অনুমোদনের অপেক্ষায়।');
+        setSelected(null);
+        router.push('/dashboard/profile');
       } else {
-        toast.error(response.message || 'সাবস্ক্রিপশন ব্যর্থ হয়েছে');
+        toast.error(res.message || 'সাবস্ক্রিপশন ব্যর্থ হয়েছে');
       }
-    } catch (error: any) {
-      console.error('Subscription error:', error);
-      toast.error(error.message || 'সাবস্ক্রিপশন ব্যর্থ হয়েছে');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'সাবস্ক্রিপশন ব্যর্থ হয়েছে');
     } finally {
-      setSubscribing(null);
+      setSubmitting(false);
     }
   };
-
-  const getPackageIcon = (packageName: string, index: number) => {
-    const name = packageName.toLowerCase();
-    if (name.includes('basic') || name.includes('বেসিক')) {
-      return <Package size={32} className="text-blue-400" />;
-    } else if (name.includes('standard') || name.includes('স্ট্যান্ডার্ড')) {
-      return <Star className="w-10 h-10 text-yellow-300" />;
-    } else if (name.includes('premium') || name.includes('প্রিমিয়াম')) {
-      return <Diamond className="w-10 h-10 text-blue-300" />;
-    } else {
-      // Default based on index
-      return index === 0 ? <Star className="w-10 h-10 text-yellow-300" /> : <Diamond className="w-10 h-10 text-blue-300" />;
-    }
-  };
-
-  const getPackageGradient = (packageName: string, index: number) => {
-    const name = packageName.toLowerCase();
-    if (name.includes('basic') || name.includes('বেসিক')) {
-      return 'from-green-500 to-teal-600';
-    } else if (name.includes('standard') || name.includes('স্ট্যান্ডার্ড')) {
-      return 'from-amber-500 to-orange-500';
-    } else if (name.includes('premium') || name.includes('প্রিমিয়াম')) {
-      return 'from-purple-500 to-pink-600';
-    } else {
-      // Default based on index
-      return index === 0 ? 'from-amber-500 to-orange-500' : 'from-purple-500 to-pink-600';
-    }
-  };
-
-  const getFeatureIcon = (feature: string, idx: number) => {
-    if (feature.includes('ডেলিভারি') || feature.includes('Delivery')) {
-      return <Truck className="w-5 h-5 text-[#3B82F6]" />;
-    } else if (feature.includes('খাবার') || feature.includes('Meal')) {
-      return <Coffee className="w-5 h-5 text-[#3B82F6]" />;
-    } else if (feature.includes('হোম') || feature.includes('Home')) {
-      return <Home className="w-5 h-5 text-[#3B82F6]" />;
-    } else if (feature.includes('আইটেম') || feature.includes('Item') || feature.includes('এক্সট্রা')) {
-      return <Gift className="w-5 h-5 text-[#3B82F6]" />;
-    } else if (feature.includes('সাপোর্ট') || feature.includes('Support')) {
-      return <Shield className="w-5 h-5 text-[#3B82F6]" />;
-    } else {
-      return <CheckCircle className="w-5 h-5 text-[#3B82F6]" />;
-    }
-  };
-
-  if (loading) {
-    return (
-      <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col items-center justify-center min-h-[400px]">
-            <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mb-4" />
-            <p className="text-gray-500 text-lg">প্যাকেজ লোড হচ্ছে...</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (packages.length === 0) {
-    return (
-      <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white mt-10 md:mt-5">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center py-12">
-            <div className="bg-red-50 rounded-full p-4 mx-auto w-fit mb-4">
-              <AlertCircle className="w-16 h-16 text-red-500" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">কোনো প্যাকেজ পাওয়া যায়নি</h2>
-            <p className="text-gray-500">বর্তমানে কোনো সক্রিয় প্যাকেজ নেই</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
-    <section className="px-4 sm:px-8 md:px-[100px] lg:px-[150px] xl:px-[200px] py-[50px] md:py-[100px] bg-white">
-      <div className='max-w-6xl mx-auto'>
-        {/* Section Header */}
-        <div className="text-center mb-10">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">আমাদের প্যাকেজসমূহ</h2>
-          <p className="text-gray-500">আপনার প্রয়োজন অনুযায়ী প্যাকেজ সিলেক্ট করুন</p>
-        </div>
+    <section id="packages" className="scroll-mt-32 py-16 md:py-24">
+      <div className="container-page">
+        <SectionHeading
+          eyebrow="প্যাকেজ"
+          title="আপনার জন্য কোনটা ঠিক?"
+          subtitle="মাসিক সাবস্ক্রিপশন নিলে প্রতি বেলার খরচ অনেক কমে যায়।"
+        />
 
-        {/* Package Cards - Dynamic Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-          {packages.map((pkg, index) => (
-            <div key={pkg._id} className="border-2 border-[#3B82F6] rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-              <div className={`bg-gradient-to-br ${getPackageGradient(pkg.name, index)} px-6 py-5 text-center text-white`}>
-                <div className="flex justify-center mb-2">
-                  {getPackageIcon(pkg.name, index)}
-                </div>
-                <h3 className="text-2xl font-bold">{pkg.title}</h3>
-                <p className="text-white/80 text-sm">
-                  {pkg.duration} দিনের প্যাকেজ
-                </p>
-                {index === 1 && (
-                  <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                    BEST SELLER
-                  </div>
-                )}
-              </div>
-              <div className="p-6 bg-gradient-to-br from-blue-50 to-white">
-                <ul className="space-y-3 mb-6">
-                  {pkg.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-center gap-3 text-gray-700">
-                      {getFeatureIcon(feature, idx)}
-                      <span className="font-medium">✓ {feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="text-center pt-4 border-t border-blue-100">
-                  <div className="mb-3">
-                    <span className="text-3xl font-bold text-[#3B82F6]">৳ {pkg.price}</span>
-                    <span className="text-gray-400 line-through ml-3">৳ {pkg.originalPrice}</span>
-                    <span className="text-green-600 text-sm ml-2">(-{pkg.discount}%)</span>
-                  </div>
-                  <button
-                    onClick={() => handleSubscribe(pkg)}
-                    disabled={subscribing === pkg._id}
-                    className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] hover:shadow-lg text-white font-bold py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {subscribing === pkg._id ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-5 h-5" />
+        {loading ? (
+          <div className="mt-14 grid animate-pulse gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-[28rem] rounded-3xl bg-ink-200" />
+            ))}
+          </div>
+        ) : packages.length === 0 ? (
+          <div className="mx-auto mt-12 max-w-md rounded-2xl border border-ink-200 bg-ink-50 p-10 text-center">
+            <AlertCircle className="mx-auto size-10 text-ink-400" />
+            <p className="mt-4 font-semibold text-ink-800">এখন কোনো প্যাকেজ চালু নেই</p>
+          </div>
+        ) : (
+          <div className="mt-14 grid items-start gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {packages.map((pkg, i) => {
+              // The middle card is the one we push; with two packages it is the
+              // second, with one it is simply not highlighted.
+              const featured = packages.length > 1 && i === Math.floor((packages.length - 1) / 2);
+              return (
+                <article
+                  key={pkg._id}
+                  className={`relative flex h-full flex-col rounded-3xl border p-7 transition duration-300 ${
+                    featured
+                      ? 'border-brand-300 bg-white shadow-lift lg:-translate-y-3'
+                      : 'border-ink-200 bg-white shadow-card hover:-translate-y-1 hover:shadow-lift'
+                  }`}
+                >
+                  {featured && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-4 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-md">
+                      সবচেয়ে জনপ্রিয়
+                    </span>
+                  )}
+
+                  <h3 className="text-xl font-bold text-ink-900">{pkg.title}</h3>
+                  <p className="mt-1 text-sm text-ink-500">{bn(pkg.duration)} দিনের প্যাকেজ</p>
+
+                  <div className="mt-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="text-4xl font-bold tracking-tight text-ink-900">{taka(pkg.price)}</span>
+                    {pkg.originalPrice > pkg.price && (
+                      <span className="text-sm text-ink-400 line-through">{taka(pkg.originalPrice)}</span>
                     )}
-                    {subscribing === pkg._id ? 'সাবস্ক্রাইব হচ্ছে...' : `${pkg.title} সাবস্ক্রাইব করুন`}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+                  </div>
+                  {pkg.discount > 0 && (
+                    <span className="mt-2 inline-flex w-fit rounded-full bg-leaf-100 px-2.5 py-1 text-xs font-semibold text-leaf-700">
+                      {bn(pkg.discount)}% সাশ্রয়
+                    </span>
+                  )}
 
-        {/* Extra Info */}
-        <div className="text-center mt-8">
-          <p className="text-gray-500 text-sm flex items-center justify-center gap-2">
-            <Zap className="w-4 h-4 text-[#3B82F6]" />
-            সব প্যাকেজেই রয়েছে স্পেশাল ডিসকাউন্ট
-            <Zap className="w-4 h-4 text-[#3B82F6]" />
-          </p>
-        </div>
+                  <ul className="mt-7 flex-1 space-y-3 border-t border-ink-100 pt-6">
+                    {pkg.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2.5 text-sm text-ink-700">
+                        <Check size={17} className="mt-0.5 shrink-0 text-leaf-600" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    onClick={() => startSubscribe(pkg)}
+                    className={`mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold transition ${
+                      featured
+                        ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700'
+                        : 'border border-ink-300 bg-white text-ink-900 hover:border-brand-400 hover:text-brand-700'
+                    }`}
+                  >
+                    <Sparkles size={16} />
+                    সাবস্ক্রাইব করুন
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Payment Modal */}
-      {showPaymentModal && selectedPackage && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800">সাবস্ক্রিপশন কনফার্মেশন</h3>
+      {/* Confirmation modal */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="subscribe-title"
+          onClick={() => !submitting && setSelected(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h3 id="subscribe-title" className="text-lg font-bold text-ink-900">
+                সাবস্ক্রিপশন নিশ্চিত করুন
+              </h3>
               <button
-                onClick={() => setShowPaymentModal(false)}
-                className="p-1 hover:bg-gray-100 rounded"
+                onClick={() => setSelected(null)}
+                disabled={submitting}
+                className="grid size-8 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100 disabled:opacity-50"
+                aria-label="বন্ধ করুন"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X size={18} />
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* Package Info */}
-              <div className="bg-blue-50 rounded-xl p-4">
-                <p className="text-sm text-gray-600">আপনি সাবস্ক্রাইব করতে যাচ্ছেন:</p>
-                <p className="font-bold text-lg text-[#3B82F6]">{selectedPackage.title}</p>
-                <p className="text-2xl font-bold text-gray-800">৳ {selectedPackage.price}</p>
-                <p className="text-xs text-gray-500 mt-1">{selectedPackage.duration} দিনের জন্য</p>
-              </div>
+            <div className="mt-5 rounded-2xl bg-brand-50 p-4">
+              <p className="text-xs text-ink-600">আপনি সাবস্ক্রাইব করছেন</p>
+              <p className="mt-0.5 font-semibold text-brand-800">{selected.title}</p>
+              <p className="mt-1 text-2xl font-bold text-ink-900">{taka(selected.price)}</p>
+              <p className="mt-0.5 text-xs text-ink-500">{bn(selected.duration)} দিনের জন্য</p>
+            </div>
 
-              {/* Payment Method */}
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">
-                  <CreditCard className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                  পেমেন্ট মেথড
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                >
-                  <option value="bkash">bKash</option>
-                  <option value="nagad">Nagad</option>
-                  <option value="rocket">Rocket</option>
-                  <option value="bank">ব্যাংক ট্রান্সফার</option>
-                </select>
+            <fieldset className="mt-5">
+              <legend className="text-sm font-medium text-ink-800">পেমেন্ট মেথড</legend>
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <label
+                    key={method.value}
+                    className={`cursor-pointer rounded-xl border px-4 py-3 text-center text-sm font-medium transition ${
+                      paymentMethod === method.value
+                        ? 'border-brand-500 bg-brand-50 text-brand-800'
+                        : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value={method.value}
+                      checked={paymentMethod === method.value}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="sr-only"
+                    />
+                    {method.label}
+                  </label>
+                ))}
               </div>
+            </fieldset>
 
-              {/* Info Note */}
-              <div className="bg-yellow-50 rounded-xl p-3">
-                <p className="text-xs text-yellow-800">
-                  ⚠️ সাবস্ক্রিপশন রিকোয়েস্ট পাঠানোর পর অ্যাডমিন অনুমোদন দিলে আপনার সাবস্ক্রিপশন এক্টিভ হবে।
-                </p>
-              </div>
+            <p className="mt-5 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
+              রিকোয়েস্ট পাঠানোর পর অ্যাডমিন অনুমোদন দিলে আপনার সাবস্ক্রিপশন চালু হবে।
+            </p>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                >
-                  বাতিল
-                </button>
-                <button
-                  onClick={handlePayment}
-                  disabled={subscribing === selectedPackage._id}
-                  className="flex-1 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {subscribing === selectedPackage._id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Wallet className="w-4 h-4" />
-                  )}
-                  {subscribing === selectedPackage._id ? 'প্রসেসিং...' : 'কনফার্ম করুন'}
-                </button>
-              </div>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setSelected(null)}
+                disabled={submitting}
+                className="flex-1 rounded-full border border-ink-300 px-5 py-3 text-sm font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
+              >
+                বাতিল
+              </button>
+              <button
+                onClick={confirmSubscribe}
+                disabled={submitting}
+                className="flex flex-1 items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              >
+                {submitting && <Loader2 size={16} className="animate-spin" />}
+                {submitting ? 'পাঠানো হচ্ছে...' : 'কনফার্ম করুন'}
+              </button>
             </div>
           </div>
         </div>
