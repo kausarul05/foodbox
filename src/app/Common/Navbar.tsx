@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CalendarRange,
   ChevronRight,
@@ -16,6 +16,7 @@ import {
   UtensilsCrossed,
   X,
 } from 'lucide-react';
+import { displayName, useSession } from '@/lib/useSession';
 import logo from '../../../public/Images/logo.jpg';
 
 const NAV_LINKS = [
@@ -25,40 +26,13 @@ const NAV_LINKS = [
   { name: 'সাবস্ক্রিপশন', href: '/subscription', icon: CalendarRange },
 ];
 
-/**
- * The session lives in localStorage, which is an external store — so it is read
- * through useSyncExternalStore rather than an effect + setState. getSnapshot
- * runs on every render, so a client-side navigation after login picks the new
- * session up, and the `storage` subscription keeps a second tab in sync.
- */
-function subscribeToSession(onChange: () => void) {
-  window.addEventListener('storage', onChange);
-  return () => window.removeEventListener('storage', onChange);
-}
-
-/** Returns the raw userData string, or null when logged out. */
-function readSession() {
-  return localStorage.getItem('userToken') ? localStorage.getItem('userData') : null;
-}
-
-/** The server has no localStorage, so it always renders the logged-out header. */
-const readServerSession = () => null;
-
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
-  const rawUser = useSyncExternalStore(subscribeToSession, readSession, readServerSession);
-  const user = useMemo(() => {
-    if (!rawUser) return null;
-    try {
-      const parsed = JSON.parse(rawUser);
-      return { name: parsed.fullName || parsed.name || 'ইউজার' };
-    } catch {
-      return null;
-    }
-  }, [rawUser]);
+  const { user } = useSession();
+  const name = displayName(user);
 
   // Lock body scroll while the drawer is open.
   useEffect(() => {
@@ -118,7 +92,7 @@ export default function Navbar() {
               <span className="grid size-8 place-items-center rounded-full bg-brand-100 text-brand-700">
                 <UserRound size={16} />
               </span>
-              <span className="max-w-28 truncate text-sm font-medium text-ink-800">{user.name}</span>
+              <span className="max-w-28 truncate text-sm font-medium text-ink-800">{name}</span>
             </Link>
           ) : (
             <Link
@@ -208,7 +182,7 @@ export default function Navbar() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-ink-900">
-                {user ? user.name : 'লগইন / সাইনআপ'}
+                {user ? name : 'লগইন / সাইনআপ'}
               </span>
               <span className="block text-xs text-ink-500">
                 {user ? 'ড্যাশবোর্ড ও প্রোফাইল' : 'অ্যাকাউন্টে প্রবেশ করুন'}

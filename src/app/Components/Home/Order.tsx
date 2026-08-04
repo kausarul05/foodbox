@@ -1,36 +1,36 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import {
-  Package,
-  Calendar,
-  Phone,
-  MapPin,
-  Home,
-  CheckCircle,
-  CreditCard,
-  Loader2,
-  LogIn,
   AlertCircle,
-  ShoppingBag,
-  Clock,
-  Wallet,
-  Truck,
-  Crown,
-  X,
-  Coffee,
-  Sun,
-  Moon,
+  Calendar,
+  CheckCircle2,
   ChevronDown,
-  ChevronUp,
-  Info,
+  Coffee,
+  Crown,
+  Home,
+  LogIn,
+  Moon,
+  Phone,
+  ShoppingBag,
+  Sun,
   Users,
-  PlusCircle
+  Wallet,
 } from 'lucide-react';
-import { orderAPI, subscriptionAPI, menuAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import { menuAPI, orderAPI, subscriptionAPI } from '@/lib/api';
+import Button, { buttonClass } from '@/components/ui/Button';
+import { Field, Input, Textarea } from '@/components/ui/Field';
+import Modal from '@/components/ui/Modal';
 import ZoneSelect from '@/components/ui/ZoneSelect';
+import { bengaliDate, bn, taka } from '@/lib/format';
+import { displayName, useHydrated, useSession } from '@/lib/useSession';
+
+/* -------------------------------------------------------------------------- */
+/* Types and constants                                                        */
+/* -------------------------------------------------------------------------- */
 
 interface MenuItem {
   day: string;
@@ -42,1157 +42,861 @@ interface MenuItem {
   dinnerPrice?: number;
 }
 
-interface MealSelection {
-  morning: boolean;
-  lunch: boolean;
-  dinner: boolean;
+type MealKey = 'morning' | 'lunch' | 'dinner';
+type MealSelection = Record<MealKey, boolean>;
+
+const MEALS = [
+  { key: 'morning', label: 'সকাল', full: 'সকালের খাবার', icon: Coffee, tint: 'text-amber-600' },
+  { key: 'lunch', label: 'দুপুর', full: 'দুপুরের খাবার', icon: Sun, tint: 'text-brand-600' },
+  { key: 'dinner', label: 'রাত', full: 'রাতের খাবার', icon: Moon, tint: 'text-indigo-600' },
+] as const satisfies readonly { key: MealKey; label: string; full: string; icon: typeof Coffee; tint: string }[];
+
+/** Used only when the menu row carries no price of its own. */
+const FALLBACK_PRICE: Record<MealKey, number> = { morning: 50, lunch: 80, dinner: 100 };
+
+const DELIVERY_CHARGE_PER_DAY = 15;
+
+/** JS getDay() is Sunday-first. */
+const WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+
+const NONE: MealSelection = { morning: false, lunch: false, dinner: false };
+
+/**
+ * Local YYYY-MM-DD.
+ *
+ * `toISOString().slice(0,10)` was returning the *previous* day between midnight
+ * and 6am in Dhaka (UTC+6), because it converts to UTC first.
+ */
+function toISODate(date: Date) {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
-interface DayOrder {
-  date: string;
-  dayName: string;
-  selfMeals: MealSelection;
-  guestMeals: MealSelection;
-  morningMeal?: string;
-  lunchMeal?: string;
-  dinnerMeal?: string;
-  isExpanded: boolean;
+function fromISODate(value: string) {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
-export default function OrderPage() {
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+/** Tomorrow through the following six days — one delivery week. */
+function defaultRange() {
+  const start = addDays(new Date(), 1);
+  return { start: toISODate(start), end: toISODate(addDays(start, 6)) };
+}
+
+/* -------------------------------------------------------------------------- */
+
+export default function Order() {
   const router = useRouter();
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const [selectedZone, setSelectedZone] = useState<string>('');
-  const [address, setAddress] = useState<string>('');
+  const hydrated = useHydrated();
+  const { user } = useSession();
+
+  const [range, setRange] = useState(defaultRange);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [selectedZone, setSelectedZone] = useState('');
+  const [address, setAddress] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
-  const [subscriptionData, setSubscriptionData] = useState<any>(null);
-  const [availableMenu, setAvailableMenu] = useState<MenuItem[]>([]);
+  const [subscriptionData, setSubscriptionData] = useState<{ packageName?: string } | null>(null);
+  const [menu, setMenu] = useState<MenuItem[]>([]);
   const [walletBalance, setWalletBalance] = useState(0);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showInsufficientBalanceModal, setShowInsufficientBalanceModal] = useState(false);
-  const [dailyOrders, setDailyOrders] = useState<DayOrder[]>([]);
+
+  /** The three global toggles at the top of the form. */
+  const [defaultMeals, setDefaultMeals] = useState<MealSelection>({ morning: true, lunch: true, dinner: true });
+  /** Per-day departures from `defaultMeals`, keyed by ISO date. */
+  const [selfOverrides, setSelfOverrides] = useState<Record<string, MealSelection>>({});
+  const [guestOverrides, setGuestOverrides] = useState<Record<string, MealSelection>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [enableGuestMeal, setEnableGuestMeal] = useState(false);
-  const [mealsPerDay, setMealsPerDay] = useState<'1' | '2' | '3'>('3');
-  const [selectedMealType, setSelectedMealType] = useState<'all' | 'morning' | 'lunch' | 'dinner'>('all');
-  const [requiredAmount, setRequiredAmount] = useState(0);
-  const [selectedMeals, setSelectedMeals] = useState({
-    morning: true,  // সকাল ডিফল্ট true
-    lunch: true,    // দুপুর ডিফল্ট true
-    dinner: true    // রাত ডিফল্ট true
-  });
 
-  const mealPrices = {
-    morning: 50,
-    lunch: 80,
-    dinner: 100
-  };
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [shortfall, setShortfall] = useState<number | null>(null);
 
-  const deliveryChargePerDay = 15;
-  const daysOfWeek = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+  const isLoggedIn = Boolean(user);
 
-  const mealTypeOptions = [
-    { value: 'all', label: 'সব বেলা', icon: null },
-    { value: 'morning', label: 'সকাল', icon: Coffee },
-    { value: 'lunch', label: 'দুপুর', icon: Sun },
-    { value: 'dinner', label: 'রাত', icon: Moon },
-  ];
+  /* ---------------------------------------------------------------------- */
+  /* Load subscription + menu                                               */
+  /* ---------------------------------------------------------------------- */
 
   useEffect(() => {
-    if (startDate && endDate && availableMenu.length > 0) {
-      initializeDailyOrders();
-    }
-  }, [startDate, endDate, availableMenu, selectedMeals]);
-
-  useEffect(() => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setStartDate(tomorrow.toISOString().split('T')[0]);
-    const end = new Date(tomorrow);
-    end.setDate(end.getDate() + 6);
-    setEndDate(end.toISOString().split('T')[0]);
-  }, []);
-
-  useEffect(() => {
-    checkLoginStatus();
-  }, []);
-
-  useEffect(() => {
-    if (startDate && endDate && availableMenu.length > 0) {
-      initializeDailyOrders();
-    }
-  }, [startDate, endDate, availableMenu, mealsPerDay, selectedMealType]);
-
-  const checkLoginStatus = async () => {
-    const token = localStorage.getItem('userToken');
-    const user = localStorage.getItem('userData');
-
-    if (token && user) {
-      setIsLoggedIn(true);
-      const userInfo = JSON.parse(user);
-      setUserData(userInfo);
-      setWalletBalance(userInfo.walletBalance || 0);
-
-      if (userInfo.phoneNumber) setPhoneNumber(userInfo.phoneNumber);
-      if (userInfo.zone) setSelectedZone(userInfo.zone);
-      if (userInfo.address) setAddress(userInfo.address);
-
-      await checkSubscriptionStatus();
-    } else {
-      setIsLoggedIn(false);
+    if (!hydrated) return;
+    if (!user) {
       setLoading(false);
+      return;
     }
-  };
 
-  const checkSubscriptionStatus = async () => {
-    try {
-      const response = await subscriptionAPI.getMySubscriptions();
-      if (response.success && response.data) {
-        const activeSub = response.data.find((sub: any) => sub.status === 'active');
-        if (activeSub) {
-          setHasActiveSubscription(true);
-          setSubscriptionData(activeSub);
-          setWalletBalance(response.walletBalance || 0);
-          await fetchMenu(activeSub.package);
-        } else {
-          setHasActiveSubscription(false);
-          await fetchMenu('basic');
-          setShowSubscriptionModal(true);
+    let cancelled = false;
+
+    (async () => {
+      let active: { packageName?: string; package?: string } | null = null;
+      let balance = Number(user.walletBalance ?? 0);
+
+      try {
+        const res = await subscriptionAPI.getMySubscriptions();
+        if (res.success && res.data) {
+          active = res.data.find((s: { status: string }) => s.status === 'active') ?? null;
+          balance = res.walletBalance ?? balance;
         }
-      } else {
-        setHasActiveSubscription(false);
-        await fetchMenu('basic');
-        setShowSubscriptionModal(true);
+      } catch {
+        /* treated as "no subscription" below */
       }
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-      setHasActiveSubscription(false);
-      await fetchMenu('basic');
-      setShowSubscriptionModal(true);
-    } finally {
+
+      let rows: MenuItem[] = [];
+      try {
+        const res = await menuAPI.getMenuByPackage(active?.package ?? 'basic');
+        if (res.success && res.data) rows = res.data;
+      } catch {
+        if (!cancelled) toast.error('মেনু লোড করতে ব্যর্থ হয়েছে');
+      }
+
+      if (cancelled) return;
+      setHasActiveSubscription(Boolean(active));
+      setSubscriptionData(active);
+      setWalletBalance(balance);
+      setMenu(rows);
+      setPhoneNumber(user.phoneNumber ?? '');
+      setSelectedZone(user.zone ?? '');
+      setAddress(user.address ?? '');
       setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, user]);
+
+  /* ---------------------------------------------------------------------- */
+  /* Derived data                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  const priceOf = useCallback(
+    (dayName: string, meal: MealKey) => {
+      const row = menu.find((m) => m.day === dayName);
+      const priceKey = `${meal}Price` as const;
+      return row?.[priceKey] ?? FALLBACK_PRICE[meal];
+    },
+    [menu]
+  );
+
+  const nameOf = useCallback(
+    (dayName: string, meal: MealKey) => menu.find((m) => m.day === dayName)?.[meal] ?? '',
+    [menu]
+  );
+
+  /** One entry per delivery date in the chosen range. */
+  const days = useMemo(() => {
+    const out: { date: string; dayName: string }[] = [];
+    const end = fromISODate(range.end);
+    for (let cursor = fromISODate(range.start); cursor <= end; cursor = addDays(cursor, 1)) {
+      out.push({ date: toISODate(cursor), dayName: WEEKDAYS[cursor.getDay()] });
     }
-  };
+    return out;
+  }, [range]);
 
-  const fetchMenu = async (packageType: string) => {
-    try {
-      const response = await menuAPI.getMenuByPackage(packageType);
-      if (response.success && response.data) {
-        const menuWithPrices = response.data.map((item: any) => ({
-          ...item,
-          morningPrice: item.morningPrice || 50,
-          lunchPrice: item.lunchPrice || 80,
-          dinnerPrice: item.dinnerPrice || 100,
-        }));
-        setAvailableMenu(menuWithPrices);
-      }
-    } catch (error) {
-      console.error('Error fetching menu:', error);
-    }
-  };
+  const selfMealsFor = useCallback(
+    (date: string) => selfOverrides[date] ?? defaultMeals,
+    [selfOverrides, defaultMeals]
+  );
+  const guestMealsFor = useCallback((date: string) => guestOverrides[date] ?? NONE, [guestOverrides]);
 
-  const getDayName = (date: string) => {
-    const dayIndex = new Date(date).getDay();
-    return daysOfWeek[dayIndex];
-  };
-
-  const getMealForDay = (dayName: string, mealType: string) => {
-    const menu = availableMenu.find(m => m.day === dayName);
-    if (!menu) return null;
-    switch (mealType) {
-      case 'morning': return { name: menu.morning, price: menu.morningPrice };
-      case 'lunch': return { name: menu.lunch, price: menu.lunchPrice };
-      case 'dinner': return { name: menu.dinner, price: menu.dinnerPrice };
-      default: return null;
-    }
-  };
-
-  const getDatesInRange = (start: string, end: string) => {
-    const dates = [];
-    let currentDate = new Date(start);
-    const endDate = new Date(end);
-    while (currentDate <= endDate) {
-      dates.push(new Date(currentDate).toISOString().split('T')[0]);
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    return dates;
-  };
-
-  const initializeDailyOrders = () => {
-    const dates = getDatesInRange(startDate, endDate);
-    const orders: DayOrder[] = [];
-
-    for (const date of dates) {
-      const dayName = getDayName(date);
-      orders.push({
-        date,
-        dayName,
-        selfMeals: selectedMeals,  // স্টেট থেকে নিবে
-        guestMeals: { morning: false, lunch: false, dinner: false },
-        morningMeal: getMealForDay(dayName, 'morning')?.name,
-        lunchMeal: getMealForDay(dayName, 'lunch')?.name,
-        dinnerMeal: getMealForDay(dayName, 'dinner')?.name,
-        isExpanded: false,
-      });
-    }
-    setDailyOrders(orders);
-  };
-
-  const toggleDayExpand = (date: string) => {
-    setDailyOrders(prev => prev.map(order =>
-      order.date === date ? { ...order, isExpanded: !order.isExpanded } : order
-    ));
-  };
-
-  const updateSelfMeal = (date: string, mealType: keyof MealSelection) => {
-    setDailyOrders(prev => prev.map(order => {
-      if (order.date === date) {
-        return {
-          ...order,
-          selfMeals: { ...order.selfMeals, [mealType]: !order.selfMeals[mealType] }
-        };
-      }
-      return order;
-    }));
-  };
-
-  const updateGuestMeal = (date: string, mealType: keyof MealSelection) => {
-    setDailyOrders(prev => prev.map(order => {
-      if (order.date === date) {
-        return {
-          ...order,
-          guestMeals: { ...order.guestMeals, [mealType]: !order.guestMeals[mealType] }
-        };
-      }
-      return order;
-    }));
-  };
-
-  const updateMealsPerDay = (value: '1' | '2' | '3') => {
-    setMealsPerDay(value);
-    setSelectedMealType('all');
-  };
-
-  const updateSelectedMealType = (value: 'all' | 'morning' | 'lunch' | 'dinner') => {
-    setSelectedMealType(value);
-    if (value !== 'all') {
-      setMealsPerDay('1');
-    }
-  };
-
-  const calculateTotalPrice = () => {
+  const totals = useMemo(() => {
     let selfMealPrice = 0;
     let guestMealPrice = 0;
     let selfDays = 0;
     let guestDays = 0;
 
-    for (const order of dailyOrders) {
-      let hasSelfMeal = false;
-      let hasGuestMeal = false;
+    for (const { date, dayName } of days) {
+      const self = selfMealsFor(date);
+      const guest = guestMealsFor(date);
+      let hasSelf = false;
+      let hasGuest = false;
 
-      if (order.selfMeals.morning) {
-        const meal = getMealForDay(order.dayName, 'morning');
-        selfMealPrice += meal?.price || 50;
-        hasSelfMeal = true;
-      }
-      if (order.selfMeals.lunch) {
-        const meal = getMealForDay(order.dayName, 'lunch');
-        selfMealPrice += meal?.price || 80;
-        hasSelfMeal = true;
-      }
-      if (order.selfMeals.dinner) {
-        const meal = getMealForDay(order.dayName, 'dinner');
-        selfMealPrice += meal?.price || 100;
-        hasSelfMeal = true;
-      }
-
-      if (enableGuestMeal) {
-        if (order.guestMeals.morning) {
-          const meal = getMealForDay(order.dayName, 'morning');
-          guestMealPrice += meal?.price || 50;
-          hasGuestMeal = true;
+      for (const meal of MEALS) {
+        // A meal that is not on the menu for that day cannot be ordered.
+        if (!nameOf(dayName, meal.key)) continue;
+        if (self[meal.key]) {
+          selfMealPrice += priceOf(dayName, meal.key);
+          hasSelf = true;
         }
-        if (order.guestMeals.lunch) {
-          const meal = getMealForDay(order.dayName, 'lunch');
-          guestMealPrice += meal?.price || 80;
-          hasGuestMeal = true;
-        }
-        if (order.guestMeals.dinner) {
-          const meal = getMealForDay(order.dayName, 'dinner');
-          guestMealPrice += meal?.price || 100;
-          hasGuestMeal = true;
+        if (enableGuestMeal && guest[meal.key]) {
+          guestMealPrice += priceOf(dayName, meal.key);
+          hasGuest = true;
         }
       }
 
-      if (hasSelfMeal) selfDays++;
-      if (hasGuestMeal) guestDays++;
+      if (hasSelf) selfDays++;
+      if (hasGuest) guestDays++;
     }
 
-    const selfDeliveryCharge = hasActiveSubscription ? 0 : selfDays * deliveryChargePerDay;
-    const guestDeliveryCharge = guestDays * deliveryChargePerDay;
+    // A subscription covers delivery for the subscriber, never for guests.
+    const selfDelivery = hasActiveSubscription ? 0 : selfDays * DELIVERY_CHARGE_PER_DAY;
+    const guestDelivery = guestDays * DELIVERY_CHARGE_PER_DAY;
 
     return {
-      selfTotal: selfMealPrice + selfDeliveryCharge,
-      guestTotal: guestMealPrice + guestDeliveryCharge,
-      total: (selfMealPrice + selfDeliveryCharge) + (guestMealPrice + guestDeliveryCharge),
       selfMealPrice,
       guestMealPrice,
-      selfDeliveryCharge,
-      guestDeliveryCharge,
+      selfDelivery,
+      guestDelivery,
       selfDays,
-      guestDays
+      guestDays,
+      selfTotal: selfMealPrice + selfDelivery,
+      guestTotal: guestMealPrice + guestDelivery,
+      total: selfMealPrice + selfDelivery + guestMealPrice + guestDelivery,
     };
+  }, [days, selfMealsFor, guestMealsFor, nameOf, priceOf, enableGuestMeal, hasActiveSubscription]);
+
+  /* ---------------------------------------------------------------------- */
+  /* Handlers                                                               */
+  /* ---------------------------------------------------------------------- */
+
+  /** Changing a global toggle drops per-day tweaks, so the result is predictable. */
+  const toggleDefaultMeal = (meal: MealKey) => {
+    setDefaultMeals((prev) => ({ ...prev, [meal]: !prev[meal] }));
+    setSelfOverrides({});
   };
 
-  const handleLoginRedirect = () => router.push('/login');
-  const handleSubscribeRedirect = () => {
-    setShowSubscriptionModal(false);
-    router.push('/subscription');
+  const toggleSelfMeal = (date: string, meal: MealKey) => {
+    setSelfOverrides((prev) => {
+      const current = prev[date] ?? defaultMeals;
+      return { ...prev, [date]: { ...current, [meal]: !current[meal] } };
+    });
   };
 
-  const handleAddMoneyRedirect = () => {
-    setShowInsufficientBalanceModal(false);
-    router.push('/dashboard/wallet');
+  const toggleGuestMeal = (date: string, meal: MealKey) => {
+    setGuestOverrides((prev) => {
+      const current = prev[date] ?? NONE;
+      return { ...prev, [date]: { ...current, [meal]: !current[meal] } };
+    });
   };
 
-  const openConfirmModal = () => {
-    const totals = calculateTotalPrice();
-    if (totals.selfTotal === 0 && totals.guestTotal === 0) {
+  const openConfirm = () => {
+    if (totals.total === 0) {
       toast.error('দয়া করে কমপক্ষে একটি খাবার নির্বাচন করুন');
       return;
     }
-
-    if (hasActiveSubscription && totals.selfMealPrice > walletBalance) {
-      setRequiredAmount(totals.selfMealPrice);
-      setShowInsufficientBalanceModal(true);
+    if (!selectedZone) {
+      toast.error('দয়া করে জোন সিলেক্ট করুন');
       return;
     }
-
-    setShowConfirmModal(true);
-  };
-
-  const handleZoneChange = (zoneId: string) => {
-    setSelectedZone(zoneId);
-  };
-
-  const checkIfDateBlocked = async (date: string) => {
-    try {
-      const response = await orderAPI.checkDateBlocked(date);
-      if (response.success && response.isBlocked) {
-        toast.error(response.message || 'এই তারিখে ডেলিভারি বন্ধ আছে');
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Error checking blocked date:', error);
-      return false;
+    if (!address.trim()) {
+      toast.error('দয়া করে ডেলিভারি ঠিকানা দিন');
+      return;
     }
+    // Only the subscriber's own meals come out of the wallet; guest meals are cash.
+    if (hasActiveSubscription && totals.selfMealPrice > walletBalance) {
+      setShortfall(totals.selfMealPrice - walletBalance);
+      return;
+    }
+    setShowConfirm(true);
   };
 
   const handleSubmit = async () => {
-    setShowConfirmModal(false);
-
-    const dates = getDatesInRange(startDate, endDate);
-    for (const date of dates) {
-      const isBlocked = await checkIfDateBlocked(date);
-      if (isBlocked) {
-        toast.error(`${new Date(date).toLocaleDateString('bn-BD')} তারিখে মিল বন্ধ রয়েছে`);
-        return;
-      }
-    }
+    setShowConfirm(false);
+    setSubmitting(true);
 
     try {
-      setSubmitting(true);
-      const orders = [];
-
-      for (const order of dailyOrders) {
-        // Self meals
-        if (order.selfMeals.morning && order.morningMeal) {
-          const meal = getMealForDay(order.dayName, 'morning');
-          const orderData = {
-            items: [{ name: order.morningMeal, price: meal?.price || 50, quantity: 1 }],
-            totalAmount: meal?.price || 50,
-            deliveryCharge: hasActiveSubscription ? 0 : deliveryChargePerDay,
-            paymentMethod: hasActiveSubscription ? 'wallet' : 'cash',
-            deliveryDate: order.date,
-            deliveryTime: 'morning',
-            address: address,
-            zone: selectedZone,
-            specialInstructions: '',
-            package: subscriptionData?.packageName || 'Regular',
-            orderType: 'self'
-          };
-          const orderResponse = await orderAPI.createOrder(orderData);
-          if (orderResponse.success && orderResponse.walletBalance) {
-            setWalletBalance(orderResponse.walletBalance);
-          }
-          orders.push(orderResponse);
+      for (const { date } of days) {
+        const res = await orderAPI.checkDateBlocked(date);
+        if (res.success && res.isBlocked) {
+          toast.error(`${bengaliDate(date)} তারিখে ডেলিভারি বন্ধ আছে`);
+          return;
         }
+      }
 
-        if (order.selfMeals.lunch && order.lunchMeal) {
-          const meal = getMealForDay(order.dayName, 'lunch');
-          const orderData = {
-            items: [{ name: order.lunchMeal, price: meal?.price || 80, quantity: 1 }],
-            totalAmount: meal?.price || 80,
-            deliveryCharge: hasActiveSubscription ? 0 : deliveryChargePerDay,
-            paymentMethod: hasActiveSubscription ? 'wallet' : 'cash',
-            deliveryDate: order.date,
-            deliveryTime: 'lunch',
-            address: address,
+      let placed = 0;
+      let latestBalance = walletBalance;
+
+      for (const { date, dayName } of days) {
+        const self = selfMealsFor(date);
+        const guest = guestMealsFor(date);
+
+        for (const meal of MEALS) {
+          const itemName = nameOf(dayName, meal.key);
+          if (!itemName) continue;
+          const price = priceOf(dayName, meal.key);
+
+          const base = {
+            deliveryDate: date,
+            deliveryTime: meal.key,
+            address,
             zone: selectedZone,
-            specialInstructions: '',
-            package: subscriptionData?.packageName || 'Regular',
-            orderType: 'self'
+            items: [{ name: itemName, price, quantity: 1 }],
+            totalAmount: price,
           };
-          const orderResponse = await orderAPI.createOrder(orderData);
-          if (orderResponse.success && orderResponse.walletBalance) {
-            setWalletBalance(orderResponse.walletBalance);
-          }
-          orders.push(orderResponse);
-        }
 
-        if (order.selfMeals.dinner && order.dinnerMeal) {
-          const meal = getMealForDay(order.dayName, 'dinner');
-          const orderData = {
-            items: [{ name: order.dinnerMeal, price: meal?.price || 100, quantity: 1 }],
-            totalAmount: meal?.price || 100,
-            deliveryCharge: hasActiveSubscription ? 0 : deliveryChargePerDay,
-            paymentMethod: hasActiveSubscription ? 'wallet' : 'cash',
-            deliveryDate: order.date,
-            deliveryTime: 'dinner',
-            address: address,
-            zone: selectedZone,
-            specialInstructions: '',
-            package: subscriptionData?.packageName || 'Regular',
-            orderType: 'self'
-          };
-          const orderResponse = await orderAPI.createOrder(orderData);
-          if (orderResponse.success && orderResponse.walletBalance) {
-            setWalletBalance(orderResponse.walletBalance);
+          if (self[meal.key]) {
+            const res = await orderAPI.createOrder({
+              ...base,
+              deliveryCharge: hasActiveSubscription ? 0 : DELIVERY_CHARGE_PER_DAY,
+              paymentMethod: hasActiveSubscription ? 'wallet' : 'cash',
+              specialInstructions: '',
+              package: subscriptionData?.packageName || 'Regular',
+              orderType: 'self',
+            });
+            if (res.success) {
+              placed++;
+              if (typeof res.walletBalance === 'number') latestBalance = res.walletBalance;
+            }
           }
-          orders.push(orderResponse);
-        }
 
-        // Guest meals (only if enabled)
-        if (enableGuestMeal) {
-          if (order.guestMeals.morning && order.morningMeal) {
-            const meal = getMealForDay(order.dayName, 'morning');
-            const orderData = {
-              items: [{ name: order.morningMeal, price: meal?.price || 50, quantity: 1 }],
-              totalAmount: meal?.price || 50,
-              deliveryCharge: deliveryChargePerDay,
+          if (enableGuestMeal && guest[meal.key]) {
+            const res = await orderAPI.createOrder({
+              ...base,
+              deliveryCharge: DELIVERY_CHARGE_PER_DAY,
               paymentMethod: 'cash',
-              deliveryDate: order.date,
-              deliveryTime: 'morning',
-              address: address,
-              zone: selectedZone,
               specialInstructions: 'Guest Meal Order',
               package: 'Guest',
-              orderType: 'guest'
-            };
-            const orderResponse = await orderAPI.createOrder(orderData);
-            orders.push(orderResponse);
-          }
-
-          if (order.guestMeals.lunch && order.lunchMeal) {
-            const meal = getMealForDay(order.dayName, 'lunch');
-            const orderData = {
-              items: [{ name: order.lunchMeal, price: meal?.price || 80, quantity: 1 }],
-              totalAmount: meal?.price || 80,
-              deliveryCharge: deliveryChargePerDay,
-              paymentMethod: 'cash',
-              deliveryDate: order.date,
-              deliveryTime: 'lunch',
-              address: address,
-              zone: selectedZone,
-              specialInstructions: 'Guest Meal Order',
-              package: 'Guest',
-              orderType: 'guest'
-            };
-            const orderResponse = await orderAPI.createOrder(orderData);
-            orders.push(orderResponse);
-          }
-
-          if (order.guestMeals.dinner && order.dinnerMeal) {
-            const meal = getMealForDay(order.dayName, 'dinner');
-            const orderData = {
-              items: [{ name: order.dinnerMeal, price: meal?.price || 100, quantity: 1 }],
-              totalAmount: meal?.price || 100,
-              deliveryCharge: deliveryChargePerDay,
-              paymentMethod: 'cash',
-              deliveryDate: order.date,
-              deliveryTime: 'dinner',
-              address: address,
-              zone: selectedZone,
-              specialInstructions: 'Guest Meal Order',
-              package: 'Guest',
-              orderType: 'guest'
-            };
-            const orderResponse = await orderAPI.createOrder(orderData);
-            orders.push(orderResponse);
+              orderType: 'guest',
+            });
+            if (res.success) placed++;
           }
         }
       }
 
-      if (orders.length > 0) {
-        const updatedUser = { ...userData, walletBalance };
-        localStorage.setItem('userData', JSON.stringify(updatedUser));
-        setUserData(updatedUser);
-
-        toast.success(`${orders.length}টি অর্ডার সফলভাবে সম্পন্ন হয়েছে!`);
-
-        // Reset
-        const nextWeek = new Date(endDate);
-        nextWeek.setDate(nextWeek.getDate() + 1);
-        setStartDate(nextWeek.toISOString().split('T')[0]);
-        const nextWeekEnd = new Date(nextWeek);
-        nextWeekEnd.setDate(nextWeekEnd.getDate() + 6);
-        setEndDate(nextWeekEnd.toISOString().split('T')[0]);
-
-        setEnableGuestMeal(false);
-        initializeDailyOrders();
+      if (placed === 0) {
+        toast.error('কোনো অর্ডার করা যায়নি');
+        return;
       }
 
-    } catch (error: any) {
-      console.error('Error placing order:', error);
-      toast.error(error.message || 'অর্ডার করতে ব্যর্থ হয়েছে');
+      setWalletBalance(latestBalance);
+      toast.success(`${bn(placed)}টি অর্ডার সফলভাবে সম্পন্ন হয়েছে!`);
+
+      // Roll the form forward to the week after the one just ordered.
+      const nextStart = addDays(fromISODate(range.end), 1);
+      setRange({ start: toISODate(nextStart), end: toISODate(addDays(nextStart, 6)) });
+      setSelfOverrides({});
+      setGuestOverrides({});
+      setEnableGuestMeal(false);
+      router.push('/dashboard/orders');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'অর্ডার করতে ব্যর্থ হয়েছে');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const totals = calculateTotalPrice();
+  /* ---------------------------------------------------------------------- */
+  /* Render                                                                 */
+  /* ---------------------------------------------------------------------- */
 
-  if (loading) {
+  if (!hydrated || loading) {
     return (
-      <section className="min-h-screen bg-gray-50 py-12 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col items-center justify-center min-h-[400px]">
-            <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mb-4" />
-            <p className="text-gray-500 text-lg">লোড হচ্ছে...</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-  return (
-    <section className="min-h-screen bg-gray-50 py-8 px-4 mt-10 md:mt-5">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white mb-4">
-            <ShoppingBag className="w-8 h-8" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">অর্ডার করুন</h1>
-          <p className="text-gray-600">আপনার পছন্দের খাবার অর্ডার করুন</p>
-        </div>
-
-        {/* Insufficient Balance Modal */}
-        {showInsufficientBalanceModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-6 h-6 text-red-500" />
-                  <h3 className="text-xl font-bold text-gray-800">অপর্যাপ্ত ওয়ালেট ব্যালেন্স</h3>
-                </div>
-                <button onClick={() => setShowInsufficientBalanceModal(false)} className="p-1 hover:bg-gray-100 rounded">
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div className="bg-red-50 rounded-xl p-4 text-center">
-                  <p className="text-gray-700 mb-2">আপনার ওয়ালেটে পর্যাপ্ত টাকা নেই।</p>
-                  <p className="text-sm text-gray-600">
-                    প্রয়োজন: <span className="font-bold text-red-600">৳ {requiredAmount}</span><br />
-                    বর্তমান ব্যালেন্স: <span className="font-bold text-[#3B82F6]">৳ {walletBalance}</span>
-                  </p>
-                </div>
-                <div className="bg-yellow-50 rounded-lg p-3">
-                  <p className="text-xs text-yellow-800">
-                    💡 অনুগ্রহ করে আপনার ওয়ালেট রিচার্জ করুন। রিচার্জ করার পর আবার অর্ডার চেষ্টা করুন।
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowInsufficientBalanceModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    বাতিল
-                  </button>
-                  <button
-                    onClick={handleAddMoneyRedirect}
-                    className="flex-1 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
-                  >
-                    {/* <PlusCircle size={18} /> */}
-                    ওয়ালেট রিচার্জ করুন
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Subscription Modal */}
-        {showSubscriptionModal && !hasActiveSubscription && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <Crown className="w-6 h-6 text-[#3B82F6]" />
-                  <h3 className="text-xl font-bold text-gray-800">সাবস্ক্রিপশন অফার!</h3>
-                </div>
-                <button onClick={() => setShowSubscriptionModal(false)} className="p-1 hover:bg-gray-100 rounded">
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="text-center mb-6">
-                <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white p-4 rounded-xl mb-4">
-                  <p className="text-lg font-bold">সাবস্ক্রাইব করুন এবং ছাড় নিন!</p>
-                  <p className="text-sm mt-2">সাবস্ক্রিপশন নিলে অর্ডারে ছাড় + ফ্রি ডেলিভারি</p>
-                </div>
-                <ul className="text-left space-y-2 text-gray-600">
-                  <li className="flex items-center gap-2">✓ সপ্তাহের ৭ দিন ডেলিভারি</li>
-                  <li className="flex items-center gap-2">✓ প্রতিদিন ৩ বেলা খাবার</li>
-                  <li className="flex items-center gap-2">✓ ফ্রি হোম ডেলিভারি</li>
-                </ul>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowSubscriptionModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  পরবর্তীতে
-                </button>
-                <button
-                  onClick={handleSubscribeRedirect}
-                  className="flex-1 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold"
-                >
-                  সাবস্ক্রাইব করুন
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Confirm Order Modal */}
-        {showConfirmModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 text-black">
-            <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800">অর্ডার কনফার্মেশন</h3>
-                <button onClick={() => setShowConfirmModal(false)} className="p-1 hover:bg-gray-100 rounded">
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <p className="text-gray-600 font-semibold mb-2">আমার খাবার</p>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span>খাবারের মূল্য:</span>
-                      <span className="font-semibold">৳ {totals.selfMealPrice}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>ডেলিভারি চার্জ:</span>
-                      <span className="font-semibold">৳ {totals.selfDeliveryCharge}</span>
-                    </div>
-                    <div className="flex justify-between font-bold pt-1 border-t">
-                      <span>আমার মোট:</span>
-                      <span className="text-[#3B82F6]">৳ {totals.selfTotal}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {enableGuestMeal && totals.guestTotal > 0 && (
-                  <div className="bg-green-50 rounded-xl p-4">
-                    <p className="text-gray-600 font-semibold mb-2">গেস্ট খাবার</p>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span>খাবারের মূল্য:</span>
-                        <span className="font-semibold">৳ {totals.guestMealPrice}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>ডেলিভারি চার্জ:</span>
-                        <span className="font-semibold">৳ {totals.guestDeliveryCharge}</span>
-                      </div>
-                      <div className="flex justify-between font-bold pt-1 border-t">
-                        <span>গেস্ট মোট:</span>
-                        <span className="text-green-600">৳ {totals.guestTotal}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="bg-yellow-50 rounded-xl p-3">
-                  <p className="text-sm text-yellow-800">ওয়ালেট ব্যালেন্স: ৳ {walletBalance}</p>
-                  <p className="text-sm text-yellow-800 mt-1">ডেলিভারি ঠিকানা: {address}</p>
-                  <p className="text-sm text-yellow-800">ফোন: {phoneNumber}</p>
-                  {enableGuestMeal && (
-                    <p className="text-sm text-yellow-800 mt-1">গেস্ট খাবারের টাকা ডেলিভারির সময় দিতে হবে</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowConfirmModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  বাতিল
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="flex-1 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all"
-                >
-                  {submitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'অর্ডার নিশ্চিত করুন'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Login Required */}
-        {!isLoggedIn && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-8 text-center">
-            <div className="bg-yellow-100 p-4 rounded-full w-fit mx-auto mb-4">
-              <LogIn className="w-12 h-12 text-yellow-600" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">লগইন প্রয়োজন</h2>
-            <p className="text-gray-600 mb-6">অর্ডার করতে অনুগ্রহ করে আপনার অ্যাকাউন্টে লগইন করুন</p>
-            <button
-              onClick={handleLoginRedirect}
-              className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white px-8 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 mx-auto"
-            >
-              <LogIn size={20} />
-              লগইন করুন
-            </button>
-          </div>
-        )}
-
-        {/* Order Form */}
-        {isLoggedIn && (
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            <div className="p-6">
-              <form onSubmit={(e) => { e.preventDefault(); openConfirmModal(); }}>
-                {/* User Info & Wallet */}
-                <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-gray-600 text-sm">স্বাগতম,</p>
-                      <p className="font-semibold text-gray-800">{userData?.fullName}</p>
-                    </div>
-                    {hasActiveSubscription && (
-                      <div className="text-right">
-                        <p className="text-gray-600 text-sm flex items-center gap-1">
-                          <Wallet size={14} /> ওয়ালেট ব্যালেন্স
-                        </p>
-                        <p className="text-2xl font-bold text-[#3B82F6]">৳ {walletBalance}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Meal Type Selection */}
-                <div className="mb-6">
-                  <label className="block text-gray-700 font-medium mb-2">
-                    <Info className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                    খাবার নির্বাচন
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {mealTypeOptions.map((option) => {
-                      const Icon = option.icon;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => updateSelectedMealType(option.value as any)}
-                          className={`py-2 px-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-1 ${selectedMealType === option.value
-                            ? 'bg-[#3B82F6] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                        >
-                          {Icon && <Icon size={14} />}
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Meals Per Day Selection */}
-                {selectedMealType === 'all' && (
-                  <div className="mb-6">
-                    <label className="block text-gray-700 font-medium mb-2">
-                      <Info className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                      কোন বেলার খাবার নিবেন? (একাধিক নির্বাচন করতে পারেন)
-                    </label>
-                    <div className="grid grid-cols-3 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMeals(prev => ({ ...prev, morning: !prev.morning }))}
-                        className={`py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${selectedMeals.morning
-                          ? 'bg-[#3B82F6] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                      >
-                        <Coffee size={18} />
-                        সকাল
-                        {selectedMeals.morning && <CheckCircle size={16} />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMeals(prev => ({ ...prev, lunch: !prev.lunch }))}
-                        className={`py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${selectedMeals.lunch
-                          ? 'bg-[#3B82F6] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                      >
-                        <Sun size={18} />
-                        দুপুর
-                        {selectedMeals.lunch && <CheckCircle size={16} />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMeals(prev => ({ ...prev, dinner: !prev.dinner }))}
-                        className={`py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${selectedMeals.dinner
-                          ? 'bg-[#3B82F6] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                      >
-                        <Moon size={18} />
-                        রাত
-                        {selectedMeals.dinner && <CheckCircle size={16} />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      ✓ আপনার পছন্দ অনুযায়ী এক বা একাধিক বেলা নির্বাচন করতে পারেন
-                    </p>
-                  </div>
-                )}
-
-                {/* Guest Meal Toggle */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-xl">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <Users className="w-5 h-5 text-[#3B82F6]" />
-                      <div>
-                        <span className="font-semibold text-gray-800">গেস্ট মিল</span>
-                        <p className="text-xs text-gray-500">অন্য কারো জন্য খাবার অর্ডার করতে চান?</p>
-                      </div>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={enableGuestMeal}
-                        onChange={(e) => setEnableGuestMeal(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-[#3B82F6] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Date Range Selection */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <label className="block text-gray-700 font-medium mb-2">
-                      <Calendar className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                      শুরু তারিখ
-                    </label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-700 font-medium mb-2">
-                      <Calendar className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                      শেষ তারিখ
-                    </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
-                      min={startDate}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Daily Order Cards */}
-                <div className="mb-6 space-y-3 max-h-[500px] overflow-y-auto">
-                  <h3 className="font-semibold text-gray-800 mb-2 sticky top-0 bg-white py-2">দৈনিক খাবার নির্বাচন</h3>
-                  {dailyOrders.map((order) => (
-                    <div key={order.date} className="border border-gray-200 rounded-xl overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => toggleDayExpand(order.date)}
-                        className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
-                        <div>
-                          <div className="font-semibold text-gray-800">
-                            {order.dayName} - {(() => {
-                              const date = new Date(order.date);
-                              const day = date.getDate();
-                              const month = date.getMonth() + 1;
-                              const year = date.getFullYear();
-                              return `${day}/${month}/${year}`;
-                            })()}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {/* Show self meal summary */}
-                            {order.selfMeals.morning && '🌅 আমার '}
-                            {order.selfMeals.lunch && '☀️ আমার '}
-                            {order.selfMeals.dinner && '🌙 আমার '}
-                            {/* Show guest meal summary if enabled */}
-                            {enableGuestMeal && (
-                              <>
-                                {order.guestMeals.morning && '👥 গেস্ট সকাল '}
-                                {order.guestMeals.lunch && '👥 গেস্ট দুপুর '}
-                                {order.guestMeals.dinner && '👥 গেস্ট রাত '}
-                              </>
-                            )}
-                            {!order.selfMeals.morning && !order.selfMeals.lunch && !order.selfMeals.dinner &&
-                              (!enableGuestMeal || (!order.guestMeals.morning && !order.guestMeals.lunch && !order.guestMeals.dinner)) && 'কোন খাবার নির্বাচিত হয়নি'}
-                          </div>
-                        </div>
-                        {order.isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                      </button>
-
-                      {order.isExpanded && (
-                        <div className="p-4 space-y-4 border-t border-gray-200">
-                          {/* Self Meals */}
-                          <div className="bg-blue-50 p-3 rounded-lg text-black">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Wallet size={16} className="text-[#3B82F6]" />
-                              <span className="font-semibold text-sm">আমার খাবার {hasActiveSubscription ? '(ওয়ালেট থেকে)' : '(ক্যাশ অন ডেলিভারি)'}</span>
-                            </div>
-                            <div className="space-y-2 text-black">
-                              <label className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer">
-                                <div className="flex items-center gap-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={order.selfMeals.morning}
-                                    onChange={() => updateSelfMeal(order.date, 'morning')}
-                                    className="w-5 h-5 text-[#3B82F6] rounded"
-                                  />
-                                  <Coffee size={18} className="text-amber-500" />
-                                  <span className="text-gray-700">সকালের খাবার</span>
-                                  <span className="text-xs text-gray-500">({order.morningMeal})</span>
-                                </div>
-                                <span className="text-[#3B82F6] font-semibold">৳{getMealForDay(order.dayName, 'morning')?.price || 50}</span>
-                              </label>
-
-                              <label className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer">
-                                <div className="flex items-center gap-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={order.selfMeals.lunch}
-                                    onChange={() => updateSelfMeal(order.date, 'lunch')}
-                                    className="w-5 h-5 text-[#3B82F6] rounded"
-                                  />
-                                  <Sun size={18} className="text-yellow-500" />
-                                  <span className="text-gray-700">দুপুরের খাবার</span>
-                                  <span className="text-xs text-gray-500">({order.lunchMeal})</span>
-                                </div>
-                                <span className="text-[#3B82F6] font-semibold">৳{getMealForDay(order.dayName, 'lunch')?.price || 80}</span>
-                              </label>
-
-                              <label className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer">
-                                <div className="flex items-center gap-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={order.selfMeals.dinner}
-                                    onChange={() => updateSelfMeal(order.date, 'dinner')}
-                                    className="w-5 h-5 text-[#3B82F6] rounded"
-                                  />
-                                  <Moon size={18} className="text-blue-500" />
-                                  <span className="text-gray-700">রাতের খাবার</span>
-                                  <span className="text-xs text-gray-500">({order.dinnerMeal})</span>
-                                </div>
-                                <span className="text-[#3B82F6] font-semibold">৳{getMealForDay(order.dayName, 'dinner')?.price || 100}</span>
-                              </label>
-                            </div>
-                          </div>
-
-                          {/* Guest Meals - Only show if enabled */}
-                          {enableGuestMeal && (
-                            <div className="bg-green-50 p-3 rounded-lg text-black">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Users size={16} className="text-green-600" />
-                                <span className="font-semibold text-sm">গেস্ট খাবার (ক্যাশ অন ডেলিভারি)</span>
-                              </div>
-                              <div className="space-y-2">
-                                <label className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer">
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="checkbox"
-                                      checked={order.guestMeals.morning}
-                                      onChange={() => updateGuestMeal(order.date, 'morning')}
-                                      className="w-5 h-5 text-green-600 rounded"
-                                    />
-                                    <Coffee size={18} className="text-amber-500" />
-                                    <span className="text-gray-700">সকালের খাবার (গেস্ট)</span>
-                                    <span className="text-xs text-gray-500">({order.morningMeal})</span>
-                                  </div>
-                                  <span className="text-green-600 font-semibold">৳{getMealForDay(order.dayName, 'morning')?.price || 50}</span>
-                                </label>
-
-                                <label className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer">
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="checkbox"
-                                      checked={order.guestMeals.lunch}
-                                      onChange={() => updateGuestMeal(order.date, 'lunch')}
-                                      className="w-5 h-5 text-green-600 rounded"
-                                    />
-                                    <Sun size={18} className="text-yellow-500" />
-                                    <span className="text-gray-700">দুপুরের খাবার (গেস্ট)</span>
-                                    <span className="text-xs text-gray-500">({order.lunchMeal})</span>
-                                  </div>
-                                  <span className="text-green-600 font-semibold">৳{getMealForDay(order.dayName, 'lunch')?.price || 80}</span>
-                                </label>
-
-                                <label className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer">
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="checkbox"
-                                      checked={order.guestMeals.dinner}
-                                      onChange={() => updateGuestMeal(order.date, 'dinner')}
-                                      className="w-5 h-5 text-green-600 rounded"
-                                    />
-                                    <Moon size={18} className="text-blue-500" />
-                                    <span className="text-gray-700">রাতের খাবার (গেস্ট)</span>
-                                    <span className="text-xs text-gray-500">({order.dinnerMeal})</span>
-                                  </div>
-                                  <span className="text-green-600 font-semibold">৳{getMealForDay(order.dayName, 'dinner')?.price || 100}</span>
-                                </label>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Order Summary */}
-                <div className="bg-blue-50 rounded-xl p-4 mb-6">
-                  <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-[#3B82F6]" />
-                    অর্ডার সামারি
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">আমার খাবারের মূল্য:</span>
-                      <span className="font-semibold text-black">৳ {totals.selfMealPrice}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">ডেলিভারি চার্জ ({totals.selfDays} দিন x ৳{deliveryChargePerDay}):</span>
-                      <span className="font-semibold text-black">৳ {totals.selfDeliveryCharge}</span>
-                    </div>
-                    {enableGuestMeal && totals.guestMealPrice > 0 && (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">গেস্ট খাবারের মূল্য:</span>
-                          <span className="font-semibold text-black">৳ {totals.guestMealPrice}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">গেস্ট ডেলিভারি চার্জ:</span>
-                          <span className="font-semibold text-black">৳ {totals.guestDeliveryCharge}</span>
-                        </div>
-                      </>
-                    )}
-                    <div className="border-t pt-2 mt-2">
-                      <div className="flex justify-between font-bold text-lg">
-                        <span className="text-gray-800">সর্বমোট:</span>
-                        <span className="text-[#3B82F6]">৳ {totals.total}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contact Information */}
-                <div className="mb-4">
-                  <label className="block text-gray-700 font-medium mb-2">
-                    <Phone className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                    ফোন নাম্বার
-                  </label>
-                  <input
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
-                    placeholder="+8801XXXXXXXXX"
-                    required
-                  />
-                </div>
-
-                {/* Zone Selection */}
-                <div className="mb-4">
-                  <label className="block text-gray-700 font-medium mb-2">
-                    <MapPin className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                    জোন / এলাকা
-                  </label>
-                  <ZoneSelect
-                    value={selectedZone}
-                    onChange={handleZoneChange}
-                    required
-                    label="জোন / এলাকা"
-                  />
-                </div>
-
-                {/* Address */}
-                <div className="mb-6">
-                  <label className="block text-gray-700 font-medium mb-2">
-                    <Home className="w-4 h-4 inline mr-2 text-[#3B82F6]" />
-                    ডেলিভারি ঠিকানা
-                  </label>
-                  <textarea
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    rows={3}
-                    className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
-                    placeholder="বিস্তারিত ঠিকানা লিখুন..."
-                    required
-                  />
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] hover:shadow-xl text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 shadow-lg text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-                  {submitting ? 'অর্ডার প্রসেস হচ্ছে...' : `অর্ডার করুন (৳${totals.total})`}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Info Note */}
-        <div className="text-center mt-6 text-gray-500 text-sm">
-          <p>ডেলিভারি চার্জ: ৳{deliveryChargePerDay} প্রতি ডেলিভারি</p>
-          <p className="mt-1">আমার খাবার {hasActiveSubscription ? 'ওয়ালেট থেকে কাটা হবে' : 'ক্যাশ অন ডেলিভারি'}</p>
-          {enableGuestMeal && <p className="mt-1 text-green-600">গেস্ট খাবারের টাকা ডেলিভারির সময় দিতে হবে</p>}
-          <p className="mt-1">ডেলিভারি টাইম: সকাল ৮টা - ১০টা, দুপুর ১২টা - ২টা, রাত ৭টা - ৯টা</p>
+      <div className="container-page py-16">
+        <div className="mx-auto max-w-5xl space-y-5">
+          <div className="h-32 animate-pulse rounded-3xl bg-ink-100" />
+          <div className="h-96 animate-pulse rounded-3xl bg-ink-100" />
         </div>
       </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="container-page py-16 md:py-24">
+        <div className="mx-auto max-w-md rounded-3xl border border-ink-200 bg-white p-10 text-center shadow-card">
+          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-brand-100 text-brand-700">
+            <LogIn size={28} />
+          </div>
+          <h2 className="mt-5 text-xl font-bold text-ink-900">অর্ডার করতে লগইন করুন</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-600">
+            আপনার ঠিকানা আর ওয়ালেট অ্যাকাউন্টের সাথে যুক্ত, তাই অর্ডার করার আগে লগইন করা দরকার।
+          </p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link href="/login" className={buttonClass('primary', 'lg')}>
+              <LogIn size={18} />
+              লগইন করুন
+            </Link>
+            <Link href="/signup" className={buttonClass('secondary', 'lg')}>
+              অ্যাকাউন্ট খুলুন
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <section className="container-page py-10 md:py-14">
+      <div className="mx-auto max-w-6xl">
+        {/* Account strip */}
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-ink-200 bg-white p-5 shadow-card">
+          <div>
+            <p className="text-xs text-ink-500">স্বাগতম</p>
+            <p className="text-lg font-bold text-ink-900">{displayName(user)}</p>
+          </div>
+          {hasActiveSubscription && (
+            <div className="text-right">
+              <p className="flex items-center justify-end gap-1.5 text-xs text-ink-500">
+                <Wallet size={13} />
+                ওয়ালেট ব্যালেন্স
+              </p>
+              <p className="text-2xl font-bold text-ink-900">{taka(walletBalance)}</p>
+            </div>
+          )}
+        </div>
+
+        {!hasActiveSubscription && (
+          <div className="mt-5 flex flex-wrap items-center gap-4 rounded-3xl border border-brand-200 bg-brand-50 p-5">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-600 text-white">
+              <Crown size={20} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-ink-900">সাবস্ক্রিপশন ছাড়াই অর্ডার করতে পারবেন</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-ink-600">
+                তবে সাবস্ক্রাইব করলে ডেলিভারি ফ্রি আর পেমেন্ট ওয়ালেট থেকেই কেটে যাবে।
+              </p>
+            </div>
+            <Link href="/subscription" className={buttonClass('primary', 'md')}>
+              প্যাকেজ দেখুন
+            </Link>
+          </div>
+        )}
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          {/* ------------------------------------------------ configuration */}
+          <div className="space-y-6">
+            {/* Which meals */}
+            <section className="rounded-3xl border border-ink-200 bg-white p-6 shadow-card">
+              <h2 className="text-base font-bold text-ink-900">কোন বেলার খাবার নেবেন?</h2>
+              <p className="mt-1 text-sm text-ink-500">এখানে যা বাছবেন সেটাই প্রতিদিনের ডিফল্ট হবে।</p>
+
+              <div className="mt-4 grid grid-cols-3 gap-2.5">
+                {MEALS.map((meal) => {
+                  const on = defaultMeals[meal.key];
+                  return (
+                    <button
+                      key={meal.key}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggleDefaultMeal(meal.key)}
+                      className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-4 text-sm font-semibold transition ${
+                        on
+                          ? 'border-brand-500 bg-brand-50 text-brand-800'
+                          : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                      }`}
+                    >
+                      <meal.icon size={20} className={on ? 'text-brand-600' : 'text-ink-400'} />
+                      {meal.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-2xl bg-ink-50 p-4">
+                <span className="flex items-center gap-3">
+                  <Users size={19} className="shrink-0 text-leaf-600" />
+                  <span>
+                    <span className="block text-sm font-semibold text-ink-900">গেস্ট মিল</span>
+                    <span className="mt-0.5 block text-xs text-ink-500">অন্য কারো জন্যও খাবার নিতে চান?</span>
+                  </span>
+                </span>
+                <span className="relative shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={enableGuestMeal}
+                    onChange={(e) => setEnableGuestMeal(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <span className="block h-6 w-11 rounded-full bg-ink-300 transition peer-checked:bg-leaf-600" />
+                  <span className="absolute top-0.5 left-0.5 size-5 rounded-full bg-white transition peer-checked:translate-x-5" />
+                </span>
+              </label>
+            </section>
+
+            {/* Dates */}
+            <section className="rounded-3xl border border-ink-200 bg-white p-6 shadow-card">
+              <h2 className="text-base font-bold text-ink-900">কোন দিনগুলোর জন্য?</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label="শুরুর তারিখ" htmlFor="startDate" required>
+                  <Input
+                    id="startDate"
+                    icon={Calendar}
+                    type="date"
+                    value={range.start}
+                    min={toISODate(new Date())}
+                    onChange={(e) =>
+                      setRange((prev) => ({
+                        start: e.target.value,
+                        end: prev.end < e.target.value ? e.target.value : prev.end,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="শেষ তারিখ" htmlFor="endDate" required>
+                  <Input
+                    id="endDate"
+                    icon={Calendar}
+                    type="date"
+                    value={range.end}
+                    min={range.start}
+                    onChange={(e) => setRange((prev) => ({ ...prev, end: e.target.value }))}
+                  />
+                </Field>
+              </div>
+              <p className="mt-3 text-xs text-ink-500">
+                {bn(days.length)} দিনের খাবার নির্বাচন করা হয়েছে।
+              </p>
+            </section>
+
+            {/* Per-day list */}
+            <section className="rounded-3xl border border-ink-200 bg-white p-6 shadow-card">
+              <h2 className="text-base font-bold text-ink-900">দৈনিক খাবার</h2>
+              <p className="mt-1 text-sm text-ink-500">কোনো দিন আলাদা কিছু চাইলে সেই দিনটা খুলে বদলে নিন।</p>
+
+              {days.length === 0 ? (
+                <p className="mt-6 rounded-2xl bg-ink-50 p-6 text-center text-sm text-ink-500">
+                  তারিখ নির্বাচন করুন।
+                </p>
+              ) : (
+                <ul className="mt-4 space-y-2.5">
+                  {days.map(({ date, dayName }) => {
+                    const self = selfMealsFor(date);
+                    const guest = guestMealsFor(date);
+                    const open = expanded[date] ?? false;
+                    const chosen = MEALS.filter((m) => self[m.key] && nameOf(dayName, m.key));
+                    const guestChosen = enableGuestMeal
+                      ? MEALS.filter((m) => guest[m.key] && nameOf(dayName, m.key))
+                      : [];
+
+                    return (
+                      <li key={date} className="overflow-hidden rounded-2xl border border-ink-200">
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          onClick={() => setExpanded((prev) => ({ ...prev, [date]: !open }))}
+                          className="flex w-full items-center justify-between gap-3 bg-ink-50 px-4 py-3.5 text-left transition-colors hover:bg-ink-100"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-ink-900">
+                              {dayName} · {bengaliDate(date)}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-ink-500">
+                              {chosen.length === 0 && guestChosen.length === 0
+                                ? 'কোনো খাবার নির্বাচিত হয়নি'
+                                : [
+                                    chosen.map((m) => m.label).join(', '),
+                                    guestChosen.length > 0 && `গেস্ট: ${guestChosen.map((m) => m.label).join(', ')}`,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                            </span>
+                          </span>
+                          <ChevronDown
+                            size={17}
+                            className={`shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+
+                        {open && (
+                          <div className="space-y-4 border-t border-ink-200 p-4">
+                            <MealPicker
+                              legend={hasActiveSubscription ? 'আমার খাবার (ওয়ালেট থেকে)' : 'আমার খাবার (ক্যাশ অন ডেলিভারি)'}
+                              icon={<Wallet size={15} className="text-brand-600" />}
+                              dayName={dayName}
+                              selection={self}
+                              nameOf={nameOf}
+                              priceOf={priceOf}
+                              onToggle={(meal) => toggleSelfMeal(date, meal)}
+                              accent="brand"
+                            />
+
+                            {enableGuestMeal && (
+                              <MealPicker
+                                legend="গেস্ট খাবার (ক্যাশ অন ডেলিভারি)"
+                                icon={<Users size={15} className="text-leaf-600" />}
+                                dayName={dayName}
+                                selection={guest}
+                                nameOf={nameOf}
+                                priceOf={priceOf}
+                                onToggle={(meal) => toggleGuestMeal(date, meal)}
+                                accent="leaf"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            {/* Delivery details */}
+            <section className="rounded-3xl border border-ink-200 bg-white p-6 shadow-card">
+              <h2 className="text-base font-bold text-ink-900">কোথায় পৌঁছে দেব?</h2>
+              <div className="mt-4 space-y-4">
+                <Field label="ফোন নাম্বার" htmlFor="orderPhone" required>
+                  <Input
+                    id="orderPhone"
+                    icon={Phone}
+                    type="tel"
+                    inputMode="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                  />
+                </Field>
+                <Field label="জোন / এলাকা" htmlFor="orderZone" required>
+                  <ZoneSelect id="orderZone" value={selectedZone} onChange={setSelectedZone} required />
+                </Field>
+                <Field label="ডেলিভারি ঠিকানা" htmlFor="orderAddress" required>
+                  <Textarea
+                    id="orderAddress"
+                    icon={Home}
+                    rows={3}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="বাসা / রোড / এলাকা"
+                  />
+                </Field>
+              </div>
+            </section>
+          </div>
+
+          {/* ------------------------------------------------------ summary */}
+          <aside className="lg:sticky lg:top-32 lg:self-start">
+            <div className="rounded-3xl border border-ink-200 bg-white p-6 shadow-card">
+              <h2 className="text-base font-bold text-ink-900">অর্ডার সামারি</h2>
+
+              <dl className="mt-4 space-y-2.5 text-sm">
+                <Line label="আমার খাবার" value={taka(totals.selfMealPrice)} />
+                <Line
+                  label={
+                    hasActiveSubscription
+                      ? 'ডেলিভারি চার্জ (সাবস্ক্রিপশন)'
+                      : `ডেলিভারি (${bn(totals.selfDays)} দিন × ${taka(DELIVERY_CHARGE_PER_DAY)})`
+                  }
+                  value={hasActiveSubscription ? 'ফ্রি' : taka(totals.selfDelivery)}
+                  muted={hasActiveSubscription}
+                />
+
+                {enableGuestMeal && totals.guestMealPrice > 0 && (
+                  <>
+                    <Line label="গেস্ট খাবার" value={taka(totals.guestMealPrice)} />
+                    <Line label="গেস্ট ডেলিভারি" value={taka(totals.guestDelivery)} />
+                  </>
+                )}
+
+                <div className="flex items-baseline justify-between border-t border-ink-200 pt-3">
+                  <dt className="font-semibold text-ink-900">সর্বমোট</dt>
+                  <dd className="text-2xl font-bold text-ink-900">{taka(totals.total)}</dd>
+                </div>
+              </dl>
+
+              {hasActiveSubscription && (
+                <p className="mt-4 rounded-xl bg-brand-50 p-3 text-xs leading-relaxed text-brand-900">
+                  ওয়ালেট থেকে কাটা হবে {taka(totals.selfMealPrice)} — বর্তমান ব্যালেন্স {taka(walletBalance)}।
+                </p>
+              )}
+              {enableGuestMeal && totals.guestTotal > 0 && (
+                <p className="mt-2 rounded-xl bg-leaf-50 p-3 text-xs leading-relaxed text-leaf-700">
+                  গেস্ট খাবারের {taka(totals.guestTotal)} ডেলিভারির সময় দিতে হবে।
+                </p>
+              )}
+
+              <Button
+                size="lg"
+                fullWidth
+                className="mt-5 hidden lg:inline-flex"
+                icon={<ShoppingBag size={18} />}
+                loading={submitting}
+                onClick={openConfirm}
+              >
+                অর্ডার করুন
+              </Button>
+
+              <ul className="mt-5 space-y-1.5 border-t border-ink-100 pt-4 text-xs leading-relaxed text-ink-500">
+                <li>সকাল ৭টা–৯টা · দুপুর ১২টা–২টা · রাত ৮টা–১০টা</li>
+                <li>মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      {/* Mobile action bar */}
+      <div className="sticky bottom-0 z-30 -mx-4 mt-6 border-t border-ink-200 bg-cream/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="flex items-center gap-4">
+          <div className="min-w-0">
+            <p className="text-[11px] text-ink-500">সর্বমোট</p>
+            <p className="text-lg font-bold text-ink-900">{taka(totals.total)}</p>
+          </div>
+          <Button size="lg" className="flex-1" loading={submitting} onClick={openConfirm}>
+            অর্ডার করুন
+          </Button>
+        </div>
+      </div>
+
+      {/* Insufficient balance */}
+      {shortfall !== null && (
+        <Modal
+          title="ওয়ালেটে টাকা কম পড়েছে"
+          icon={
+            <span className="grid size-9 place-items-center rounded-xl bg-red-100 text-red-600">
+              <AlertCircle size={18} />
+            </span>
+          }
+          onClose={() => setShortfall(null)}
+          footer={
+            <div className="flex gap-3">
+              <Button variant="secondary" size="lg" fullWidth onClick={() => setShortfall(null)}>
+                বাতিল
+              </Button>
+              <Link href="/dashboard/wallet" className={buttonClass('primary', 'lg', 'flex-1')}>
+                রিচার্জ করুন
+              </Link>
+            </div>
+          }
+        >
+          <dl className="space-y-2.5 rounded-2xl bg-ink-50 p-4 text-sm">
+            <Line label="প্রয়োজন" value={taka(totals.selfMealPrice)} />
+            <Line label="বর্তমান ব্যালেন্স" value={taka(walletBalance)} />
+            <div className="flex justify-between border-t border-ink-200 pt-2.5">
+              <dt className="font-semibold text-ink-900">ঘাটতি</dt>
+              <dd className="font-bold text-red-600">{taka(shortfall)}</dd>
+            </div>
+          </dl>
+          <p className="mt-4 text-xs leading-relaxed text-ink-500">
+            ওয়ালেট রিচার্জ অ্যাডমিন অনুমোদনের পর যোগ হয়, তাই একটু আগেভাগে করে রাখলে ভালো।
+          </p>
+        </Modal>
+      )}
+
+      {/* Confirmation */}
+      {showConfirm && (
+        <Modal
+          title="অর্ডার নিশ্চিত করুন"
+          description={`${bn(days.length)} দিনের খাবার`}
+          busy={submitting}
+          onClose={() => setShowConfirm(false)}
+          footer={
+            <div className="flex gap-3">
+              <Button variant="secondary" size="lg" fullWidth onClick={() => setShowConfirm(false)} disabled={submitting}>
+                বাতিল
+              </Button>
+              <Button size="lg" fullWidth loading={submitting} icon={<CheckCircle2 size={18} />} onClick={handleSubmit}>
+                {submitting ? 'হচ্ছে...' : 'কনফার্ম'}
+              </Button>
+            </div>
+          }
+        >
+          <dl className="space-y-2.5 rounded-2xl bg-ink-50 p-4 text-sm">
+            <Line label="আমার খাবার" value={taka(totals.selfMealPrice)} />
+            <Line
+              label="ডেলিভারি চার্জ"
+              value={hasActiveSubscription ? 'ফ্রি' : taka(totals.selfDelivery)}
+              muted={hasActiveSubscription}
+            />
+            {enableGuestMeal && totals.guestTotal > 0 && <Line label="গেস্ট খাবার" value={taka(totals.guestTotal)} />}
+            <div className="flex justify-between border-t border-ink-200 pt-2.5">
+              <dt className="font-semibold text-ink-900">সর্বমোট</dt>
+              <dd className="text-lg font-bold text-ink-900">{taka(totals.total)}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-4 space-y-1.5 text-sm text-ink-600">
+            <p>
+              <span className="text-ink-500">ফোন:</span> {phoneNumber || '—'}
+            </p>
+            <p>
+              <span className="text-ink-500">ঠিকানা:</span> {address || '—'}
+            </p>
+          </div>
+
+          <p className="mt-4 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
+            {hasActiveSubscription
+              ? 'আমার খাবারের টাকা ওয়ালেট থেকে কেটে নেওয়া হবে।'
+              : 'ডেলিভারির সময় ক্যাশে পেমেন্ট করবেন।'}
+          </p>
+        </Modal>
+      )}
     </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small pieces                                                               */
+/* -------------------------------------------------------------------------- */
+
+function Line({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-ink-600">{label}</dt>
+      <dd className={`font-semibold ${muted ? 'text-leaf-700' : 'text-ink-900'}`}>{value}</dd>
+    </div>
+  );
+}
+
+/** The three checkboxes for one day, for either the subscriber or a guest. */
+function MealPicker({
+  legend,
+  icon,
+  dayName,
+  selection,
+  nameOf,
+  priceOf,
+  onToggle,
+  accent,
+}: {
+  legend: string;
+  icon: ReactNode;
+  dayName: string;
+  selection: MealSelection;
+  nameOf: (day: string, meal: MealKey) => string;
+  priceOf: (day: string, meal: MealKey) => number;
+  onToggle: (meal: MealKey) => void;
+  accent: 'brand' | 'leaf';
+}) {
+  const ring = accent === 'brand' ? 'text-brand-600' : 'text-leaf-600';
+
+  return (
+    <fieldset className={`rounded-2xl p-3.5 ${accent === 'brand' ? 'bg-brand-50/70' : 'bg-leaf-50'}`}>
+      <legend className="flex items-center gap-2 px-1 text-xs font-semibold text-ink-700">
+        {icon}
+        {legend}
+      </legend>
+
+      <div className="mt-2 space-y-1">
+        {MEALS.map((meal) => {
+          const itemName = nameOf(dayName, meal.key);
+          const available = Boolean(itemName);
+
+          return (
+            <label
+              key={meal.key}
+              className={`flex items-center justify-between gap-3 rounded-xl px-2.5 py-2 transition-colors ${
+                available ? 'cursor-pointer hover:bg-white' : 'cursor-not-allowed opacity-55'
+              }`}
+            >
+              <span className="flex min-w-0 items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={available && selection[meal.key]}
+                  disabled={!available}
+                  onChange={() => onToggle(meal.key)}
+                  className={`size-4.5 shrink-0 rounded border-ink-300 ${ring} focus:ring-brand-500`}
+                />
+                <meal.icon size={16} className={`shrink-0 ${meal.tint}`} />
+                <span className="min-w-0">
+                  <span className="block text-sm text-ink-800">{meal.full}</span>
+                  <span className="block truncate text-xs text-ink-500">{itemName || 'এখনো ঠিক হয়নি'}</span>
+                </span>
+              </span>
+              {available && (
+                <span className="shrink-0 text-sm font-semibold text-ink-900">{taka(priceOf(dayName, meal.key))}</span>
+              )}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }

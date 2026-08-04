@@ -2,12 +2,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-function CallbackContent() {
-  const router = useRouter();
+export default function CallbackContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -24,23 +23,20 @@ function CallbackContent() {
     if (token && userData) {
       localStorage.setItem('userToken', token);
       localStorage.setItem('userData', userData);
-      
       toast.success('Google লগইন সফল!');
       window.location.href = '/';
     } else {
       toast.error('লগইন তথ্য পাওয়া যায়নি');
       window.location.href = '/login';
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="flex min-h-[60vh] items-center justify-center">
       <div className="text-center">
-        <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mx-auto mb-4" />
-        <p className="text-gray-600">লগইন হচ্ছে...</p>
+        <Loader2 className="mx-auto size-10 animate-spin text-brand-600" />
+        <p className="mt-4 text-sm text-ink-600">লগইন হচ্ছে...</p>
       </div>
     </div>
   );
 }
-
-export default CallbackContent;

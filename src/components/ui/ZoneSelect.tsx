@@ -1,9 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Plus, MapPin, Loader2, X, Edit2 } from 'lucide-react';
-import { zoneAPI } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { Loader2, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { zoneAPI } from '@/lib/api';
+import { taka } from '@/lib/format';
+import Button from './Button';
+import { Field, Input, Select } from './Field';
+import Modal from './Modal';
 
 interface Zone {
   _id: string;
@@ -18,60 +22,66 @@ interface ZoneSelectProps {
   onZoneData?: (zone: Zone | null) => void;
   className?: string;
   required?: boolean;
-  label?: string;
+  /** Ties the control to the caller's own <Field label>. */
+  id?: string;
 }
 
-export default function ZoneSelect({ 
-  value, 
-  onChange, 
-  onZoneData, 
-  className = '', 
+/**
+ * Zone picker. The caller supplies the label (via <Field>), so this renders the
+ * control only — that keeps the label markup identical to every other field.
+ */
+export default function ZoneSelect({
+  value,
+  onChange,
+  onZoneData,
+  className = '',
   required = false,
-  label = 'জোন / এলাকা'
+  id = 'zone',
 }: ZoneSelectProps) {
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherZoneName, setOtherZoneName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customZoneId, setCustomZoneId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchZones();
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await zoneAPI.getAllZones();
+        if (!cancelled && response.success) {
+          setZones(response.data.filter((zone: Zone) => zone.isActive));
+        }
+      } catch {
+        if (!cancelled) toast.error('জোন লোড করতে ব্যর্থ হয়েছে');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const fetchZones = async () => {
+  const refreshZones = async () => {
     try {
-      setLoading(true);
       const response = await zoneAPI.getAllZones();
-      if (response.success) {
-        const activeZones = response.data.filter((zone: Zone) => zone.isActive);
-        setZones(activeZones);
-      }
-    } catch (error) {
-      console.error('Error fetching zones:', error);
-      toast.error('জোন লোড করতে ব্যর্থ হয়েছে');
-    } finally {
-      setLoading(false);
+      if (response.success) setZones(response.data.filter((zone: Zone) => zone.isActive));
+    } catch {
+      /* the list we already have is still usable */
     }
   };
 
-  const handleZoneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedValue = e.target.value;
-    
+  const handleZoneChange = (selectedValue: string) => {
     if (selectedValue === 'other') {
       setShowOtherInput(true);
       onChange('', '');
-    } else {
-      setShowOtherInput(false);
-      setOtherZoneName('');
-      onChange(selectedValue, '');
-      
-      if (onZoneData) {
-        const selectedZone = zones.find(z => z._id === selectedValue);
-        onZoneData(selectedZone || null);
-      }
+      return;
     }
+    setShowOtherInput(false);
+    setOtherZoneName('');
+    onChange(selectedValue, '');
+    onZoneData?.(zones.find((z) => z._id === selectedValue) ?? null);
   };
 
   const handleOtherZoneSubmit = async () => {
@@ -82,26 +92,17 @@ export default function ZoneSelect({
 
     try {
       setIsSubmitting(true);
-      // Create zone immediately (public API, no auth needed)
-      const response = await zoneAPI.createZone({
-        name: otherZoneName,
-      });
-      
+      const response = await zoneAPI.createZone({ name: otherZoneName });
       if (response.success) {
         toast.success('আপনার এলাকা যোগ করা হয়েছে! অ্যাডমিন অনুমোদনের পর এটি সক্রিয় হবে।');
-        
-        // Store the custom zone ID temporarily
-        const tempZoneId = `custom_${Date.now()}`;
-        setCustomZoneId(tempZoneId);
-        
-        // Pass the zone name to parent (will be stored with registration)
-        onChange(tempZoneId, otherZoneName);
-        
-        // Refresh zones list in background
-        fetchZones();
+        // The new zone is inactive until an admin approves it, so it will not
+        // come back in the list yet — hold it locally with a temporary id.
+        onChange(`custom_${Date.now()}`, otherZoneName);
+        setShowOtherInput(false);
+        await refreshZones();
       }
-    } catch (error: any) {
-      toast.error(error.message || 'জোন যোগ করতে ব্যর্থ হয়েছে');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'জোন যোগ করতে ব্যর্থ হয়েছে');
     } finally {
       setIsSubmitting(false);
     }
@@ -109,83 +110,75 @@ export default function ZoneSelect({
 
   if (loading) {
     return (
-      <div className="relative">
-        <label className="block text-gray-700 font-medium mb-2">{label}</label>
-        <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50">
-          <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-        </div>
+      <div className="flex h-[3.25rem] items-center justify-center rounded-xl border border-ink-200 bg-ink-50">
+        <Loader2 className="size-5 animate-spin text-ink-400" />
       </div>
     );
   }
 
   return (
-    <div className="relative">
-      <select
+    <>
+      <Select
+        id={id}
+        icon={MapPin}
         value={value && !value.startsWith('custom_') ? value : ''}
-        onChange={handleZoneChange}
-        className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-white text-gray-800 ${className}`}
+        onChange={(e) => handleZoneChange(e.target.value)}
+        className={className}
         required={required && !showOtherInput && !value}
       >
         <option value="">সিলেক্ট করুন</option>
         {zones.map((zone) => (
           <option key={zone._id} value={zone._id}>
-            {zone.name} - ডেলিভারি চার্জ: ৳{zone.deliveryCharge}
+            {zone.name} — ডেলিভারি {zone.deliveryCharge > 0 ? taka(zone.deliveryCharge) : 'ফ্রি'}
           </option>
         ))}
-        <option value="other" className="text-[#3B82F6] font-semibold">
-          + অন্যান্য (আমার এলাকা এখানে নেই)
-        </option>
-      </select>
+        <option value="other">+ অন্যান্য (আমার এলাকা এখানে নেই)</option>
+      </Select>
 
-      {/* Other Zone Input Modal */}
-      {showOtherInput && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800">আপনার এলাকা যোগ করুন</h3>
-              <button
-                onClick={() => {
-                  setShowOtherInput(false);
-                  setOtherZoneName('');
-                }}
-                className="p-1 hover:bg-gray-100 rounded-full"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-gray-700 font-medium mb-1">
-                  আপনার এলাকার নাম (ইংরেজি)
-                </label>
-                <input
-                  type="text"
-                  value={otherZoneName}
-                  onChange={(e) => setOtherZoneName(e.target.value)}
-                  placeholder="যেমন: Bashundhara, Paltan, Motijheel"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
-                  autoFocus
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  উদাহরণ: Bashundhara, Paltan, Motijheel, Mohammadpur
-                </p>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-3">
-                <p className="text-xs text-blue-800">
-                  ℹ️ আপনার এলাকা যোগ করা হবে। অ্যাডমিন অনুমোদনের পর এটি সকলের জন্য উপলব্ধ হবে। আপনি এখনই রেজিস্ট্রেশন সম্পন্ন করতে পারবেন।
-                </p>
-              </div>
-              <button
-                onClick={handleOtherZoneSubmit}
-                disabled={isSubmitting}
-                className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 size={20} className="animate-spin mx-auto" /> : 'এলাকা যোগ করে রেজিস্ট্রেশন সম্পন্ন করুন'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {value.startsWith('custom_') && (
+        <p className="mt-1.5 text-xs text-leaf-700">
+          আপনার এলাকা যোগ করা হয়েছে, অ্যাডমিন অনুমোদনের অপেক্ষায়।
+        </p>
       )}
-    </div>
+
+      {showOtherInput && (
+        <Modal
+          title="আপনার এলাকা যোগ করুন"
+          description="তালিকায় না থাকলে নিজে যোগ করুন"
+          busy={isSubmitting}
+          onClose={() => {
+            setShowOtherInput(false);
+            setOtherZoneName('');
+          }}
+          footer={
+            <Button fullWidth size="lg" loading={isSubmitting} onClick={handleOtherZoneSubmit}>
+              {isSubmitting ? 'যোগ হচ্ছে...' : 'এলাকা যোগ করুন'}
+            </Button>
+          }
+        >
+          <Field
+            label="আপনার এলাকার নাম"
+            htmlFor="other-zone"
+            required
+            hint="উদাহরণ: Bashundhara, Paltan, Motijheel, Mohammadpur"
+          >
+            <Input
+              id="other-zone"
+              icon={MapPin}
+              value={otherZoneName}
+              onChange={(e) => setOtherZoneName(e.target.value)}
+              placeholder="যেমন: Bashundhara"
+              autoFocus
+            />
+          </Field>
+
+          <p className="mt-4 rounded-xl bg-brand-50 p-3.5 text-xs leading-relaxed text-brand-900">
+            এলাকাটি অ্যাডমিন অনুমোদনের পর সবার জন্য চালু হবে। আপনি এখনই রেজিস্ট্রেশন শেষ করতে পারবেন।
+          </p>
+        </Modal>
+      )}
+    </>
   );
 }
+
+export type { Zone };

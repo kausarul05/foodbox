@@ -1,26 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import {
-  Mail,
-  Lock,
-  UserPlus,
-  Eye,
-  EyeOff,
-  Shield,
-  User,
-  Phone,
-  MapPin,
-  Home,
-} from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
+import { Home, Lock, Mail, Phone, User, UserPlus } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { authAPI } from '@/lib/api';
+import Button from '@/components/ui/Button';
+import { Field, Input, PasswordInput, Textarea } from '@/components/ui/Field';
 import ZoneSelect from '@/components/ui/ZoneSelect';
 
 export default function SignupPage() {
-  const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: '',
     phoneNumber: '',
@@ -28,328 +17,235 @@ export default function SignupPage() {
     password: '',
     confirmPassword: '',
     zone: '',
-    zoneName: '', // For custom zone name
+    zoneName: '',
     address: '',
   });
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [selectedZone, setSelectedZone] = useState('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleZoneChange = (zoneId: string, customZoneName?: string) => {
     setSelectedZone(zoneId);
-    if (customZoneName) {
-      setFormData({ 
-        ...formData, 
-        zone: zoneId,
-        zoneName: customZoneName 
-      });
-    } else {
-      setFormData({ 
-        ...formData, 
-        zone: zoneId,
-        zoneName: '' 
-      });
-    }
+    setFormData((prev) => ({ ...prev, zone: zoneId, zoneName: customZoneName ?? '' }));
   };
 
   const validateForm = () => {
-    if (!formData.fullName) {
-      toast.error('দয়া করে আপনার নাম দিন');
-      return false;
-    }
-    if (!formData.phoneNumber) {
-      toast.error('দয়া করে ফোন নাম্বার দিন');
-      return false;
-    }
-    if (formData.phoneNumber.length < 11) {
-      toast.error('ফোন নাম্বার কমপক্ষে ১১ ডিজিটের হতে হবে');
-      return false;
-    }
-    if (!formData.email) {
-      toast.error('দয়া করে ইমেইল দিন');
-      return false;
-    }
-    if (!formData.email.includes('@')) {
-      toast.error('সঠিক ইমেইল ঠিকানা দিন');
-      return false;
-    }
-    if (!formData.password) {
-      toast.error('দয়া করে পাসওয়ার্ড দিন');
-      return false;
-    }
-    if (formData.password.length < 6) {
-      toast.error('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে');
-      return false;
-    }
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না');
-      return false;
-    }
-    if (!selectedZone) {
-      toast.error('দয়া করে জোন সিলেক্ট করুন');
-      return false;
-    }
-    if (!formData.address) {
-      toast.error('দয়া করে ঠিকানা দিন');
-      return false;
-    }
-    return true;
+    if (!formData.fullName) return 'দয়া করে আপনার নাম দিন';
+    if (!formData.phoneNumber) return 'দয়া করে ফোন নাম্বার দিন';
+    if (formData.phoneNumber.length < 11) return 'ফোন নাম্বার কমপক্ষে ১১ ডিজিটের হতে হবে';
+    if (!formData.email) return 'দয়া করে ইমেইল দিন';
+    if (!formData.email.includes('@')) return 'সঠিক ইমেইল ঠিকানা দিন';
+    if (!formData.password) return 'দয়া করে পাসওয়ার্ড দিন';
+    if (formData.password.length < 6) return 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে';
+    if (formData.password !== formData.confirmPassword) return 'পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না';
+    if (!selectedZone) return 'দয়া করে জোন সিলেক্ট করুন';
+    if (!formData.address) return 'দয়া করে ঠিকানা দিন';
+    return null;
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSignup = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    const problem = validateForm();
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
 
     try {
       setLoading(true);
-
-      const signupData = {
+      const response = await authAPI.userRegister({
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
         email: formData.email,
         password: formData.password,
         zone: selectedZone,
-        zoneName: formData.zoneName, // Send custom zone name if any
+        zoneName: formData.zoneName,
         address: formData.address,
-      };
-
-      const response = await authAPI.userRegister(signupData);
-      console.log('Signup response:', response);
+      });
 
       if (response.success) {
         const { token, ...userData } = response.data;
-
-        // Store token and user data
         localStorage.setItem('userToken', token);
         localStorage.setItem('userData', JSON.stringify(userData));
-
         toast.success('অ্যাকাউন্ট তৈরি সফল!');
-
-        setTimeout(() => {
-          router.push('/login');
-        }, 1500);
+        // Registration already returns a session, so send them straight in
+        // rather than back to /login. Full reload so the navbar re-reads it.
+        window.location.href = '/order';
       } else {
         toast.error(response.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
+        setLoading(false);
       }
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      
-      if (error.message?.includes('phone')) {
-        toast.error('এই ফোন নাম্বার already registered');
-      } else if (error.message?.includes('email')) {
-        toast.error('এই ইমেইল already registered');
-      } else {
-        toast.error(error?.message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
-      }
-    } finally {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('phone')) toast.error('এই ফোন নাম্বার দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে');
+      else if (message.includes('email')) toast.error('এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে');
+      else toast.error(message || 'অ্যাকাউন্ট তৈরি ব্যর্থ হয়েছে');
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#3B82F6] to-[#111827] py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 rounded-2xl mb-4">
-            <Shield className="w-10 h-10 text-white" />
+    <div className="bg-cream">
+      <div className="container-page py-12 md:py-16">
+        <div className="mx-auto max-w-2xl">
+          <div className="text-center">
+            <span className="inline-flex items-center rounded-full bg-brand-100 px-3.5 py-1 text-xs font-semibold text-brand-700">
+              রেজিস্ট্রেশন
+            </span>
+            <h1 className="mt-3 text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">অ্যাকাউন্ট তৈরি করুন</h1>
+            <p className="mt-3 text-[15px] text-ink-600">
+              এক মিনিটের কাজ। এরপরই প্যাকেজ বেছে নিয়ে অর্ডার শুরু করতে পারবেন।
+            </p>
           </div>
-          <h1 className="text-3xl font-bold text-white">FoodBox</h1>
-          <p className="text-blue-200 mt-2">নতুন অ্যাকাউন্ট তৈরি করুন</p>
-        </div>
 
-        {/* Signup Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <form onSubmit={handleSignup} className="space-y-5">
-            {/* Full Name */}
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                পূর্ণ নাম <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
+          <form
+            onSubmit={handleSignup}
+            className="mt-10 rounded-3xl border border-ink-200 bg-white p-6 shadow-card sm:p-8"
+          >
+            <fieldset className="space-y-5">
+              <legend className="mb-4 text-sm font-semibold tracking-wide text-ink-500 uppercase">আপনার পরিচয়</legend>
+
+              <Field label="পূর্ণ নাম" htmlFor="fullName" required>
+                <Input
+                  id="fullName"
                   name="fullName"
+                  icon={User}
+                  autoComplete="name"
                   value={formData.fullName}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
                   placeholder="আপনার পূর্ণ নাম"
                   required
                 />
-              </div>
-            </div>
+              </Field>
 
-            {/* Phone Number */}
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                ফোন নাম্বার <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="tel"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="+8801XXXXXXXXX"
-                  required
-                />
-              </div>
-            </div>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="ফোন নাম্বার" htmlFor="phoneNumber" required>
+                  <Input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    icon={Phone}
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={formData.phoneNumber}
+                    onChange={handleChange}
+                    placeholder="01XXXXXXXXX"
+                    required
+                  />
+                </Field>
 
-            {/* Email */}
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                ইমেইল এড্রেস <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="you@example.com"
-                  required
-                />
+                <Field label="ইমেইল" htmlFor="email" required>
+                  <Input
+                    id="email"
+                    name="email"
+                    icon={Mail}
+                    type="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="you@example.com"
+                    required
+                  />
+                </Field>
               </div>
-            </div>
+            </fieldset>
 
-            {/* Password */}
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                পাসওয়ার্ড <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="কমপক্ষে ৬ অক্ষর"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+            <fieldset className="mt-8 space-y-5 border-t border-ink-100 pt-8">
+              <legend className="sr-only">পাসওয়ার্ড</legend>
+              <p className="-mt-2 mb-4 text-sm font-semibold tracking-wide text-ink-500 uppercase">পাসওয়ার্ড</p>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="পাসওয়ার্ড" htmlFor="password" required hint="কমপক্ষে ৬ অক্ষর">
+                  <PasswordInput
+                    id="password"
+                    name="password"
+                    icon={Lock}
+                    autoComplete="new-password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    required
+                  />
+                </Field>
+
+                <Field label="পাসওয়ার্ড নিশ্চিত করুন" htmlFor="confirmPassword" required>
+                  <PasswordInput
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    icon={Lock}
+                    autoComplete="new-password"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="আবার লিখুন"
+                    required
+                  />
+                </Field>
               </div>
-            </div>
+            </fieldset>
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                পাসওয়ার্ড নিশ্চিত করুন <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="আবার পাসওয়ার্ড দিন"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
+            <fieldset className="mt-8 space-y-5 border-t border-ink-100 pt-8">
+              <legend className="sr-only">ডেলিভারি ঠিকানা</legend>
+              <p className="-mt-2 mb-4 text-sm font-semibold tracking-wide text-ink-500 uppercase">কোথায় পৌঁছে দেব</p>
 
-            {/* Zone Selection */}
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                জোন / এলাকা <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <ZoneSelect
-                  value={selectedZone}
-                  onChange={handleZoneChange}
-                  required
-                  label="জোন / এলাকা"
-                />
-              </div>
-            </div>
+              <Field label="জোন / এলাকা" htmlFor="zone" required>
+                <ZoneSelect id="zone" value={selectedZone} onChange={handleZoneChange} required />
+              </Field>
 
-            {/* Address */}
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                ঠিকানা <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Home className="absolute left-3 top-3 text-gray-400" size={20} />
-                <textarea
+              <Field label="ঠিকানা" htmlFor="address" required hint="বাসা ও রোড নাম্বার সহ লিখলে রাইডারের খুঁজে পেতে সুবিধা হয়।">
+                <Textarea
+                  id="address"
                   name="address"
+                  icon={Home}
+                  rows={3}
                   value={formData.address}
                   onChange={handleChange}
-                  rows={3}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="বিস্তারিত ঠিকানা লিখুন..."
+                  placeholder="বাসা / রোড / এলাকা"
                   required
                 />
-              </div>
-            </div>
+              </Field>
+            </fieldset>
 
-            {/* Terms and Conditions */}
-            <div className="flex items-start gap-3">
+            <label className="mt-8 flex items-start gap-3 border-t border-ink-100 pt-6 text-sm text-ink-600">
               <input
                 type="checkbox"
-                className="w-5 h-5 text-[#3B82F6] rounded focus:ring-[#3B82F6] mt-0.5"
                 required
+                className="mt-0.5 size-4.5 shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
               />
-              <label className="text-sm text-gray-600">
-                আমি <Link href="/terms" className="text-[#3B82F6] hover:underline">টার্মস এন্ড কন্ডিশনস</Link> এবং{' '}
-                <Link href="/privacy" className="text-[#3B82F6] hover:underline">প্রাইভেসি পলিসি</Link> মেনে নিচ্ছি
-              </label>
-            </div>
+              <span>
+                আমি{' '}
+                <Link href="/terms" className="font-medium text-brand-700 hover:underline">
+                  টার্মস এন্ড কন্ডিশনস
+                </Link>{' '}
+                এবং{' '}
+                <Link href="/privacy" className="font-medium text-brand-700 hover:underline">
+                  প্রাইভেসি পলিসি
+                </Link>{' '}
+                মেনে নিচ্ছি
+              </span>
+            </label>
 
-            {/* Submit Button */}
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 mt-6"
+              size="lg"
+              fullWidth
+              loading={loading}
+              icon={<UserPlus size={18} />}
+              className="mt-7"
             >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <UserPlus size={20} />
-              )}
               {loading ? 'অ্যাকাউন্ট তৈরি হচ্ছে...' : 'অ্যাকাউন্ট তৈরি করুন'}
-            </button>
+            </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              ইতিমধ্যে অ্যাকাউন্ট আছে?{' '}
-              <Link href="/login" className="text-[#3B82F6] font-semibold hover:underline">
-                লগইন করুন
-              </Link>
-            </p>
-          </div>
+          <p className="mt-8 text-center text-sm text-ink-600">
+            ইতিমধ্যে অ্যাকাউন্ট আছে?{' '}
+            <Link href="/login" className="font-semibold text-brand-700 hover:underline">
+              লগইন করুন
+            </Link>
+          </p>
         </div>
       </div>
     </div>

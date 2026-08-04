@@ -1,176 +1,153 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Phone, Lock, LogIn, UserPlus, Eye, EyeOff, Shield, Chrome } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { Clock, Lock, LogIn, Phone, UtensilsCrossed, Wallet } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { authAPI } from '@/lib/api';
+import Button from '@/components/ui/Button';
+import { Field, Input, PasswordInput } from '@/components/ui/Field';
+import logo from '../../../../public/Images/logo.jpg';
+
+/** Reassurance rail — only shown on desktop, where there is room to spare. */
+const PROOF = [
+  { icon: UtensilsCrossed, title: 'প্রতিদিন নতুন মেনু', body: 'ঘরের মতো রান্না, সাত দিন সাত রকম।' },
+  { icon: Wallet, title: 'ওয়ালেট থেকে কাটা', body: 'সাবস্ক্রিপশন থাকলে প্রতিবার পেমেন্টের ঝামেলা নেই।' },
+  { icon: Clock, title: 'যেকোনো দিন বন্ধ', body: 'বাইরে খাচ্ছেন? সময়ের আগে বললেই হলো।' },
+];
 
 export default function LoginPage() {
-  const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     if (!phoneNumber || !password) {
       toast.error('ফোন নাম্বার এবং পাসওয়ার্ড দিন');
       return;
     }
-    
     if (phoneNumber.length < 11) {
       toast.error('সঠিক ফোন নাম্বার দিন');
       return;
     }
-    
+
     try {
       setLoading(true);
       const response = await authAPI.userLogin(phoneNumber, password);
-      console.log('Login response:', response);
-      
+
       if (response.success) {
         const { token, ...userData } = response.data;
-        
-        // Store token and user data
         localStorage.setItem('userToken', token);
         localStorage.setItem('userData', JSON.stringify(userData));
-        
-        // Dispatch custom event for navbar update
-        window.dispatchEvent(new Event('loginStatusChanged'));
-        
         toast.success('লগইন সফল!');
-        
-        // Redirect to home
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 500);
+        // A full reload rather than router.push: the navbar reads the session
+        // from localStorage, and this guarantees it re-reads it.
+        window.location.href = '/';
       } else {
-        toast.error(response.message || 'ফোন নাম্বার বা পাসওয়ারড ভুল');
+        toast.error(response.message || 'ফোন নাম্বার বা পাসওয়ার্ড ভুল');
+        setLoading(false);
       }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      toast.error(error.message || 'লগইন ব্যর্থ হয়েছে');
-    } finally {
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'লগইন ব্যর্থ হয়েছে');
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    window.location.href = `http://foodbox-admin-backend.vercel.app/api/auth/google`;
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#3B82F6] to-[#111827] flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 rounded-2xl mb-4">
-            <Shield className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">FoodBox</h1>
-          <p className="text-blue-200 mt-2">আপনার অ্যাকাউন্টে লগইন করুন</p>
+    <div className="grid min-h-[calc(100vh-8rem)] lg:grid-cols-2">
+      {/* Brand rail */}
+      <aside className="relative hidden flex-col justify-center overflow-hidden bg-ink-900 p-14 lg:flex">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgb(249_115_22/0.28),transparent_45%),radial-gradient(circle_at_85%_80%,rgb(34_197_94/0.18),transparent_45%)]"
+        />
+        <div className="relative max-w-md">
+          <Link href="/" className="flex items-center gap-3">
+            <Image src={logo} alt="" width={44} height={44} className="size-11 rounded-xl object-cover" />
+            <span className="text-xl font-bold text-white">FoodBox</span>
+          </Link>
+
+          <h2 className="mt-10 text-4xl leading-tight font-bold text-balance text-white">
+            আজ কী রান্না হবে —<br />
+            <span className="text-brand-400">এই প্রশ্নটা আর করতে হবে না।</span>
+          </h2>
+
+          <ul className="mt-10 space-y-6">
+            {PROOF.map((item) => (
+              <li key={item.title} className="flex gap-4">
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/10 text-brand-300">
+                  <item.icon size={20} />
+                </span>
+                <div>
+                  <p className="font-semibold text-white">{item.title}</p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-ink-300">{item.body}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
+      </aside>
 
-        {/* Login Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          {/* Google Login Button */}
-          <button
-            onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all duration-300 mb-4"
-          >
-            <Chrome size={20} className="text-[#3B82F6]" />
-            Google দিয়ে লগইন করুন
-          </button>
-
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">অথবা</span>
-            </div>
+      {/* Form */}
+      <main className="flex items-center justify-center bg-cream px-4 py-14 sm:px-8">
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden">
+            <Image src={logo} alt="" width={52} height={52} className="size-13 rounded-2xl object-cover" />
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                ফোন নাম্বার
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="+8801XXXXXXXXX"
-                  required
-                />
-              </div>
-            </div>
+          <h1 className="mt-6 text-3xl font-bold tracking-tight text-ink-900 lg:mt-0">আবার স্বাগতম</h1>
+          <p className="mt-2 text-[15px] text-ink-600">ফোন নাম্বার দিয়ে আপনার অ্যাকাউন্টে ঢুকুন।</p>
 
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                পাসওয়ার্ড
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
-                  placeholder="••••••••"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
+          <form onSubmit={handleLogin} className="mt-9 space-y-5">
+            <Field label="ফোন নাম্বার" htmlFor="phone" required>
+              <Input
+                id="phone"
+                icon={Phone}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="01XXXXXXXXX"
+                required
+              />
+            </Field>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" className="w-4 h-4 text-[#3B82F6] rounded" />
-                <span className="text-sm text-gray-600">মনে রাখুন</span>
-              </label>
-              <button type="button" className="text-sm text-[#3B82F6] hover:underline">
-                পাসওয়ার্ড ভুলে গেছেন?
-              </button>
-            </div>
+            <Field label="পাসওয়ার্ড" htmlFor="password" required>
+              <PasswordInput
+                id="password"
+                icon={Lock}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            </Field>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <LogIn size={20} />
-              )}
+            <Button type="submit" size="lg" fullWidth loading={loading} icon={<LogIn size={18} />}>
               {loading ? 'লগইন হচ্ছে...' : 'লগইন করুন'}
-            </button>
+            </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              নতুন ব্যবহারকারী?{' '}
-              <Link href="/signup" className="text-[#3B82F6] font-semibold hover:underline">
-                অ্যাকাউন্ট তৈরি করুন
-              </Link>
-            </p>
-          </div>
+          <p className="mt-8 text-center text-sm text-ink-600">
+            নতুন ব্যবহারকারী?{' '}
+            <Link href="/signup" className="font-semibold text-brand-700 hover:underline">
+              অ্যাকাউন্ট তৈরি করুন
+            </Link>
+          </p>
+
+          <p className="mt-4 text-center text-xs leading-relaxed text-ink-500">
+            সমস্যা হচ্ছে? কল করুন{' '}
+            <a href="tel:+8801792695939" className="font-medium text-ink-700 hover:underline">
+              ০১৭৯২৬৯৫৯৩৯
+            </a>
+          </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
