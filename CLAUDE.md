@@ -187,6 +187,26 @@ stored a plain name there, so profile code tests for a 24-char hex id first.
 - The `Order.isWithinDeadline()` model method uses a 2:30 PM dinner cut-off,
   disagreeing with the 1:00 PM used everywhere else. Nothing calls it.
 
+## Deploying
+
+The API is part of this app, so it needs a Node server — **do not** add
+`output: 'export'` to `next.config.ts`, it would delete every route in
+`src/app/api` from the build.
+
+Three things must be true on the host, and none of them come from `.env.local`:
+
+1. `MONGODB_URI` and `JWT_SECRET` are set in the host's environment variables.
+2. The host is allowed through the Atlas firewall — **Network Access → 0.0.0.0/0**.
+   Serverless hosts have no fixed outbound IP, so an allow-list containing only
+   a home IP works locally and times out in production. This is the usual cause
+   of "the API works locally but not on the live site".
+3. `NEXT_PUBLIC_USE_MOCK` is `false` or unset. It is inlined at **build** time,
+   so changing it requires a redeploy, not just a restart.
+
+`GET /api/health` reports all of the above — which env vars are missing, whether
+the database answers, and a likely cause when it does not. It returns 503 when
+unhealthy and never echoes a secret, so it is safe to hit on a live deployment.
+
 ## Commands
 
 ```bash

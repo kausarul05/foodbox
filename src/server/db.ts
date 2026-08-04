@@ -33,6 +33,13 @@ export async function connectDB(): Promise<typeof mongoose> {
   if (!cache.promise) {
     cache.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
+      // Fail fast. The default is 30s, which on a serverless host outlives the
+      // function timeout — the caller then sees an opaque gateway error instead
+      // of the real reason. 8s is well inside every platform's default limit.
+      serverSelectionTimeoutMS: 8000,
+      // Each serverless instance keeps its own pool; the driver default of 100
+      // will exhaust an Atlas shared tier once a few instances are warm.
+      maxPoolSize: 10,
     });
   }
 
@@ -41,6 +48,16 @@ export async function connectDB(): Promise<typeof mongoose> {
   } catch (error) {
     // Let the next request retry instead of caching a rejected promise forever.
     cache.promise = null;
+
+    const message = error instanceof Error ? error.message : String(error);
+    if (/ServerSelection|ETIMEDOUT|querySrv|ENOTFOUND/i.test(message)) {
+      throw new Error(
+        `Could not reach MongoDB (${message.split('\n')[0]}). ` +
+          'If this works locally but not on the deployed site, the host IP is almost ' +
+          'certainly not on the Atlas Network Access list — add 0.0.0.0/0. ' +
+          'Check GET /api/health for details.'
+      );
+    }
     throw error;
   }
 
