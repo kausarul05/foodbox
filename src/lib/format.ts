@@ -19,6 +19,19 @@ export function taka(amount: number | undefined | null): string {
 }
 
 /**
+ * How a zone is shown to a customer.
+ *
+ * `Zone.name` is a lowercase English slug (`mymensingh_sadar`) used as the
+ * unique key; `nameBn` carries the Bengali label. Rendering `name` directly
+ * puts a slug in the middle of Bengali copy, so every zone display goes
+ * through here.
+ */
+export function zoneLabel(zone: { name?: string; nameBn?: string | null } | null | undefined): string {
+  if (!zone) return '';
+  return zone.nameBn || zone.name || '';
+}
+
+/**
  * Menu day order, Saturday-first — the Bangladeshi week.
  * Mirrors `MENU_DAYS` in src/server/models/WeeklyMenu.ts. It is duplicated
  * rather than imported because client components must not pull in server code.

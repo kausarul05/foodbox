@@ -4,14 +4,17 @@ import { useEffect, useState } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { zoneAPI } from '@/lib/api';
-import { taka } from '@/lib/format';
+import { taka, zoneLabel } from '@/lib/format';
 import Button from './Button';
 import { Field, Input, Select } from './Field';
 import Modal from './Modal';
 
 interface Zone {
   _id: string;
+  /** Lowercase English slug — the unique key, not for display. */
   name: string;
+  /** Bengali label shown to the customer. */
+  nameBn?: string | null;
   deliveryCharge: number;
   isActive: boolean;
 }
@@ -129,7 +132,7 @@ export default function ZoneSelect({
         <option value="">সিলেক্ট করুন</option>
         {zones.map((zone) => (
           <option key={zone._id} value={zone._id}>
-            {zone.name} — ডেলিভারি {zone.deliveryCharge > 0 ? taka(zone.deliveryCharge) : 'ফ্রি'}
+            {zoneLabel(zone)} — ডেলিভারি {zone.deliveryCharge > 0 ? taka(zone.deliveryCharge) : 'ফ্রি'}
           </option>
         ))}
         <option value="other">+ অন্যান্য (আমার এলাকা এখানে নেই)</option>

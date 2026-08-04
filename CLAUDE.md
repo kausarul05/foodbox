@@ -30,9 +30,11 @@ src/
 │   ├── api.ts           Customer API client. Switches mock ⇄ real on NEXT_PUBLIC_USE_MOCK.
 │   ├── api.mock.ts      Mock implementation, backed by src/mock/data.ts.
 │   ├── api.http.ts      Real implementation, fetches /api/*.
-│   └── format.ts        bn() / taka() / day helpers. All user-facing numbers go through it.
+│   ├── format.ts        bn() / taka() / zoneLabel() / day helpers. All user-facing values go through it.
+│   └── useSession.ts    useSession() / useHydrated() — the localStorage session, read safely.
 ├── mock/data.ts         Mock fixtures shaped exactly like the Mongoose models.
-└── components/ui/       Shared UI (SectionHeading, ZoneSelect).
+└── components/ui/       Shared UI: Button, Field (Input/Textarea/Select/PasswordInput),
+                         Modal, PageHeader, SectionHeading, ZoneSelect.
 ```
 
 ## Design system
@@ -72,12 +74,24 @@ should not meet a date/zone/meal form before learning what FoodBox is.
 `Testimonials` uses placeholder reviews. There is no Review model or
 `/api/reviews` route; add one before treating them as real.
 
+## Database — live, and already populated
+
+`.env.local` points at the **real Atlas database** (`fcs_meal_manager`), and it
+already holds production data carried over from the old Express backend: 8 users,
+40 orders, 21 weekly-menu rows, 20 zones, 2 packages, 3 subscriptions, 1 admin.
+
+**Do not run `POST /api/setup`.** It refuses when zones or packages already exist,
+but it will re-seed if handed `{ "force": true }`. There is nothing to seed.
+
+Every route was smoke-tested against this data and passes; both auth guards
+correctly return 401. Admin login works with `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
 ## Mock mode
 
 `NEXT_PUBLIC_USE_MOCK=true` in `.env.local` makes the entire customer site run
-off `src/mock/data.ts` with zero network calls and no database. This is the mode
-to use while redesigning the UI. The admin panel does **not** honour this flag —
-it always calls the real API.
+off `src/mock/data.ts` with zero network calls and no database — useful for UI
+work. **It is currently `false`, so the site reads and writes the live database.**
+The admin panel does **not** honour this flag — it always calls the real API.
 
 When you change a mock fixture, keep its shape matching the corresponding model
 in `src/server/models/`. That is what makes the flag switch cleanly.
@@ -150,6 +164,17 @@ transaction id, an admin approves it, and only then is the balance credited.
 
 Menu days are Bengali strings in a fixed order — see `MENU_DAYS` in
 `src/server/models/WeeklyMenu.ts`. UI copy throughout is Bengali.
+
+**Zones have two names.** `Zone.name` is a lowercase English slug used as the
+unique key (`mymensingh_sadar`); `Zone.nameBn` is the Bengali label
+(`ময়মনসিংহ সদর`). Never render `name` — always `zoneLabel(zone)` from
+`src/lib/format.ts`. Both mock and real data share this shape, so rendering
+`name` puts a slug in the middle of Bengali copy in either mode.
+
+`Order.zone` and `Subscription.zone` store the zone **id as a string**, not a
+name — resolve it against `/api/zones` before display (see
+`dashboard/orders/page.tsx`). `User.zone` is a real ObjectId, but older accounts
+stored a plain name there, so profile code tests for a 24-char hex id first.
 
 ## Known gaps
 

@@ -20,11 +20,13 @@ import {
   XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { orderAPI } from '@/lib/api';
+import { orderAPI, zoneAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
 import { Select, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
-import { bengaliDate, bn, taka } from '@/lib/format';
+import { bengaliDate, bn, taka, zoneLabel } from '@/lib/format';
+
+const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
 
 interface Order {
   _id: string;
@@ -122,6 +124,8 @@ function cancellability(order: Order): { canCancel: boolean; message: string } {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  /** Zone id -> Bengali label. Orders store the zone as a raw id. */
+  const [zoneNames, setZoneNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [selected, setSelected] = useState<Order | null>(null);
@@ -152,6 +156,27 @@ export default function OrdersPage() {
   useEffect(() => {
     void fetchOrders();
   }, [fetchOrders]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await zoneAPI.getAllZones();
+        if (cancelled || !res.success) return;
+        const map: Record<string, string> = {};
+        for (const zone of res.data ?? []) map[zone._id] = zoneLabel(zone);
+        setZoneNames(map);
+      } catch {
+        /* falls back to hiding the id, below */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Orders written before zones were normalised may hold a plain name. */
+  const zoneOf = (value: string) => zoneNames[value] ?? (OBJECT_ID.test(value) ? '' : value);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -375,8 +400,7 @@ export default function OrdersPage() {
                                 <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
                                   <MapPin size={12} className="shrink-0" />
                                   <span className="truncate">
-                                    {order.zone}
-                                    {order.address ? ` · ${order.address}` : ''}
+                                    {[zoneOf(order.zone), order.address].filter(Boolean).join(' · ') || '—'}
                                   </span>
                                 </p>
                               </div>

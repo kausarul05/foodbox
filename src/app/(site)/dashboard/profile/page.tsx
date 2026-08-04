@@ -8,7 +8,7 @@ import { authAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Field';
 import ZoneSelect from '@/components/ui/ZoneSelect';
-import { bengaliDate, taka } from '@/lib/format';
+import { bengaliDate, taka, zoneLabel } from '@/lib/format';
 import { displayName, saveSessionUser, useSession, type SessionUser } from '@/lib/useSession';
 
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
@@ -65,7 +65,7 @@ export default function ProfilePage() {
       if (OBJECT_ID.test(userZone)) {
         try {
           const res = await zoneAPI.getZoneById(userZone);
-          if (res.success && res.data) resolvedZone = res.data.name;
+          if (res.success && res.data) resolvedZone = zoneLabel(res.data);
         } catch {
           /* fall back to showing the raw value */
         }
