@@ -23,8 +23,26 @@ declare global {
 const cache: MongooseCache = global._mongooseCache ?? { conn: null, promise: null };
 global._mongooseCache = cache;
 
+/** mongoose.ConnectionStates: 0 disconnected, 1 connected, 2 connecting, 3 disconnecting. */
+const CONNECTED = 1;
+
 export async function connectDB(): Promise<typeof mongoose> {
-  if (cache.conn) return cache.conn;
+  // Reuse the cached connection only while the socket is actually alive.
+  //
+  // A serverless instance is frozen between invocations and Atlas closes idle
+  // sockets, so `cache.conn` routinely outlives the connection it points at.
+  // Returning it blindly means every query runs against a dead socket — and
+  // with bufferCommands:false that fails instantly rather than reconnecting,
+  // which looks like the API working right after a deploy and breaking later.
+  if (cache.conn && mongoose.connection.readyState === CONNECTED) {
+    return cache.conn;
+  }
+
+  // Stale: drop it so a fresh connection is dialled below.
+  if (cache.conn) {
+    cache.conn = null;
+    cache.promise = null;
+  }
 
   if (!MONGODB_URI) {
     throw new Error('MONGODB_URI is not set. Add it to .env.local — see .env.example.');
@@ -40,6 +58,9 @@ export async function connectDB(): Promise<typeof mongoose> {
       // Each serverless instance keeps its own pool; the driver default of 100
       // will exhaust an Atlas shared tier once a few instances are warm.
       maxPoolSize: 10,
+      // Retire sockets before Atlas does, so a stale one is replaced on our
+      // terms instead of failing mid-query.
+      maxIdleTimeMS: 60_000,
     });
   }
 
