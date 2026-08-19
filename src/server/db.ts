@@ -9,7 +9,21 @@ import mongoose from 'mongoose';
  * opening a new one per request (which exhausts Atlas connection limits fast).
  */
 
-const MONGODB_URI = process.env.MONGODB_URI;
+/**
+ * Read at call time, never at module scope.
+ *
+ * `const X = process.env.X` at the top of a module is evaluated once, when the
+ * module is first loaded, and the bundler is free to fold that access into a
+ * literal at build time. If the variable is absent during the build it is baked
+ * in as `undefined` permanently — so adding it to the host's settings later has
+ * no effect until the next rebuild, which looks exactly like "I set it and it
+ * still says it is not set". Reading inside the function keeps it dynamic.
+ */
+function readUri(): string | undefined {
+  // .trim() because pasting into a dashboard field very easily leaves a
+  // trailing newline or space, which makes the driver fail to parse the URI.
+  return process.env.MONGODB_URI?.trim() || undefined;
+}
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -44,12 +58,18 @@ export async function connectDB(): Promise<typeof mongoose> {
     cache.promise = null;
   }
 
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI is not set. Add it to .env.local — see .env.example.');
+  const uri = readUri();
+  if (!uri) {
+    throw new Error(
+      'MONGODB_URI is not set. Locally: add it to .env.local (see .env.example). ' +
+        'On a deployed host: add it to the host environment variables and redeploy — ' +
+        'a .env file is never uploaded. Check GET /api/health to confirm what the ' +
+        'server can actually see.'
+    );
   }
 
   if (!cache.promise) {
-    cache.promise = mongoose.connect(MONGODB_URI, {
+    cache.promise = mongoose.connect(uri, {
       bufferCommands: false,
       // Fail fast. The default is 30s, which on a serverless host outlives the
       // function timeout — the caller then sees an opaque gateway error instead

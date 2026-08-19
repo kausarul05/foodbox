@@ -34,26 +34,59 @@ export async function GET() {
   const started = Date.now();
 
   const env = {
-    MONGODB_URI: Boolean(process.env.MONGODB_URI),
-    JWT_SECRET: Boolean(process.env.JWT_SECRET),
+    MONGODB_URI: Boolean(process.env.MONGODB_URI?.trim()),
+    JWT_SECRET: Boolean(process.env.JWT_SECRET?.trim()),
     JWT_EXPIRE: process.env.JWT_EXPIRE ?? '(unset, defaults to 30d)',
-    SETUP_SECRET: Boolean(process.env.SETUP_SECRET),
+    SETUP_SECRET: Boolean(process.env.SETUP_SECRET?.trim()),
     // Inlined at build time, so this reflects the build environment.
     NEXT_PUBLIC_USE_MOCK: process.env.NEXT_PUBLIC_USE_MOCK ?? '(unset)',
   };
 
+  /**
+   * Names only — never values. Catches the two failures the booleans above
+   * cannot explain: a misspelled variable (MONGO_URI, MONGODB_URL, a trailing
+   * space) and a variable that exists but is empty.
+   */
+  const relatedNames = Object.keys(process.env)
+    .filter((name) => /MONGO|JWT|SETUP_SECRET|ADMIN_(EMAIL|PASSWORD)|USE_MOCK/i.test(name))
+    .sort()
+    .map((name) => (process.env[name]?.trim() ? name : `${name} (EMPTY)`));
+
+  /**
+   * Which deployment answered. A variable set only for Production is invisible
+   * to a Preview deployment, so a branch/preview URL keeps failing while the
+   * production one works.
+   */
+  const platform = process.env.VERCEL
+    ? {
+        host: 'vercel',
+        environment: process.env.VERCEL_ENV ?? 'unknown',
+        note:
+          process.env.VERCEL_ENV !== 'production'
+            ? 'This is NOT the production deployment. Environment variables must be ' +
+              'enabled for this environment too (Preview / Development).'
+            : undefined,
+      }
+    : { host: 'self-hosted or local' };
+
+  const uri = process.env.MONGODB_URI?.trim();
+
   const database: Record<string, unknown> = {
-    target: maskedTarget(process.env.MONGODB_URI),
+    target: maskedTarget(uri),
     connected: false,
   };
 
-  if (!process.env.MONGODB_URI) {
+  if (!uri) {
     database.error = 'MONGODB_URI is not set on this deployment.';
+    database.likelyCause =
+      'A .env file is never uploaded. Set MONGODB_URI in the host environment ' +
+      'variables, enable it for this environment, then REDEPLOY — saving alone ' +
+      'does not rebuild. Compare envNamesVisible below against the exact spelling.';
   } else {
     try {
       // A short timeout so a blocked IP fails fast instead of hitting the
       // platform's function timeout and returning a generic gateway error.
-      const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      const conn = await mongoose.connect(uri, {
         bufferCommands: false,
         serverSelectionTimeoutMS: 8000,
       });
@@ -87,6 +120,8 @@ export async function GET() {
       healthy,
       missingEnv: missing,
       env,
+      envNamesVisible: relatedNames,
+      platform,
       database,
       node: process.version,
       tookMs: Date.now() - started,

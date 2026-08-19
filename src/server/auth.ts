@@ -10,18 +10,26 @@ import User, { type IUser } from './models/User';
  * old backend returned.
  */
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRE = process.env.JWT_EXPIRE || '30d';
-
+/**
+ * Both are read at call time, not at module scope — see the note in db.ts:
+ * a module-level `process.env` capture can be folded into a literal at build
+ * time, so a value added to the host's settings afterwards is never picked up.
+ */
 function secret(): string {
-  if (!JWT_SECRET) {
-    throw new Error('JWT_SECRET is not set. Add it to .env.local — see .env.example.');
+  const value = process.env.JWT_SECRET?.trim();
+  if (!value) {
+    throw new Error(
+      'JWT_SECRET is not set. Locally: add it to .env.local (see .env.example). ' +
+        'On a deployed host: add it to the host environment variables and redeploy. ' +
+        'Check GET /api/health to confirm what the server can actually see.'
+    );
   }
-  return JWT_SECRET;
+  return value;
 }
 
 export function generateToken(id: string): string {
-  return jwt.sign({ id }, secret(), { expiresIn: JWT_EXPIRE } as jwt.SignOptions);
+  const expiresIn = process.env.JWT_EXPIRE?.trim() || '30d';
+  return jwt.sign({ id }, secret(), { expiresIn } as jwt.SignOptions);
 }
 
 function readToken(req: Request): string {
