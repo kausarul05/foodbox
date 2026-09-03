@@ -7,7 +7,15 @@
  * path is relative and same-origin — no base URL and no CORS.
  */
 
-import type { ApiResponse } from './api.mock';
+/** The envelope every route in src/app/api returns. */
+export interface ApiResponse {
+  success: boolean;
+  message?: string;
+  count?: number;
+  // Payload shape varies per endpoint; callers narrow it at the call site.
+  data?: any;
+  [key: string]: any;
+}
 
 const API_BASE_URL = '/api';
 

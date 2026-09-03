@@ -79,21 +79,21 @@ export default function PendingTransactionsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin" />
+        <Loader2 className="w-12 h-12 text-brand-600 animate-spin" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">পেন্ডিং ট্রানজেকশন</h1>
-          <p className="text-gray-500">ওয়ালেট রিচার্জ রিকোয়েস্ট</p>
+          <h1 className="text-2xl font-bold text-ink-900">পেন্ডিং ট্রানজেকশন</h1>
+          <p className="text-ink-500">ওয়ালেট রিচার্জ রিকোয়েস্ট</p>
         </div>
         <button
           onClick={fetchTransactions}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+          className="flex items-center gap-2 px-4 py-2 bg-ink-100 hover:bg-ink-200 rounded-lg"
         >
           <RefreshCw size={18} />
           রিফ্রেশ
@@ -101,20 +101,20 @@ export default function PendingTransactionsPage() {
       </div>
 
       {transactions.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-          <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">কোনো পেন্ডিং ট্রানজেকশন নেই</p>
+        <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
+          <Clock className="w-16 h-16 text-ink-400 mx-auto mb-4" />
+          <p className="text-ink-500">কোনো পেন্ডিং ট্রানজেকশন নেই</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {transactions.map((tx) => (
-            <div key={tx._id} className="bg-white rounded-2xl shadow-lg p-6">
+            <div key={tx._id} className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="font-semibold text-gray-800">{tx.userName}</p>
-                  <p className="text-2xl font-bold text-[#3B82F6]">৳ {tx.amount}</p>
-                  <p className="text-sm text-gray-500 mt-1">ট্রানজেকশন আইডি: {tx.transactionId}</p>
-                  <p className="text-xs text-gray-400 mt-1">{new Date(tx.createdAt).toLocaleString()}</p>
+                  <p className="font-semibold text-ink-900">{tx.userName}</p>
+                  <p className="text-2xl font-bold text-brand-600">৳ {tx.amount}</p>
+                  <p className="text-sm text-ink-500 mt-1">ট্রানজেকশন আইডি: {tx.transactionId}</p>
+                  <p className="text-xs text-ink-400 mt-1">{new Date(tx.createdAt).toLocaleString()}</p>
                 </div>
                 <div className="flex gap-2">
                   <button

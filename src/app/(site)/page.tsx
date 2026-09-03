@@ -4,7 +4,7 @@ import WeeklyMenu from '@/app/Components/Home/WeeklyMenu';
 import Packages from '@/app/Components/Home/Packages';
 import Features from '@/app/Components/Home/Features';
 import DeliveryInfo from '@/app/Components/Home/DeliveryInfo';
-import Testimonials from '@/app/Components/Home/Testimonials';
+
 import Faq from '@/app/Components/Home/Faq';
 import CtaBand from '@/app/Components/Home/CtaBand';
 
@@ -18,7 +18,12 @@ import CtaBand from '@/app/Components/Home/CtaBand';
  *
  * Order of sections follows the visitor's questions:
  *   what is this → how does it work → what will I eat → what does it cost →
- *   why you → when/where do you deliver → do others trust you → loose ends → act
+ *   why you → when & where we deliver → loose ends → act
+ */
+/*
+ * There is no testimonials section: there is no Review model and no
+ * /api/reviews route, so any quotes here would be invented. Build the model
+ * first if real reviews are wanted.
  */
 export default function HomePage() {
   return (
@@ -29,7 +34,7 @@ export default function HomePage() {
       <Packages />
       <Features />
       <DeliveryInfo />
-      <Testimonials />
+
       <Faq />
       <CtaBand />
     </>

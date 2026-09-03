@@ -3,6 +3,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import DataTable from '@/app/admin/components/ui/DataTable';
+import { EmptyState, Pill } from '@/app/admin/components/ui/Shell';
+import { taka } from '@/lib/format';
 import { 
   MapPin, 
   Plus, 
@@ -186,7 +189,7 @@ export default function ZonesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin" />
+        <Loader2 className="w-12 h-12 text-brand-600 animate-spin" />
       </div>
     );
   }
@@ -197,22 +200,22 @@ export default function ZonesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">জোন ম্যানেজমেন্ট</h1>
-          <p className="text-gray-500 mt-1">ডেলিভারি জোন যোগ করুন, এডিট করুন ও ম্যানেজ করুন</p>
+          <h1 className="text-2xl font-bold text-ink-900">জোন ম্যানেজমেন্ট</h1>
+          <p className="text-ink-500 mt-1">ডেলিভারি জোন যোগ করুন, এডিট করুন ও ম্যানেজ করুন</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={fetchZones}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+            className="flex items-center gap-2 px-4 py-2 bg-ink-100 hover:bg-ink-200 rounded-lg"
           >
             <RefreshCw size={18} />
             রিফ্রেশ
           </button>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white rounded-lg"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg"
           >
             <Plus size={18} />
             নতুন জোন
@@ -228,8 +231,8 @@ export default function ZonesPage() {
               <MapPin className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">মোট জোন</p>
-              <p className="text-2xl font-bold text-gray-800">{zones.length}</p>
+              <p className="text-sm text-ink-500">মোট জোন</p>
+              <p className="text-2xl font-bold text-ink-900">{zones.length}</p>
             </div>
           </div>
         </div>
@@ -239,8 +242,8 @@ export default function ZonesPage() {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">সক্রিয় জোন</p>
-              <p className="text-2xl font-bold text-gray-800">{zones.filter(z => z.isActive).length}</p>
+              <p className="text-sm text-ink-500">সক্রিয় জোন</p>
+              <p className="text-2xl font-bold text-ink-900">{zones.filter(z => z.isActive).length}</p>
             </div>
           </div>
         </div>
@@ -250,8 +253,8 @@ export default function ZonesPage() {
               <Clock className="w-6 h-6 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">পেন্ডিং জোন</p>
-              <p className="text-2xl font-bold text-gray-800">{pendingZones.length}</p>
+              <p className="text-sm text-ink-500">পেন্ডিং জোন</p>
+              <p className="text-2xl font-bold text-ink-900">{pendingZones.length}</p>
             </div>
           </div>
         </div>
@@ -261,8 +264,8 @@ export default function ZonesPage() {
               <Eye className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">ইউজার সংযোজিত</p>
-              <p className="text-2xl font-bold text-gray-800">
+              <p className="text-sm text-ink-500">ইউজার সংযোজিত</p>
+              <p className="text-2xl font-bold text-ink-900">
                 {zones.filter(z => z.isCustom).length}
               </p>
             </div>
@@ -272,70 +275,61 @@ export default function ZonesPage() {
 
       {/* Pending Zones Section */}
       {pendingZones.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden">
           <div className="bg-yellow-50 px-6 py-3 border-b">
             <h2 className="font-semibold text-yellow-800">⏳ পেন্ডিং জোন (অনুমোদনের অপেক্ষায়)</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">জোনের নাম</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">টাইপ</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">স্ট্যাটাস</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">একশন</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {pendingZones.map((zone) => (
-                  <tr key={zone._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-800">{zone.name}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
-                        ইউজার সংযোজিত
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
-                        পেন্ডিং
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleApprove(zone._id)}
-                        className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                      >
-                        <Check size={14} />
-                        অনুমোদন
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="p-4">
+            <DataTable
+              rows={pendingZones}
+              keyOf={(zone) => zone._id}
+              empty={null}
+              columns={[
+                {
+                  header: 'জোনের নাম',
+                  primary: true,
+                  cell: (zone) => zone.name,
+                },
+                { header: 'টাইপ', cell: () => <Pill tone="brand">ইউজার সংযোজিত</Pill> },
+                { header: 'স্ট্যাটাস', cell: () => <Pill tone="warning">পেন্ডিং</Pill> },
+                {
+                  header: 'একশন',
+                  align: 'right',
+                  cell: (zone) => (
+                    <button
+                      onClick={() => handleApprove(zone._id)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-leaf-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-leaf-700"
+                    >
+                      <Check size={14} />
+                      অনুমোদন
+                    </button>
+                  ),
+                },
+              ]}
+            />
           </div>
         </div>
       )}
 
       {/* Filters for Regular Zones */}
-      <div className="bg-white rounded-2xl shadow-lg p-4">
+      <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-400" size={18} />
             <input
               type="text"
               placeholder="জোনের নাম দিয়ে সার্চ করুন..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+              className="w-full pl-10 pr-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
             />
           </div>
           <div className="flex gap-2">
-            <Filter size={20} className="text-gray-400 mt-2" />
+            <Filter size={20} className="text-ink-400 mt-2" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+              className="px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
             >
               <option value="all">সব জোন</option>
               <option value="active">সক্রিয় জোন</option>
@@ -346,118 +340,113 @@ export default function ZonesPage() {
       </div>
 
       {/* Active/Inactive Zones Table */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="bg-gray-50 px-6 py-3 border-b">
-          <h2 className="font-semibold text-gray-800">
+      <div className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden">
+        <div className="bg-ink-50 px-6 py-3 border-b">
+          <h2 className="font-semibold text-ink-900">
             {statusFilter === 'active' ? '✅ সক্রিয় জোন' : statusFilter === 'inactive' ? '❌ নিষ্ক্রিয় জোন' : '📋 সব জোন'}
           </h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">জোনের নাম</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">বাংলা নাম</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">ডেলিভারি চার্জ</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">টাইপ</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">স্ট্যাটাস</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">একশন</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {regularZones.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                    কোন জোন পাওয়া যায়নি
-                  </td>
-                </tr>
-              ) : (
-                regularZones.map((zone) => (
-                  <tr key={zone._id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-800">{zone.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{zone.nameBn || '-'}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#3B82F6]">৳ {zone.deliveryCharge}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${zone.isCustom ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {zone.isCustom ? 'ইউজার সংযোজিত' : 'অ্যাডমিন'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${zone.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {zone.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleToggleStatus(zone._id, zone.isActive)}
-                          className="p-1 text-gray-500 hover:text-yellow-600"
-                          title={zone.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}
-                        >
-                          {zone.isActive ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                        <button
-                          onClick={() => handleEdit(zone)}
-                          className="p-1 text-blue-500 hover:text-blue-700"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(zone._id, zone.name)}
-                          className="p-1 text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="p-4">
+          <DataTable
+            rows={regularZones}
+            keyOf={(zone) => zone._id}
+            empty={<EmptyState icon={MapPin} title="কোনো জোন পাওয়া যায়নি" hint="ফিল্টার বদলে দেখুন বা নতুন জোন যোগ করুন।" />}
+            columns={[
+              { header: 'জোনের নাম', primary: true, cell: (zone) => zone.name },
+              { header: 'বাংলা নাম', cell: (zone) => zone.nameBn || '—' },
+              {
+                header: 'ডেলিভারি চার্জ',
+                align: 'right',
+                cell: (zone) => <span className="font-semibold text-ink-900">{taka(zone.deliveryCharge)}</span>,
+              },
+              {
+                header: 'টাইপ',
+                cell: (zone) => (
+                  <Pill tone={zone.isCustom ? 'brand' : 'info'}>
+                    {zone.isCustom ? 'ইউজার সংযোজিত' : 'অ্যাডমিন'}
+                  </Pill>
+                ),
+              },
+              {
+                header: 'স্ট্যাটাস',
+                cell: (zone) => (
+                  <Pill tone={zone.isActive ? 'success' : 'danger'}>{zone.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</Pill>
+                ),
+              },
+              {
+                header: 'একশন',
+                align: 'right',
+                cell: (zone) => (
+                  <div className="flex justify-end gap-1">
+                    <button
+                      onClick={() => handleToggleStatus(zone._id, zone.isActive)}
+                      className="grid size-9 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+                      title={zone.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}
+                    >
+                      {zone.isActive ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                    <button
+                      onClick={() => handleEdit(zone)}
+                      className="grid size-9 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-brand-700"
+                      title="এডিট করুন"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(zone._id, zone.name)}
+                      className="grid size-9 place-items-center rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700"
+                      title="ডিলিট করুন"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ),
+              },
+            ]}
+          />
         </div>
       </div>
 
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4 text-black">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4 text-ink-900">
               <h3 className="text-xl font-bold">
                 {editingZone ? 'জোন এডিট করুন' : 'নতুন জোন যোগ করুন'}
               </h3>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded">
+              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-ink-100 rounded">
                 <XCircle size={24} />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-1">জোনের নাম (ইংরেজি)</label>
+                <label className="block text-ink-700 font-medium mb-1">জোনের নাম (ইংরেজি)</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="যেমন: Uttara"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">জোনের নাম (বাংলা) - ঐচ্ছিক</label>
+                <label className="block text-ink-700 font-medium mb-1">জোনের নাম (বাংলা) - ঐচ্ছিক</label>
                 <input
                   type="text"
                   value={formData.nameBn}
                   onChange={(e) => setFormData({ ...formData, nameBn: e.target.value })}
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="যেমন: উত্তরা"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">ডেলিভারি চার্জ (৳)</label>
+                <label className="block text-ink-700 font-medium mb-1">ডেলিভারি চার্জ (৳)</label>
                 <input
                   type="number"
                   value={formData.deliveryCharge}
                   onChange={(e) => setFormData({ ...formData, deliveryCharge: e.target.value })}
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   min="0"
                 />
               </div>
@@ -467,15 +456,15 @@ export default function ZonesPage() {
                     type="checkbox"
                     checked={formData.isActive}
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="w-4 h-4 text-[#3B82F6] rounded"
+                    className="w-4 h-4 text-brand-600 rounded"
                   />
-                  <span className="text-gray-700">সক্রিয়</span>
+                  <span className="text-ink-700">সক্রিয়</span>
                 </label>
               )}
               <button
                 onClick={handleSave}
                 disabled={submitting}
-                className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold"
+                className="w-full bg-brand-600 text-white py-2 rounded-lg font-semibold"
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (editingZone ? 'আপডেট করুন' : 'জোন যোগ করুন')}
               </button>

@@ -305,8 +305,8 @@ export default function WeeklyMenuPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">লোড হচ্ছে...</p>
+          <Loader2 className="w-12 h-12 text-brand-600 animate-spin mx-auto mb-4" />
+          <p className="text-ink-500">লোড হচ্ছে...</p>
         </div>
       </div>
     );
@@ -316,15 +316,15 @@ export default function WeeklyMenuPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">উইকলি মেনু ম্যানেজমেন্ট</h1>
-          <p className="text-gray-500 mt-1">প্যাকেজের মেনু এডিট করুন</p>
+          <h1 className="text-2xl font-bold text-ink-900">উইকলি মেনু ম্যানেজমেন্ট</h1>
+          <p className="text-ink-500 mt-1">প্যাকেজের মেনু এডিট করুন</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Package className="w-12 h-12 text-gray-400" />
+        <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
+          <div className="w-24 h-24 bg-ink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Package className="w-12 h-12 text-ink-400" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">কোনো প্যাকেজ নেই</h3>
-          <p className="text-gray-500 mb-6">প্যাকেজ ম্যানেজমেন্ট থেকে প্রথমে একটি প্যাকেজ তৈরি করুন</p>
+          <h3 className="text-xl font-semibold text-ink-900 mb-2">কোনো প্যাকেজ নেই</h3>
+          <p className="text-ink-500 mb-6">প্যাকেজ ম্যানেজমেন্ট থেকে প্রথমে একটি প্যাকেজ তৈরি করুন</p>
         </div>
       </div>
     );
@@ -334,10 +334,10 @@ export default function WeeklyMenuPage() {
   if (currentMenu.length === 0 && !saving) {
     return (
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">উইকলি মেনু ম্যানেজমেন্ট</h1>
-            <p className="text-gray-500 mt-1">{selectedPackage?.title} প্যাকেজের মেনু এডিট করুন</p>
+            <h1 className="text-2xl font-bold text-ink-900">উইকলি মেনু ম্যানেজমেন্ট</h1>
+            <p className="text-ink-500 mt-1">{selectedPackage?.title} প্যাকেজের মেনু এডিট করুন</p>
           </div>
         </div>
 
@@ -348,8 +348,8 @@ export default function WeeklyMenuPage() {
               key={pkg._id}
               onClick={() => setSelectedPackageId(pkg._id)}
               className={`px-6 py-2 rounded-lg font-semibold transition-all ${selectedPackageId === pkg._id
-                ? 'bg-gradient-to-r from-[#3B82F6] to-[#111827] text-white shadow-lg'
-                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                ? 'bg-brand-600 text-white shadow-lg'
+                : 'bg-ink-200 text-ink-600 hover:bg-gray-300'
                 }`}
             >
               {pkg.title}
@@ -358,18 +358,18 @@ export default function WeeklyMenuPage() {
         </div>
 
         {/* Empty State */}
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Utensils className="w-12 h-12 text-gray-400" />
+        <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
+          <div className="w-24 h-24 bg-ink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Utensils className="w-12 h-12 text-ink-400" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">কোনো মেনু পাওয়া যায়নি</h3>
-          <p className="text-gray-500 mb-6">
+          <h3 className="text-xl font-semibold text-ink-900 mb-2">কোনো মেনু পাওয়া যায়নি</h3>
+          <p className="text-ink-500 mb-6">
             {selectedPackage?.title} প্যাকেজের জন্য এখনো কোনো মেনু তৈরি করা হয়নি।
           </p>
           <button
             onClick={handleAddNewMenu}
             disabled={saving}
-            className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2 mx-auto"
+            className="bg-brand-600 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2 mx-auto"
           >
             {saving ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
             নতুন মেনু তৈরি করুন
@@ -381,17 +381,17 @@ export default function WeeklyMenuPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">উইকলি মেনু ম্যানেজমেন্ট</h1>
-          <p className="text-gray-500 mt-1">{selectedPackage?.title} প্যাকেজের মেনু এডিট করুন</p>
+          <h1 className="text-2xl font-bold text-ink-900">উইকলি মেনু ম্যানেজমেন্ট</h1>
+          <p className="text-ink-500 mt-1">{selectedPackage?.title} প্যাকেজের মেনু এডিট করুন</p>
         </div>
 
         {/* Refresh Button */}
         <button
           onClick={fetchMenuData}
           disabled={saving}
-          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2"
+          className="bg-ink-100 hover:bg-ink-200 text-ink-700 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2"
         >
           <RefreshCw size={18} className={saving ? 'animate-spin' : ''} />
           রিফ্রেশ
@@ -405,8 +405,8 @@ export default function WeeklyMenuPage() {
             key={pkg._id}
             onClick={() => setSelectedPackageId(pkg._id)}
             className={`px-6 py-2 rounded-lg font-semibold transition-all ${selectedPackageId === pkg._id
-              ? 'bg-gradient-to-r from-[#3B82F6] to-[#111827] text-white shadow-lg'
-              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+              ? 'bg-brand-600 text-white shadow-lg'
+              : 'bg-ink-200 text-ink-600 hover:bg-gray-300'
               }`}
           >
             {pkg.title}
@@ -415,10 +415,10 @@ export default function WeeklyMenuPage() {
       </div>
 
       {/* Menu Table */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full min-w-[800px]">
-            <thead className="bg-gradient-to-r from-[#3B82F6] to-[#111827]">
+            <thead className="bg-brand-600">
               <tr>
                 <th className="px-4 py-3 text-left text-white font-semibold">দিন</th>
                 <th className="px-4 py-3 text-left text-white font-semibold">
@@ -441,19 +441,19 @@ export default function WeeklyMenuPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-ink-100">
               {days.map((day) => {
                 const menuItem = currentMenu.find(item => item.day === day);
 
                 if (!menuItem) {
                   return (
-                    <tr key={day} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-800">{day}</td>
-                      <td colSpan={6} className="px-4 py-3 text-center text-gray-400">
+                    <tr key={day} className="hover:bg-ink-50">
+                      <td className="px-4 py-3 font-medium text-ink-900">{day}</td>
+                      <td colSpan={6} className="px-4 py-3 text-center text-ink-400">
                         <button
                           onClick={() => handleAddSingleDayMenu(day)}
                           disabled={saving}
-                          className="text-[#3B82F6] hover:text-blue-700 text-sm flex items-center gap-1 mx-auto"
+                          className="text-brand-600 hover:text-brand-700 text-sm flex items-center gap-1 mx-auto"
                         >
                           <Plus size={14} />
                           মেনু যোগ করুন
@@ -464,8 +464,8 @@ export default function WeeklyMenuPage() {
                 }
 
                 return (
-                  <tr key={day} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-800">{menuItem.day}</td>
+                  <tr key={day} className="hover:bg-ink-50">
+                    <td className="px-4 py-3 font-medium text-ink-900">{menuItem.day}</td>
                     
                     {/* Morning Meal */}
                     <td className="px-4 py-3">
@@ -475,7 +475,7 @@ export default function WeeklyMenuPage() {
                             type="text"
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            className="flex-1 text-black px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                            className="flex-1 text-ink-900 px-2 py-1 border border-ink-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
                             autoFocus
                           />
                           <button onClick={handleSave} disabled={saving} className="p-1 text-green-600 hover:bg-green-50 rounded">
@@ -487,10 +487,10 @@ export default function WeeklyMenuPage() {
                         </div>
                       ) : (
                         <div className="flex justify-between items-center group">
-                          <span className="text-gray-700">{menuItem.morning}</span>
+                          <span className="text-ink-700">{menuItem.morning}</span>
                           <button
                             onClick={() => handleEdit(menuItem.day, 'morning', menuItem.morning)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-[#3B82F6] transition"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-brand-600 transition"
                           >
                             <Edit size={14} />
                           </button>
@@ -506,7 +506,7 @@ export default function WeeklyMenuPage() {
                             type="number"
                             value={editPriceValue}
                             onChange={(e) => setEditPriceValue(e.target.value)}
-                            className="w-24 text-black px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                            className="w-24 text-ink-900 px-2 py-1 border border-ink-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
                             autoFocus
                           />
                           <button onClick={handleSavePrice} disabled={saving} className="p-1 text-green-600 hover:bg-green-50 rounded">
@@ -518,10 +518,10 @@ export default function WeeklyMenuPage() {
                         </div>
                       ) : (
                         <div className="flex justify-between items-center group">
-                          <span className="text-gray-700 font-semibold text-[#3B82F6]">৳ {menuItem.morningPrice}</span>
+                          <span className="text-ink-700 font-semibold text-brand-600">৳ {menuItem.morningPrice}</span>
                           <button
                             onClick={() => handleEditPrice(menuItem.day, 'morning', menuItem.morningPrice)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-[#3B82F6] transition"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-brand-600 transition"
                           >
                             <Edit size={14} />
                           </button>
@@ -537,7 +537,7 @@ export default function WeeklyMenuPage() {
                             type="text"
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            className="flex-1 text-black px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                            className="flex-1 text-ink-900 px-2 py-1 border border-ink-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
                             autoFocus
                           />
                           <button onClick={handleSave} disabled={saving} className="p-1 text-green-600 hover:bg-green-50 rounded">
@@ -549,10 +549,10 @@ export default function WeeklyMenuPage() {
                         </div>
                       ) : (
                         <div className="flex justify-between items-center group">
-                          <span className="text-gray-700">{menuItem.lunch}</span>
+                          <span className="text-ink-700">{menuItem.lunch}</span>
                           <button
                             onClick={() => handleEdit(menuItem.day, 'lunch', menuItem.lunch)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-[#3B82F6] transition"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-brand-600 transition"
                           >
                             <Edit size={14} />
                           </button>
@@ -568,7 +568,7 @@ export default function WeeklyMenuPage() {
                             type="number"
                             value={editPriceValue}
                             onChange={(e) => setEditPriceValue(e.target.value)}
-                            className="w-24 text-black px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                            className="w-24 text-ink-900 px-2 py-1 border border-ink-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
                             autoFocus
                           />
                           <button onClick={handleSavePrice} disabled={saving} className="p-1 text-green-600 hover:bg-green-50 rounded">
@@ -580,10 +580,10 @@ export default function WeeklyMenuPage() {
                         </div>
                       ) : (
                         <div className="flex justify-between items-center group">
-                          <span className="text-gray-700 font-semibold text-[#3B82F6]">৳ {menuItem.lunchPrice}</span>
+                          <span className="text-ink-700 font-semibold text-brand-600">৳ {menuItem.lunchPrice}</span>
                           <button
                             onClick={() => handleEditPrice(menuItem.day, 'lunch', menuItem.lunchPrice)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-[#3B82F6] transition"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-brand-600 transition"
                           >
                             <Edit size={14} />
                           </button>
@@ -599,7 +599,7 @@ export default function WeeklyMenuPage() {
                             type="text"
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            className="flex-1 text-black px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                            className="flex-1 text-ink-900 px-2 py-1 border border-ink-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
                             autoFocus
                           />
                           <button onClick={handleSave} disabled={saving} className="p-1 text-green-600 hover:bg-green-50 rounded">
@@ -611,10 +611,10 @@ export default function WeeklyMenuPage() {
                         </div>
                       ) : (
                         <div className="flex justify-between items-center group">
-                          <span className="text-gray-700">{menuItem.dinner}</span>
+                          <span className="text-ink-700">{menuItem.dinner}</span>
                           <button
                             onClick={() => handleEdit(menuItem.day, 'dinner', menuItem.dinner)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-[#3B82F6] transition"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-brand-600 transition"
                           >
                             <Edit size={14} />
                           </button>
@@ -630,7 +630,7 @@ export default function WeeklyMenuPage() {
                             type="number"
                             value={editPriceValue}
                             onChange={(e) => setEditPriceValue(e.target.value)}
-                            className="w-24 text-black px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                            className="w-24 text-ink-900 px-2 py-1 border border-ink-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
                             autoFocus
                           />
                           <button onClick={handleSavePrice} disabled={saving} className="p-1 text-green-600 hover:bg-green-50 rounded">
@@ -642,10 +642,10 @@ export default function WeeklyMenuPage() {
                         </div>
                       ) : (
                         <div className="flex justify-between items-center group">
-                          <span className="text-gray-700 font-semibold text-[#3B82F6]">৳ {menuItem.dinnerPrice}</span>
+                          <span className="text-ink-700 font-semibold text-brand-600">৳ {menuItem.dinnerPrice}</span>
                           <button
                             onClick={() => handleEditPrice(menuItem.day, 'dinner', menuItem.dinnerPrice)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-[#3B82F6] transition"
+                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-400 hover:text-brand-600 transition"
                           >
                             <Edit size={14} />
                           </button>
@@ -657,6 +657,104 @@ export default function WeeklyMenuPage() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/*
+          Phone view. The desktop table is seven columns wide and cannot shrink
+          below ~800px, so on a phone each day becomes a card with the same
+          inline editing behaviour.
+        */}
+        <div className="divide-y divide-ink-100 lg:hidden">
+          {days.map((day) => {
+            const menuItem = currentMenu.find((item) => item.day === day);
+
+            if (!menuItem) {
+              return (
+                <div key={day} className="flex items-center justify-between gap-3 p-4">
+                  <span className="font-semibold text-ink-900">{day}</span>
+                  <button
+                    onClick={() => handleAddSingleDayMenu(day)}
+                    disabled={saving}
+                    className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-700 disabled:opacity-50"
+                  >
+                    <Plus size={14} />
+                    মেনু যোগ করুন
+                  </button>
+                </div>
+              );
+            }
+
+            const meals = [
+              { key: 'morning' as const, label: 'সকাল', name: menuItem.morning, price: menuItem.morningPrice },
+              { key: 'lunch' as const, label: 'দুপুর', name: menuItem.lunch, price: menuItem.lunchPrice },
+              { key: 'dinner' as const, label: 'রাত', name: menuItem.dinner, price: menuItem.dinnerPrice },
+            ];
+
+            return (
+              <div key={day} className="p-4">
+                <p className="mb-3 font-bold text-ink-900">{menuItem.day}</p>
+                <div className="space-y-3">
+                  {meals.map((meal) => (
+                    <div key={meal.key} className="rounded-xl bg-ink-50 p-3">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-ink-500">{meal.label}</span>
+                        <button
+                          onClick={() => handleEditPrice(menuItem.day, meal.key, meal.price)}
+                          className="text-sm font-semibold text-brand-700"
+                        >
+                          {editingPrice?.day === menuItem.day && editingPrice?.meal === meal.key ? null : `৳ ${meal.price}`}
+                        </button>
+                      </div>
+
+                      {editingPrice?.day === menuItem.day && editingPrice?.meal === meal.key && (
+                        <div className="mb-2 flex gap-2">
+                          <input
+                            type="number"
+                            value={editPriceValue}
+                            onChange={(e) => setEditPriceValue(e.target.value)}
+                            className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                            autoFocus
+                          />
+                          <button onClick={handleSavePrice} disabled={saving} className="rounded-lg bg-leaf-600 px-3 text-white">
+                            <Save size={16} />
+                          </button>
+                          <button onClick={() => setEditingPrice(null)} className="rounded-lg bg-ink-200 px-3 text-ink-700">
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+
+                      {editingCell?.day === menuItem.day && editingCell?.meal === meal.key ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                            autoFocus
+                          />
+                          <button onClick={handleSave} disabled={saving} className="rounded-lg bg-leaf-600 px-3 text-white">
+                            <Save size={16} />
+                          </button>
+                          <button onClick={() => setEditingCell(null)} className="rounded-lg bg-ink-200 px-3 text-ink-700">
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleEdit(menuItem.day, meal.key, meal.name)}
+                          className="flex w-full items-center justify-between gap-2 text-left text-sm text-ink-800"
+                        >
+                          <span>{meal.name || 'এখনো ঠিক হয়নি'}</span>
+                          <Edit size={14} className="shrink-0 text-ink-400" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

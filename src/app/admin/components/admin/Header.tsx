@@ -1,51 +1,55 @@
-// components/admin/Header.tsx
 'use client';
 
-import React from 'react';
-import { Bell, User, Settings, Menu } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Menu, UserRound } from 'lucide-react';
+import { NAV_GROUPS } from './nav-items';
 
-interface HeaderProps {
-  onMenuClick?: () => void;
+/** Page title comes from the nav config, so it can never drift from the menu. */
+function titleFor(pathname: string) {
+  for (const group of NAV_GROUPS) {
+    const match = group.items.find((item) => item.href === pathname);
+    if (match) return match.name;
+  }
+  return 'অ্যাডমিন';
 }
 
-const Header = ({ onMenuClick }: HeaderProps) => {
+export default function Header({
+  onMenuClick,
+  adminName,
+  adminRole,
+}: {
+  onMenuClick: () => void;
+  adminName: string;
+  adminRole: string;
+}) {
+  const pathname = usePathname();
+
   return (
-    <header className="bg-white shadow-md px-4 md:px-6 py-3 md:py-4">
-      <div className="flex items-center justify-between">
-        {/* Mobile menu button */}
+    <header className="sticky top-0 z-30 border-b border-ink-200 bg-white">
+      <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
         <button
+          type="button"
           onClick={onMenuClick}
-          className="lg:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          aria-label="মেনু খুলুন"
+          className="grid size-10 shrink-0 place-items-center rounded-xl text-ink-700 transition-colors hover:bg-ink-100 lg:hidden"
         >
-          <Menu size={24} />
+          <Menu size={22} />
         </button>
 
-        <div className="flex-1 lg:flex-none">
-          <h2 className="text-lg md:text-xl font-semibold text-gray-800">স্বাগতম, অ্যাডমিন</h2>
-          <p className="text-xs md:text-sm text-gray-500 hidden sm:block">আজকের ড্যাশবোর্ড ওভারভিউ</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-bold text-ink-900 sm:text-lg">{titleFor(pathname)}</h1>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
-          <button className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-            <Bell size={20} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
-          <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-            <Settings size={20} />
-          </button>
-          <div className="flex items-center gap-2 md:gap-3 pl-2 md:pl-3 border-l border-gray-200">
-            <div className="bg-gradient-to-br from-[#3B82F6] to-[#111827] p-1.5 md:p-2 rounded-full">
-              <User size={16} className="text-white md:w-5 md:h-5" />
-            </div>
-            <div className="hidden sm:block">
-              <p className="font-medium text-gray-800 text-sm md:text-base">অ্যাডমিন</p>
-              <p className="text-xs text-gray-500">সুপার অ্যাডমিন</p>
-            </div>
-          </div>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <span className="hidden text-right sm:block">
+            <span className="block max-w-40 truncate text-sm font-semibold text-ink-900">{adminName}</span>
+            <span className="block text-xs text-ink-500">{adminRole}</span>
+          </span>
+          <span className="grid size-9 place-items-center rounded-full bg-brand-100 text-brand-700">
+            <UserRound size={18} />
+          </span>
         </div>
       </div>
     </header>
   );
-};
-
-export default Header;
+}

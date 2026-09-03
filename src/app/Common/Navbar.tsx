@@ -46,7 +46,8 @@ export default function Navbar() {
   const accountHref = user ? '/dashboard/profile' : '/login';
 
   return (
-    <nav className="border-b border-ink-200/70 bg-cream/90 backdrop-blur-md">
+    <>
+      <nav className="border-b border-ink-200/70 bg-cream/90 backdrop-blur-md">
       <div className="container-page flex h-16 items-center justify-between gap-4 md:h-[4.5rem]">
         {/* Brand */}
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
@@ -104,9 +105,14 @@ export default function Navbar() {
             </Link>
           )}
 
+          {/*
+            Visible at every width. It used to be `hidden md:inline-flex`, so on
+            a phone — where most traffic is — the primary action existed only
+            inside the drawer, two taps away.
+          */}
           <Link
             href="/order"
-            className="hidden rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 md:inline-flex"
+            className="inline-flex shrink-0 rounded-full bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             অর্ডার করুন
           </Link>
@@ -122,8 +128,15 @@ export default function Navbar() {
           </button>
         </div>
       </div>
+      </nav>
 
-      {/* Mobile drawer */}
+      {/*
+        Drawer lives OUTSIDE <nav> on purpose. The nav carries backdrop-blur,
+        and backdrop-filter makes an element a containing block for its
+        position:fixed descendants — nested here, the drawer was being sized
+        against the 64px navbar instead of the viewport, so the mobile menu
+        opened as an unusable sliver.
+      */}
       <div
         className={`fixed inset-0 z-50 bg-ink-900/40 backdrop-blur-[2px] transition-opacity lg:hidden ${
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -201,6 +214,6 @@ export default function Navbar() {
           </Link>
         </div>
       </aside>
-    </nav>
+    </>
   );
 }

@@ -154,8 +154,8 @@ export default function SettingsPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">সেটিংস লোড হচ্ছে...</p>
+          <Loader2 className="w-12 h-12 text-brand-600 animate-spin mx-auto mb-4" />
+          <p className="text-ink-600">সেটিংস লোড হচ্ছে...</p>
         </div>
       </div>
     );
@@ -163,15 +163,15 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">সেটিংস</h1>
-          <p className="text-gray-500 mt-1">অ্যাডমিন প্যানেলের সেটিংস কনফিগার করুন</p>
+          <h1 className="text-2xl font-bold text-ink-900">সেটিংস</h1>
+          <p className="text-ink-500 mt-1">অ্যাডমিন প্যানেলের সেটিংস কনফিগার করুন</p>
         </div>
         <button
           onClick={fetchSettings}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition"
+          className="flex items-center gap-2 px-4 py-2 bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-lg transition"
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           রিফ্রেশ
@@ -181,60 +181,60 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* General Settings */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
             <div className="flex items-center gap-3 mb-4">
-              <Globe size={24} className="text-[#3B82F6]" />
-              <h2 className="text-xl font-bold text-gray-800">জেনারেল সেটিংস</h2>
+              <Globe size={24} className="text-brand-600" />
+              <h2 className="text-xl font-bold text-ink-900">জেনারেল সেটিংস</h2>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-1">সাইটের নাম</label>
+                <label className="block text-ink-700 font-medium mb-1">সাইটের নাম</label>
                 <input
                   type="text"
                   value={settings.siteName}
                   onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-1">অ্যাডমিন ইমেইল</label>
+                <label className="block text-ink-700 font-medium mb-1">অ্যাডমিন ইমেইল</label>
                 <input
                   type="email"
                   value={settings.adminEmail}
                   onChange={(e) => setSettings({ ...settings, adminEmail: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-1">ফোন নাম্বার</label>
+                <label className="block text-ink-700 font-medium mb-1">ফোন নাম্বার</label>
                 <input
                   type="text"
                   value={settings.phoneNumber}
                   onChange={(e) => setSettings({ ...settings, phoneNumber: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-gray-700 font-medium mb-1">ডেলিভারি চার্জ (৳)</label>
+                  <label className="block text-ink-700 font-medium mb-1">ডেলিভারি চার্জ (৳)</label>
                   <input
                     type="number"
                     value={settings.deliveryCharge}
                     onChange={(e) => setSettings({ ...settings, deliveryCharge: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                    className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-700 font-medium mb-1">ন্যূনতম অর্ডার (৳)</label>
+                  <label className="block text-ink-700 font-medium mb-1">ন্যূনতম অর্ডার (৳)</label>
                   <input
                     type="number"
                     value={settings.minOrderAmount}
                     onChange={(e) => setSettings({ ...settings, minOrderAmount: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                    className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                   />
                 </div>
               </div>
@@ -242,47 +242,47 @@ export default function SettingsPage() {
           </div>
 
           {/* Notification Settings */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
             <div className="flex items-center gap-3 mb-4">
-              <Bell size={24} className="text-[#3B82F6]" />
-              <h2 className="text-xl font-bold text-gray-800">নোটিফিকেশন সেটিংস</h2>
+              <Bell size={24} className="text-brand-600" />
+              <h2 className="text-xl font-bold text-ink-900">নোটিফিকেশন সেটিংস</h2>
             </div>
 
             <div className="space-y-3">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-gray-700">ইমেইল নোটিফিকেশন</span>
+                <span className="text-ink-700">ইমেইল নোটিফিকেশন</span>
                 <input
                   type="checkbox"
                   checked={settings.notificationEmail}
                   onChange={(e) => setSettings({ ...settings, notificationEmail: e.target.checked })}
-                  className="w-5 h-5 text-[#3B82F6] rounded focus:ring-[#3B82F6]"
+                  className="w-5 h-5 text-brand-600 rounded focus:ring-brand-500"
                 />
               </label>
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-gray-700">এসএমএস নোটিফিকেশন</span>
+                <span className="text-ink-700">এসএমএস নোটিফিকেশন</span>
                 <input
                   type="checkbox"
                   checked={settings.notificationSMS}
                   onChange={(e) => setSettings({ ...settings, notificationSMS: e.target.checked })}
-                  className="w-5 h-5 text-[#3B82F6] rounded focus:ring-[#3B82F6]"
+                  className="w-5 h-5 text-brand-600 rounded focus:ring-brand-500"
                 />
               </label>
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-gray-700">পুশ নোটিফিকেশন</span>
+                <span className="text-ink-700">পুশ নোটিফিকেশন</span>
                 <input
                   type="checkbox"
                   checked={settings.notificationPush}
                   onChange={(e) => setSettings({ ...settings, notificationPush: e.target.checked })}
-                  className="w-5 h-5 text-[#3B82F6] rounded focus:ring-[#3B82F6]"
+                  className="w-5 h-5 text-brand-600 rounded focus:ring-brand-500"
                 />
               </label>
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-gray-700">অটো কনফার্ম অর্ডার</span>
+                <span className="text-ink-700">অটো কনফার্ম অর্ডার</span>
                 <input
                   type="checkbox"
                   checked={settings.autoConfirmOrder}
                   onChange={(e) => setSettings({ ...settings, autoConfirmOrder: e.target.checked })}
-                  className="w-5 h-5 text-[#3B82F6] rounded focus:ring-[#3B82F6]"
+                  className="w-5 h-5 text-brand-600 rounded focus:ring-brand-500"
                 />
               </label>
             </div>
@@ -291,47 +291,47 @@ export default function SettingsPage() {
 
         {/* Security Settings */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
             <div className="flex items-center gap-3 mb-4">
-              <Shield size={24} className="text-[#3B82F6]" />
-              <h2 className="text-xl font-bold text-gray-800">সিকিউরিটি</h2>
+              <Shield size={24} className="text-brand-600" />
+              <h2 className="text-xl font-bold text-ink-900">সিকিউরিটি</h2>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-1">বর্তমান পাসওয়ার্ড</label>
+                <label className="block text-ink-700 font-medium mb-1">বর্তমান পাসওয়ার্ড</label>
                 <input
                   type="password"
                   value={passwordData.currentPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                   placeholder="বর্তমান পাসওয়ার্ড"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">নতুন পাসওয়ার্ড</label>
+                <label className="block text-ink-700 font-medium mb-1">নতুন পাসওয়ার্ড</label>
                 <input
                   type="password"
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                   placeholder="নতুন পাসওয়ার্ড"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">কনফার্ম পাসওয়ার্ড</label>
+                <label className="block text-ink-700 font-medium mb-1">কনফার্ম পাসওয়ার্ড</label>
                 <input
                   type="password"
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                   placeholder="কনফার্ম পাসওয়ার্ড"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
                 />
               </div>
               <button
                 onClick={handlePasswordChange}
                 disabled={changingPassword}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-ink-100 hover:bg-ink-200 text-ink-900 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {changingPassword ? <Loader2 size={18} className="animate-spin" /> : <Key size={18} />}
                 পাসওয়ার্ড পরিবর্তন করুন
@@ -339,14 +339,14 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* <div className="bg-white rounded-2xl shadow-lg p-6">
+          {/* <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
             <div className="flex items-center gap-3 mb-4">
-              <Database size={24} className="text-[#3B82F6]" />
-              <h2 className="text-xl font-bold text-gray-800">ব্যাকআপ</h2>
+              <Database size={24} className="text-brand-600" />
+              <h2 className="text-xl font-bold text-ink-900">ব্যাকআপ</h2>
             </div>
             <button
               onClick={handleBackup}
-              className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] hover:shadow-lg text-white py-2 rounded-lg font-medium transition flex items-center justify-center gap-2"
+              className="w-full bg-brand-600 hover:shadow-lg text-white py-2 rounded-lg font-medium transition flex items-center justify-center gap-2"
             >
               <Database size={18} />
               ডাটাবেজ ব্যাকআপ নিন
@@ -360,7 +360,7 @@ export default function SettingsPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
+          className="bg-brand-600 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           সেটিংস সেভ করুন

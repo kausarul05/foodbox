@@ -38,8 +38,6 @@ export async function GET() {
     JWT_SECRET: Boolean(process.env.JWT_SECRET?.trim()),
     JWT_EXPIRE: process.env.JWT_EXPIRE ?? '(unset, defaults to 30d)',
     SETUP_SECRET: Boolean(process.env.SETUP_SECRET?.trim()),
-    // Inlined at build time, so this reflects the build environment.
-    NEXT_PUBLIC_USE_MOCK: process.env.NEXT_PUBLIC_USE_MOCK ?? '(unset)',
   };
 
   /**
@@ -48,7 +46,7 @@ export async function GET() {
    * space) and a variable that exists but is empty.
    */
   const relatedNames = Object.keys(process.env)
-    .filter((name) => /MONGO|JWT|SETUP_SECRET|ADMIN_(EMAIL|PASSWORD)|USE_MOCK/i.test(name))
+    .filter((name) => /MONGO|JWT|SETUP_SECRET|ADMIN_(EMAIL|PASSWORD)/i.test(name))
     .sort()
     .map((name) => (process.env[name]?.trim() ? name : `${name} (EMPTY)`));
 

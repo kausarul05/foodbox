@@ -1,44 +1,16 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard,
-  Package,
-  Calendar,
-  ShoppingBag,
-  Users,
-  Clock,
-  Settings,
-  LogOut,
-  Crown,
-  X,
-  DollarSign,
-  MapPin
-} from 'lucide-react';
+import { LogOut, Store, UtensilsCrossed, X } from 'lucide-react';
+import { NAV_GROUPS } from './nav-items';
 
-interface SidebarProps {
-  onClose?: () => void;
-}
-
-const Sidebar = ({ onClose }: SidebarProps) => {
+/**
+ * Sidebar contents. Positioning (fixed drawer on phones, static column on
+ * desktop) is the layout's job — this only renders the panel itself.
+ */
+export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-
-  const menuItems = [
-    { name: 'ড্যাশবোর্ড', href: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'ফাইন্যান্স', href: '/admin/dashboard/finance', icon: DollarSign },
-    { name: 'প্যাকেজ ম্যানেজ', href: '/admin/dashboard/packages', icon: Package },
-    { name: 'উইকলি মেনু', href: '/admin/dashboard/weekly-menu', icon: Calendar },
-    { name: 'জোন ম্যানেজ', href: '/admin/dashboard/zones', icon: MapPin },
-    { name: 'অর্ডার লিস্ট', href: '/admin/dashboard/orders', icon: ShoppingBag },
-    { name: 'ক্যাশ অন ডেলিভারি', href: '/admin/dashboard/cod-orders', icon: DollarSign },
-    { name: 'সাবস্ক্রাইবার লিস্ট', href: '/admin/dashboard/subscribers', icon: Users },
-    { name: 'পেন্ডিং ট্রানজেকশন', href: '/admin/dashboard/pending-transactions', icon: Clock },
-    { name: 'পেন্ডিং সাবস্ক্রাইবার', href: '/admin/dashboard/pending-subscribers', icon: Clock },
-    { name: 'মিল বন্ধের তারিখ', href: '/admin/dashboard/blocked-dates', icon: Calendar },
-    { name: 'সেটিংস', href: '/admin/dashboard/settings', icon: Settings },
-  ];
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
@@ -47,66 +19,79 @@ const Sidebar = ({ onClose }: SidebarProps) => {
   };
 
   return (
-    <aside className="w-72 h-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white flex flex-col shadow-xl">
-      {/* Close button for mobile */}
-      <div className="lg:hidden absolute top-4 right-4">
+    <div className="flex h-full w-72 flex-col bg-ink-900 text-white">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+        <Link href="/admin/dashboard" className="flex items-center gap-3" onClick={onNavigate}>
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-600">
+            <UtensilsCrossed size={20} />
+          </span>
+          <span className="leading-tight">
+            <span className="block font-bold">FoodBox</span>
+            <span className="block text-xs text-ink-400">অ্যাডমিন প্যানেল</span>
+          </span>
+        </Link>
+
+        {/* Only rendered as a drawer on phones, where a close affordance is needed. */}
         <button
-          onClick={onClose}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          type="button"
+          onClick={onNavigate}
+          aria-label="মেনু বন্ধ করুন"
+          className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-300 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
-      <div className="p-6 border-b border-white/20">
-        <div className="flex items-center gap-2">
-          <div className="bg-white/20 p-2 rounded-lg">
-            <Crown className="w-6 h-6" />
+      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label}>
+            <p className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-ink-500 uppercase">
+              {group.label}
+            </p>
+            <ul className="space-y-1">
+              {group.items.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onNavigate}
+                      aria-current={active ? 'page' : undefined}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                        active
+                          ? 'bg-brand-600 font-semibold text-white'
+                          : 'text-ink-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <item.icon size={18} className="shrink-0" />
+                      <span className="truncate">{item.name}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <div>
-            <h1 className="text-xl font-bold">FoodBox Admin</h1>
-            <p className="text-blue-200 text-xs">ম্যানেজমেন্ট প্যানেল</p>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={onClose}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'bg-white/20 text-white shadow-md'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <item.icon size={20} />
-              <span className="font-medium text-sm md:text-base">{item.name}</span>
-              {isActive && (
-                <span className="ml-auto text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                  এখন
-                </span>
-              )}
-            </Link>
-          );
-        })}
+        ))}
       </nav>
 
-      <div className="p-4 border-t border-white/20">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/10 hover:text-white transition-all duration-200"
+      <div className="space-y-1 border-t border-white/10 p-3">
+        <Link
+          href="/"
+          onClick={onNavigate}
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink-300 transition-colors hover:bg-white/10 hover:text-white"
         >
-          <LogOut size={20} />
-          <span className="font-medium">লগআউট</span>
+          <Store size={18} />
+          ওয়েবসাইট দেখুন
+        </Link>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-300 transition-colors hover:bg-red-500/15 hover:text-red-200"
+        >
+          <LogOut size={18} />
+          লগআউট
         </button>
       </div>
-    </aside>
+    </div>
   );
-};
-
-export default Sidebar;
+}

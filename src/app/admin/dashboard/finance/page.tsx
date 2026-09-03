@@ -259,7 +259,7 @@ export default function FinancePage() {
       confirmed: 'bg-blue-100 text-blue-800',
       preparing: 'bg-purple-100 text-purple-800',
       out_for_delivery: 'bg-indigo-100 text-indigo-800',
-      delivered: 'bg-green-100 text-green-800',
+      delivered: 'bg-leaf-100 text-leaf-700',
       cancelled: 'bg-red-100 text-red-800',
     };
     const labels: Record<string, string> = {
@@ -270,7 +270,7 @@ export default function FinancePage() {
       delivered: 'ডেলিভারি হয়েছে',
       cancelled: 'বাতিল',
     };
-    return { className: styles[status] || 'bg-gray-100 text-gray-800', label: labels[status] || status };
+    return { className: styles[status] || 'bg-ink-100 text-ink-900', label: labels[status] || status };
   };
 
   const calculateTotalExpense = () => expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -278,7 +278,7 @@ export default function FinancePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin" />
+        <Loader2 className="w-12 h-12 text-brand-600 animate-spin" />
       </div>
     );
   }
@@ -288,25 +288,25 @@ export default function FinancePage() {
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">ফাইন্যান্স ম্যানেজমেন্ট</h1>
-          <p className="text-gray-500 mt-1">খরচ ব্যবস্থাপনা এবং ম্যানুয়াল অর্ডার</p>
+          <h1 className="text-2xl font-bold text-ink-900">ফাইন্যান্স ম্যানেজমেন্ট</h1>
+          <p className="text-ink-500 mt-1">খরচ ব্যবস্থাপনা এবং ম্যানুয়াল অর্ডার</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab('profit')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'profit' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'profit' ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}
           >
             প্রোফিট
           </button>
           <button
             onClick={() => setActiveTab('expenses')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'expenses' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'expenses' ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}
           >
             খরচ সমূহ
           </button>
           <button
             onClick={() => setActiveTab('manual-orders')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'manual-orders' ? 'bg-[#3B82F6] text-white' : 'bg-gray-100 text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'manual-orders' ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}
           >
             ম্যানুয়াল অর্ডার
           </button>
@@ -314,29 +314,29 @@ export default function FinancePage() {
       </div>
 
       {/* Date Range Filter */}
-      <div className="bg-white rounded-2xl shadow-lg p-4">
+      <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-4">
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">শুরু তারিখ</label>
+            <label className="block text-sm text-ink-600 mb-1">শুরু তারিখ</label>
             <input
               type="date"
               value={dateRange.startDate}
               onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-black"
+              className="px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">শেষ তারিখ</label>
+            <label className="block text-sm text-ink-600 mb-1">শেষ তারিখ</label>
             <input
               type="date"
               value={dateRange.endDate}
               onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-black"
+              className="px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
             />
           </div>
           <button
             onClick={fetchData}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 text-gray-700"
+            className="px-4 py-2 bg-ink-100 hover:bg-ink-200 rounded-lg flex items-center gap-2 text-ink-700"
           >
             <RefreshCw size={18} />
             ফিল্টার
@@ -349,75 +349,75 @@ export default function FinancePage() {
         <div className="space-y-6">
           {/* Profit Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="bg-green-100 p-3 rounded-full">
                   <DollarSign className="w-6 h-6 text-green-600" />
                 </div>
-                <p className="text-sm text-gray-500">মোট রেভিনিউ</p>
+                <p className="text-sm text-ink-500">মোট রেভিনিউ</p>
               </div>
               <p className="text-3xl font-bold text-green-600">৳ {profitStats.totalRevenue?.toLocaleString() || 0}</p>
             </div>
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="bg-red-100 p-3 rounded-full">
                   <TrendingDown className="w-6 h-6 text-red-600" />
                 </div>
-                <p className="text-sm text-gray-500">মোট খরচ</p>
+                <p className="text-sm text-ink-500">মোট খরচ</p>
               </div>
               <p className="text-3xl font-bold text-red-600">৳ {profitStats.totalExpense?.toLocaleString() || 0}</p>
             </div>
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="bg-blue-100 p-3 rounded-full">
                   <TrendingUp className="w-6 h-6 text-blue-600" />
                 </div>
-                <p className="text-sm text-gray-500">নিট মুনাফা</p>
+                <p className="text-sm text-ink-500">নিট মুনাফা</p>
               </div>
               <p className="text-3xl font-bold text-blue-600">৳ {profitStats.profit?.toLocaleString() || 0}</p>
             </div>
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="bg-purple-100 p-3 rounded-full">
                   <TrendingUp className="w-6 h-6 text-purple-600" />
                 </div>
-                <p className="text-sm text-gray-500">মুনাফার হার</p>
+                <p className="text-sm text-ink-500">মুনাফার হার</p>
               </div>
               <p className="text-3xl font-bold text-purple-600">{profitStats.profitMargin || 0}%</p>
             </div>
           </div>
 
           {/* Expense Breakdown */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">খরচের বিবরণ</h3>
+          <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
+            <h3 className="text-lg font-bold text-ink-900 mb-4">খরচের বিবরণ</h3>
             <div className="space-y-3">
               {expenseCategories.map((cat) => (
-                <div key={cat.value} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div key={cat.value} className="flex justify-between items-center p-3 bg-ink-50 rounded-lg">
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{cat.icon}</span>
-                    <span className="font-medium text-gray-700">{cat.label}</span>
+                    <span className="font-medium text-ink-700">{cat.label}</span>
                   </div>
-                  <span className="font-semibold text-gray-800">৳ {profitStats.expenseBreakdown?.[cat.value]?.toLocaleString() || 0}</span>
+                  <span className="font-semibold text-ink-900">৳ {profitStats.expenseBreakdown?.[cat.value]?.toLocaleString() || 0}</span>
                 </div>
               ))}
               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg font-bold">
-                <span className="text-gray-800">মোট খরচ</span>
+                <span className="text-ink-900">মোট খরচ</span>
                 <span className="text-red-600">৳ {profitStats.totalExpense?.toLocaleString() || 0}</span>
               </div>
             </div>
           </div>
 
           {/* Order Summary */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">অর্ডার সামারি</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500">নিয়মিত অর্ডার</p>
-                <p className="text-2xl font-bold text-gray-800">{profitStats.ordersCount?.regular || 0}</p>
+          <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
+            <h3 className="text-lg font-bold text-ink-900 mb-4">অর্ডার সামারি</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-ink-50 rounded-lg">
+                <p className="text-sm text-ink-500">নিয়মিত অর্ডার</p>
+                <p className="text-2xl font-bold text-ink-900">{profitStats.ordersCount?.regular || 0}</p>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500">ম্যানুয়াল অর্ডার</p>
-                <p className="text-2xl font-bold text-gray-800">{profitStats.ordersCount?.manual || 0}</p>
+              <div className="text-center p-4 bg-ink-50 rounded-lg">
+                <p className="text-sm text-ink-500">ম্যানুয়াল অর্ডার</p>
+                <p className="text-2xl font-bold text-ink-900">{profitStats.ordersCount?.manual || 0}</p>
               </div>
             </div>
           </div>
@@ -429,12 +429,12 @@ export default function FinancePage() {
         <div>
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-800">খরচের তালিকা</h2>
-              <p className="text-gray-500">মোট খরচ: ৳ {calculateTotalExpense().toLocaleString()}</p>
+              <h2 className="text-xl font-bold text-ink-900">খরচের তালিকা</h2>
+              <p className="text-ink-500">মোট খরচ: ৳ {calculateTotalExpense().toLocaleString()}</p>
             </div>
             <button
               onClick={() => setShowExpenseModal(true)}
-              className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white px-4 py-2 rounded-lg flex items-center gap-2"
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
               <Plus size={18} />
               নতুন খরচ
@@ -445,14 +445,14 @@ export default function FinancePage() {
             {expenses.map((expense) => {
               const category = expenseCategories.find(c => c.value === expense.category);
               return (
-                <div key={expense._id} className="bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition">
+                <div key={expense._id} className="bg-white rounded-2xl border border-ink-200 shadow-card p-4 hover:shadow-xl transition">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
                       <div className="text-2xl">{category?.icon || '📝'}</div>
                       <div>
-                        <p className="font-semibold text-gray-800">{expense.categoryName}</p>
-                        <p className="text-sm text-gray-500">{expense.description || 'কোন বিবরণ নেই'}</p>
-                        <p className="text-xs text-gray-400 mt-1">{new Date(expense.date).toLocaleDateString('bn-BD')}</p>
+                        <p className="font-semibold text-ink-900">{expense.categoryName}</p>
+                        <p className="text-sm text-ink-500">{expense.description || 'কোন বিবরণ নেই'}</p>
+                        <p className="text-xs text-ink-400 mt-1">{new Date(expense.date).toLocaleDateString('bn-BD')}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -471,9 +471,9 @@ export default function FinancePage() {
           </div>
 
           {expenses.length === 0 && (
-            <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-              <DollarSign className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">কোনো খরচ যোগ করা হয়নি</p>
+            <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
+              <DollarSign className="w-16 h-16 text-ink-400 mx-auto mb-4" />
+              <p className="text-ink-500">কোনো খরচ যোগ করা হয়নি</p>
             </div>
           )}
         </div>
@@ -483,10 +483,10 @@ export default function FinancePage() {
       {activeTab === 'manual-orders' && (
         <div>
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-gray-800">ম্যানুয়াল অর্ডার</h2>
+            <h2 className="text-xl font-bold text-ink-900">ম্যানুয়াল অর্ডার</h2>
             <button
               onClick={() => setShowOrderModal(true)}
-              className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white px-4 py-2 rounded-lg flex items-center gap-2"
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
               <UserPlus size={18} />
               নতুন অর্ডার
@@ -497,7 +497,7 @@ export default function FinancePage() {
             {manualOrders.map((order) => {
               const status = getStatusBadge(order.status);
               return (
-                <div key={order._id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition">
+                <div key={order._id} className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden hover:shadow-xl transition">
                   <div className="p-4 bg-gradient-to-r from-orange-500 to-red-500 text-white">
                     <div className="flex justify-between items-start">
                       <div>
@@ -515,19 +515,19 @@ export default function FinancePage() {
                   </div>
                   <div className="p-4 space-y-3">
                     <div>
-                      <p className="font-semibold text-gray-800">{order.customerName}</p>
-                      <div className="flex items-center gap-1 text-gray-500 text-sm mt-1">
+                      <p className="font-semibold text-ink-900">{order.customerName}</p>
+                      <div className="flex items-center gap-1 text-ink-500 text-sm mt-1">
                         <Phone size={14} />
                         <span>{order.phoneNumber}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-ink-600">
                       <MapPin size={14} />
                       <span>{order.zone}</span>
                     </div>
                     <div className="pt-2 border-t">
-                      <p className="text-xs text-gray-500">আইটেম</p>
-                      <p className="text-sm text-gray-700">{order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}</p>
+                      <p className="text-xs text-ink-500">আইটেম</p>
+                      <p className="text-sm text-ink-700">{order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}</p>
                     </div>
                     <div className="flex flex-wrap gap-2 pt-2">
                       {order.status === 'pending' && (
@@ -570,9 +570,9 @@ export default function FinancePage() {
           </div>
 
           {manualOrders.length === 0 && (
-            <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-              <UserPlus className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">কোনো ম্যানুয়াল অর্ডার নেই</p>
+            <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
+              <UserPlus className="w-16 h-16 text-ink-400 mx-auto mb-4" />
+              <p className="text-ink-500">কোনো ম্যানুয়াল অর্ডার নেই</p>
             </div>
           )}
         </div>
@@ -581,16 +581,16 @@ export default function FinancePage() {
       {/* Add Expense Modal */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-black">নতুন খরচ যোগ করুন</h3>
-              <button onClick={() => setShowExpenseModal(false)} className="p-1 hover:bg-gray-100 rounded">
+              <h3 className="text-xl font-bold text-ink-900">নতুন খরচ যোগ করুন</h3>
+              <button onClick={() => setShowExpenseModal(false)} className="p-1 hover:bg-ink-100 rounded">
                 <X size={24} />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-700 mb-1">খরচের ধরণ</label>
+                <label className="block text-ink-700 mb-1">খরচের ধরণ</label>
                 <select
                   value={expenseForm.category}
                   onChange={(e) => {
@@ -601,7 +601,7 @@ export default function FinancePage() {
                       categoryName: cat?.label || '',
                     });
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                 >
                   {expenseCategories.map((cat) => (
                     <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
@@ -609,38 +609,38 @@ export default function FinancePage() {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-700 mb-1">টাকার পরিমাণ (৳)</label>
+                <label className="block text-ink-700 mb-1">টাকার পরিমাণ (৳)</label>
                 <input
                   type="number"
                   value={expenseForm.amount}
                   onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   placeholder="যেমন: 500"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 mb-1">বিবরণ</label>
+                <label className="block text-ink-700 mb-1">বিবরণ</label>
                 <textarea
                   value={expenseForm.description}
                   onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   rows={3}
                   placeholder="বিস্তারিত বিবরণ লিখুন..."
                 />
               </div>
               <div>
-                <label className="block text-gray-700 mb-1">তারিখ</label>
+                <label className="block text-ink-700 mb-1">তারিখ</label>
                 <input
                   type="date"
                   value={expenseForm.date}
                   onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                 />
               </div>
               <button
                 onClick={handleAddExpense}
                 disabled={submitting}
-                className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold"
+                className="w-full bg-brand-600 text-white py-2 rounded-lg font-semibold"
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'খরচ যোগ করুন'}
               </button>
@@ -652,46 +652,46 @@ export default function FinancePage() {
       {/* Add Manual Order Modal */}
       {showOrderModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 my-8">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 my-8">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-black">নতুন ম্যানুয়াল অর্ডার</h3>
-              <button onClick={() => setShowOrderModal(false)} className="p-1 hover:bg-gray-100 rounded">
+              <h3 className="text-xl font-bold text-ink-900">নতুন ম্যানুয়াল অর্ডার</h3>
+              <button onClick={() => setShowOrderModal(false)} className="p-1 hover:bg-ink-100 rounded">
                 <X size={24} />
               </button>
             </div>
             <div className="space-y-4 max-h-[70vh] overflow-y-auto">
               {/* Order Type Selection - Add this first */}
               <div>
-                <label className="block text-gray-700 mb-2 font-semibold">
+                <label className="block text-ink-700 mb-2 font-semibold">
                   অর্ডার টাইপ সিলেক্ট করুন <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${orderForm.orderType === 'subscription' ? 'border-[#3B82F6] bg-blue-50' : 'border-gray-300 hover:border-[#3B82F6]'}`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${orderForm.orderType === 'subscription' ? 'border-brand-500 bg-blue-50' : 'border-ink-300 hover:border-brand-500'}`}>
                     <input
                       type="radio"
                       name="orderType"
                       value="subscription"
                       checked={orderForm.orderType === 'subscription'}
                       onChange={(e) => setOrderForm({ ...orderForm, orderType: e.target.value as 'subscription' | 'cod', paymentMethod: e.target.value === 'subscription' ? 'wallet' : 'cash' })}
-                      className="w-4 h-4 text-[#3B82F6]"
+                      className="w-4 h-4 text-brand-600"
                     />
                     <div>
-                      <p className="font-semibold text-gray-800">সাবস্ক্রিপশন অর্ডার</p>
-                      <p className="text-xs text-gray-500">এই অর্ডার "অর্ডার লিস্ট" পেইজে দেখাবে</p>
+                      <p className="font-semibold text-ink-900">সাবস্ক্রিপশন অর্ডার</p>
+                      <p className="text-xs text-ink-500">এই অর্ডার "অর্ডার লিস্ট" পেইজে দেখাবে</p>
                     </div>
                   </label>
-                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${orderForm.orderType === 'cod' ? 'border-[#3B82F6] bg-blue-50' : 'border-gray-300 hover:border-[#3B82F6]'}`}>
+                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${orderForm.orderType === 'cod' ? 'border-brand-500 bg-blue-50' : 'border-ink-300 hover:border-brand-500'}`}>
                     <input
                       type="radio"
                       name="orderType"
                       value="cod"
                       checked={orderForm.orderType === 'cod'}
                       onChange={(e) => setOrderForm({ ...orderForm, orderType: e.target.value as 'subscription' | 'cod', paymentMethod: e.target.value === 'cod' ? 'cash' : 'wallet' })}
-                      className="w-4 h-4 text-[#3B82F6]"
+                      className="w-4 h-4 text-brand-600"
                     />
                     <div>
-                      <p className="font-semibold text-gray-800">ক্যাশ অন ডেলিভারি</p>
-                      <p className="text-xs text-gray-500">এই অর্ডার "ক্যাশ অন ডেলিভারি" পেইজে দেখাবে</p>
+                      <p className="font-semibold text-ink-900">ক্যাশ অন ডেলিভারি</p>
+                      <p className="text-xs text-ink-500">এই অর্ডার "ক্যাশ অন ডেলিভারি" পেইজে দেখাবে</p>
                     </div>
                   </label>
                 </div>
@@ -699,35 +699,35 @@ export default function FinancePage() {
 
               {/* Customer Name */}
               <div>
-                <label className="block text-gray-700 mb-1">গ্রাহকের নাম <span className="text-red-500">*</span></label>
+                <label className="block text-ink-700 mb-1">গ্রাহকের নাম <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={orderForm.customerName}
                   onChange={(e) => setOrderForm({ ...orderForm, customerName: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   placeholder="গ্রাহকের নাম"
                 />
               </div>
 
               {/* Phone Number */}
               <div>
-                <label className="block text-gray-700 mb-1">ফোন নাম্বার <span className="text-red-500">*</span></label>
+                <label className="block text-ink-700 mb-1">ফোন নাম্বার <span className="text-red-500">*</span></label>
                 <input
                   type="tel"
                   value={orderForm.phoneNumber}
                   onChange={(e) => setOrderForm({ ...orderForm, phoneNumber: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   placeholder="+8801XXXXXXXXX"
                 />
               </div>
 
               {/* Zone */}
               <div>
-                <label className="block text-gray-700 mb-1">জোন <span className="text-red-500">*</span></label>
+                <label className="block text-ink-700 mb-1">জোন <span className="text-red-500">*</span></label>
                 <select
                   value={orderForm.zone}
                   onChange={(e) => setOrderForm({ ...orderForm, zone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                 >
                   <option value="">সিলেক্ট করুন</option>
                   {zones.map((zone) => (
@@ -738,11 +738,11 @@ export default function FinancePage() {
 
               {/* Address */}
               <div>
-                <label className="block text-gray-700 mb-1">ঠিকানা <span className="text-red-500">*</span></label>
+                <label className="block text-ink-700 mb-1">ঠিকানা <span className="text-red-500">*</span></label>
                 <textarea
                   value={orderForm.address}
                   onChange={(e) => setOrderForm({ ...orderForm, address: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   rows={2}
                   placeholder="বিস্তারিত ঠিকানা"
                 />
@@ -750,7 +750,7 @@ export default function FinancePage() {
 
               {/* Items */}
               <div>
-                <label className="block text-gray-700 mb-1">আইটেম সমূহ <span className="text-red-500">*</span></label>
+                <label className="block text-ink-700 mb-1">আইটেম সমূহ <span className="text-red-500">*</span></label>
                 {orderForm.items.map((item, idx) => (
                   <div key={idx} className="flex gap-2 mb-2">
                     <input
@@ -758,21 +758,21 @@ export default function FinancePage() {
                       value={item.name}
                       onChange={(e) => updateOrderItem(idx, 'name', e.target.value)}
                       placeholder="আইটেমের নাম"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-black"
+                      className="flex-1 px-3 py-2 border border-ink-300 rounded-lg text-ink-900"
                     />
                     <input
                       type="number"
                       value={item.price}
                       onChange={(e) => updateOrderItem(idx, 'price', e.target.value)}
                       placeholder="দাম"
-                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-black"
+                      className="w-24 px-3 py-2 border border-ink-300 rounded-lg text-ink-900"
                     />
                     <input
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateOrderItem(idx, 'quantity', e.target.value)}
                       placeholder="কত"
-                      className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-black"
+                      className="w-20 px-3 py-2 border border-ink-300 rounded-lg text-ink-900"
                     />
                     {orderForm.items.length > 1 && (
                       <button
@@ -788,29 +788,29 @@ export default function FinancePage() {
                 <button
                   type="button"
                   onClick={addOrderItem}
-                  className="text-[#3B82F6] text-sm flex items-center gap-1 mt-2"
+                  className="text-brand-600 text-sm flex items-center gap-1 mt-2"
                 >
                   <Plus size={16} /> আরও আইটেম যোগ করুন
                 </button>
               </div>
 
               {/* Delivery Date & Time */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-gray-700 mb-1">ডেলিভারির তারিখ</label>
+                  <label className="block text-ink-700 mb-1">ডেলিভারির তারিখ</label>
                   <input
                     type="date"
                     value={orderForm.deliveryDate}
                     onChange={(e) => setOrderForm({ ...orderForm, deliveryDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                    className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-700 mb-1">ডেলিভারির সময়</label>
+                  <label className="block text-ink-700 mb-1">ডেলিভারির সময়</label>
                   <select
                     value={orderForm.deliveryTime}
                     onChange={(e) => setOrderForm({ ...orderForm, deliveryTime: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                    className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   >
                     {deliveryTimes.map((time) => (
                       <option key={time.value} value={time.value}>{time.icon} {time.label}</option>
@@ -820,8 +820,8 @@ export default function FinancePage() {
               </div>
 
               {/* Payment Method - Auto based on order type, but can be shown as info */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-sm text-gray-600">
+              <div className="bg-ink-50 rounded-lg p-3">
+                <p className="text-sm text-ink-600">
                   পেমেন্ট মেথড:
                   <span className="font-semibold ml-1">
                     {orderForm.orderType === 'subscription' ? 'ওয়ালেট (সাবস্ক্রিপশন)' : 'ক্যাশ অন ডেলিভারি'}
@@ -831,11 +831,11 @@ export default function FinancePage() {
 
               {/* Special Instructions */}
               <div>
-                <label className="block text-gray-700 mb-1">বিশেষ নির্দেশনা</label>
+                <label className="block text-ink-700 mb-1">বিশেষ নির্দেশনা</label>
                 <textarea
                   value={orderForm.specialInstructions}
                   onChange={(e) => setOrderForm({ ...orderForm, specialInstructions: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                   rows={2}
                   placeholder="কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
                 />
@@ -844,7 +844,7 @@ export default function FinancePage() {
               <button
                 onClick={handleAddManualOrder}
                 disabled={submitting}
-                className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold"
+                className="w-full bg-brand-600 text-white py-2 rounded-lg font-semibold"
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'অর্ডার তৈরি করুন'}
               </button>

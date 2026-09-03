@@ -164,8 +164,8 @@ export default function PackagesPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">লোড হচ্ছে...</p>
+          <Loader2 className="w-12 h-12 text-brand-600 animate-spin mx-auto mb-4" />
+          <p className="text-ink-500">লোড হচ্ছে...</p>
         </div>
       </div>
     );
@@ -173,15 +173,15 @@ export default function PackagesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">প্যাকেজ ম্যানেজমেন্ট</h1>
-          <p className="text-gray-500 mt-1">প্যাকেজ যোগ করুন, এডিট করুন ও ম্যানেজ করুন</p>
+          <h1 className="text-2xl font-bold text-ink-900">প্যাকেজ ম্যানেজমেন্ট</h1>
+          <p className="text-ink-500 mt-1">প্যাকেজ যোগ করুন, এডিট করুন ও ম্যানেজ করুন</p>
         </div>
         
         <button
           onClick={handleAddNew}
-          className="bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2"
+          className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2"
         >
           <Plus size={18} />
           নতুন প্যাকেজ
@@ -190,7 +190,7 @@ export default function PackagesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {packages.map((pkg) => (
-          <div key={pkg._id} className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 ${pkg.isActive ? 'border-[#3B82F6]' : 'border-gray-300'}`}>
+          <div key={pkg._id} className={`bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden border-2 ${pkg.isActive ? 'border-brand-500' : 'border-ink-300'}`}>
             <div className={`p-6 bg-gradient-to-r ${getIconColor(pkg.name)} text-white`}>
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
@@ -213,14 +213,14 @@ export default function PackagesPage() {
 
             <div className="p-6">
               <div className="mb-4">
-                <span className="text-3xl font-bold text-[#3B82F6]">৳ {pkg.price}</span>
-                <span className="text-gray-400 line-through ml-2">৳ {pkg.originalPrice}</span>
+                <span className="text-3xl font-bold text-brand-600">৳ {pkg.price}</span>
+                <span className="text-ink-400 line-through ml-2">৳ {pkg.originalPrice}</span>
               </div>
 
               <ul className="space-y-2 mb-6">
                 {pkg.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-center gap-2 text-gray-700">
-                    <div className="w-1.5 h-1.5 bg-[#3B82F6] rounded-full"></div>
+                  <li key={idx} className="flex items-center gap-2 text-ink-700">
+                    <div className="w-1.5 h-1.5 bg-brand-600 rounded-full"></div>
                     {feature}
                   </li>
                 ))}
@@ -228,7 +228,7 @@ export default function PackagesPage() {
 
               <button
                 onClick={() => handleEdit(pkg)}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-ink-100 hover:bg-ink-200 text-ink-900 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
               >
                 <Edit size={18} />
                 এডিট করুন
@@ -241,64 +241,64 @@ export default function PackagesPage() {
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-black">
+              <h3 className="text-xl font-bold text-ink-900">
                 {editingPackage ? 'প্যাকেজ এডিট করুন' : 'নতুন প্যাকেজ যোগ করুন'}
               </h3>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded">
+              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-ink-100 rounded">
                 <X size={20} />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-1">প্যাকেজ নাম (ইংরেজি)</label>
+                <label className="block text-ink-700 font-medium mb-1">প্যাকেজ নাম (ইংরেজি)</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="যেমন: premium, standard, basic"
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
-                <p className="text-xs text-gray-500 mt-1">প্যাকেজের ইউনিক আইডেন্টিফায়ার (ছোট হাতের অক্ষরে)</p>
+                <p className="text-xs text-ink-500 mt-1">প্যাকেজের ইউনিক আইডেন্টিফায়ার (ছোট হাতের অক্ষরে)</p>
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-1">টাইটেল (বাংলা/ইংরেজি)</label>
+                <label className="block text-ink-700 font-medium mb-1">টাইটেল (বাংলা/ইংরেজি)</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="যেমন: প্রিমিয়াম প্যাকেজ"
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-1">মূল্য (৳)</label>
+                <label className="block text-ink-700 font-medium mb-1">মূল্য (৳)</label>
                 <input
                   type="number"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="যেমন: 2500"
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-1">মূল মূল্য (৳)</label>
+                <label className="block text-ink-700 font-medium mb-1">মূল মূল্য (৳)</label>
                 <input
                   type="number"
                   value={formData.originalPrice}
                   onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                   placeholder="যেমন: 3500"
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-1">
+                <label className="block text-ink-700 font-medium mb-1">
                   ফিচারসমূহ (কমা দিয়ে আলাদা করুন)
                 </label>
                 <textarea
@@ -306,14 +306,14 @@ export default function PackagesPage() {
                   onChange={(e) => setFormData({ ...formData, features: e.target.value })}
                   rows={4}
                   placeholder="যেমন: সপ্তাহের ৭ দিন ডেলিভারি, প্রতিদিন ৩ বেলা খাবার, ফ্রি হোম ডেলিভারি"
-                  className="w-full text-black px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               <button
                 onClick={handleSave}
                 disabled={submitting}
-                className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+                className="w-full bg-brand-600 text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>

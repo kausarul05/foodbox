@@ -1,73 +1,120 @@
-// app/dashboard/layout.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import Sidebar from '../components/admin/Sidebar';
+import { useEffect, useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import Header from '../components/admin/Header';
+import Sidebar from '../components/admin/Sidebar';
+import { QUICK_NAV } from '../components/admin/nav-items';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'সুপার অ্যাডমিন',
+  manager: 'ম্যানেজার',
+  support: 'সাপোর্ট',
+};
+
+export default function AdminDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [admin, setAdmin] = useState<{ fullName?: string; role?: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) {
-      router.push('/admin/login');
-    } else {
-      setIsAuthenticated(true);
+      router.replace('/admin/login');
+      return;
     }
+    try {
+      setAdmin(JSON.parse(localStorage.getItem('adminData') ?? '{}'));
+    } catch {
+      setAdmin({});
+    }
+    setReady(true);
   }, [router]);
 
-  // Close sidebar on route change (mobile)
+  // Any navigation closes the drawer; without this it stays open over the new page.
   useEffect(() => {
-    setIsSidebarOpen(false);
+    setDrawerOpen(false);
   }, [pathname]);
 
-  if (!isAuthenticated) {
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [drawerOpen]);
+
+  if (!ready) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3B82F6] mx-auto"></div>
-          <p className="mt-4 text-gray-600">লোড হচ্ছে...</p>
-        </div>
+      <div className="grid min-h-screen place-items-center bg-ink-50">
+        <div className="size-10 animate-spin rounded-full border-2 border-ink-200 border-t-brand-600" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* Sidebar - Desktop: always visible, Mobile: slide-out */}
-      <div className={`
-        fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <Sidebar onClose={() => setIsSidebarOpen(false)} />
+    <div className="min-h-screen bg-ink-50">
+      {/* Desktop column. Fixed so the long page bodies scroll independently. */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block">
+        <Sidebar />
       </div>
 
-      {/* Mobile overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
+      {/*
+        Phone drawer. Kept outside every blurred/transformed ancestor — those
+        create a containing block for position:fixed and would collapse this
+        panel into the header strip instead of the full viewport.
+      */}
+      <div
+        onClick={() => setDrawerOpen(false)}
+        aria-hidden
+        className={`fixed inset-0 z-40 bg-ink-900/50 transition-opacity lg:hidden ${
+          drawerOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <div
+        className={`fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-out lg:hidden ${
+          drawerOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        aria-hidden={!drawerOpen}
+      >
+        <Sidebar onNavigate={() => setDrawerOpen(false)} />
+      </div>
+
+      <div className="lg:pl-72">
+        <Header
+          onMenuClick={() => setDrawerOpen(true)}
+          adminName={admin?.fullName || 'অ্যাডমিন'}
+          adminRole={ROLE_LABELS[admin?.role ?? ''] ?? 'অ্যাডমিন'}
         />
-      )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
-        <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="">
-            {children}
-          </div>
-        </main>
+        {/* pb-24 clears the phone bottom bar so nothing hides behind it. */}
+        <main className="px-4 py-5 pb-24 sm:px-6 sm:py-6 lg:pb-8">{children}</main>
       </div>
+
+      {/* Bottom bar: the four daily screens, one thumb-reach away on a phone. */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white lg:hidden">
+        <ul className="grid grid-cols-4">
+          {QUICK_NAV.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+                    active ? 'text-brand-700' : 'text-ink-500'
+                  }`}
+                >
+                  <item.icon size={19} />
+                  <span className="max-w-full truncate px-1">{item.name}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
     </div>
   );
 }

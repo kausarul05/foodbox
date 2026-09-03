@@ -110,8 +110,8 @@ export default function PendingSubscribersPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">পেন্ডিং সাবস্ক্রাইবার লোড হচ্ছে...</p>
+          <Loader2 className="w-12 h-12 text-brand-600 animate-spin mx-auto mb-4" />
+          <p className="text-ink-600">পেন্ডিং সাবস্ক্রাইবার লোড হচ্ছে...</p>
         </div>
       </div>
     );
@@ -119,15 +119,15 @@ export default function PendingSubscribersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">পেন্ডিং সাবস্ক্রাইবার</h1>
-          <p className="text-gray-500 mt-1">অ্যাডমিন কনফার্মেশনের অপেক্ষায় থাকা সাবস্ক্রাইবার</p>
+          <h1 className="text-2xl font-bold text-ink-900">পেন্ডিং সাবস্ক্রাইবার</h1>
+          <p className="text-ink-500 mt-1">অ্যাডমিন কনফার্মেশনের অপেক্ষায় থাকা সাবস্ক্রাইবার</p>
         </div>
         <button
           onClick={fetchPendingSubscribers}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition"
+          className="flex items-center gap-2 px-4 py-2 bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-lg transition"
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           রিফ্রেশ
@@ -135,17 +135,17 @@ export default function PendingSubscribersPage() {
       </div>
 
       {pendingSubscribers.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+        <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <p className="text-gray-500 text-lg">কোনো পেন্ডিং সাবস্ক্রাইবার নেই</p>
-          <p className="text-sm text-gray-400 mt-1">সমস্ত রিকোয়েস্ট প্রসেস করা হয়েছে</p>
+          <p className="text-ink-500 text-lg">কোনো পেন্ডিং সাবস্ক্রাইবার নেই</p>
+          <p className="text-sm text-ink-400 mt-1">সমস্ত রিকোয়েস্ট প্রসেস করা হয়েছে</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {pendingSubscribers.map((sub) => (
-            <div key={sub._id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
+            <div key={sub._id} className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden hover:shadow-xl transition-shadow">
               <div className={`p-4 ${sub.package === 'golden' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-blue-500 to-purple-600'} text-white`}>
                 <div className="flex justify-between items-center flex-wrap gap-4">
                   <div>
@@ -178,30 +178,30 @@ export default function PendingSubscribersPage() {
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="flex items-center gap-3">
-                    <Phone size={18} className="text-gray-400" />
+                    <Phone size={18} className="text-ink-400" />
                     <div>
-                      <p className="text-xs text-gray-500">ফোন নাম্বার</p>
-                      <p className="font-medium text-gray-800">{sub.phoneNumber}</p>
+                      <p className="text-xs text-ink-500">ফোন নাম্বার</p>
+                      <p className="font-medium text-ink-900">{sub.phoneNumber}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Mail size={18} className="text-gray-400" />
+                    <Mail size={18} className="text-ink-400" />
                     <div>
-                      <p className="text-xs text-gray-500">ইমেইল</p>
-                      <p className="font-medium text-gray-800">{sub.email}</p>
+                      <p className="text-xs text-ink-500">ইমেইল</p>
+                      <p className="font-medium text-ink-900">{sub.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <MapPin size={18} className="text-gray-400" />
+                    <MapPin size={18} className="text-ink-400" />
                     <div>
-                      <p className="text-xs text-gray-500">জোন</p>
-                      <p className="font-medium text-gray-800">{sub.zone}</p>
+                      <p className="text-xs text-ink-500">জোন</p>
+                      <p className="font-medium text-ink-900">{sub.zone}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <PackageIcon size={18} className="text-gray-400" />
+                    <PackageIcon size={18} className="text-ink-400" />
                     <div>
-                      <p className="text-xs text-gray-500">প্যাকেজ</p>
+                      <p className="text-xs text-ink-500">প্যাকেজ</p>
                       <p className={`font-semibold ${sub.package === 'golden' ? 'text-amber-600' : 'text-purple-600'}`}>
                         {sub.package === 'golden' ? 'গোল্ডেন প্যাকেজ' : 'ডায়মন্ড প্যাকেজ'} - ৳ {sub.amount}
                       </p>
@@ -209,23 +209,23 @@ export default function PendingSubscribersPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="mt-4 pt-4 border-t border-ink-100">
                   <div className="flex flex-wrap justify-between items-center gap-4">
                     <div>
-                      <p className="text-xs text-gray-500">পেমেন্ট মেথড</p>
-                      <p className="font-medium text-gray-800 capitalize">
+                      <p className="text-xs text-ink-500">পেমেন্ট মেথড</p>
+                      <p className="font-medium text-ink-900 capitalize">
                         {getPaymentMethodText(sub.paymentMethod)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">সাবস্ক্রিপশন আইডি</p>
-                      <p className="font-medium text-gray-800 font-mono text-sm">
+                      <p className="text-xs text-ink-500">সাবস্ক্রিপশন আইডি</p>
+                      <p className="font-medium text-ink-900 font-mono text-sm">
                         {sub.subscriptionId}
                       </p>
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-gray-500">ঠিকানা</p>
-                      <p className="font-medium text-gray-800 text-sm">{sub.address}</p>
+                      <p className="text-xs text-ink-500">ঠিকানা</p>
+                      <p className="font-medium text-ink-900 text-sm">{sub.address}</p>
                     </div>
                   </div>
                 </div>

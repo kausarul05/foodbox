@@ -128,9 +128,9 @@ export default function OrdersPage() {
       case 'confirmed': return 'bg-blue-100 text-blue-800';
       case 'preparing': return 'bg-purple-100 text-purple-800';
       case 'out_for_delivery': return 'bg-indigo-100 text-indigo-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
+      case 'delivered': return 'bg-leaf-100 text-leaf-700';
       case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      default: return 'bg-ink-100 text-ink-900';
     }
   };
 
@@ -149,11 +149,11 @@ export default function OrdersPage() {
   const getPaymentMethodBadge = (paymentMethod: string) => {
     switch(paymentMethod) {
       case 'wallet':
-        return { color: 'bg-green-100 text-green-700', text: 'ওয়ালেট' };
+        return { color: 'bg-leaf-100 text-leaf-700', text: 'ওয়ালেট' };
       case 'subscription':
         return { color: 'bg-blue-100 text-blue-700', text: 'সাবস্ক্রিপশন' };
       default:
-        return { color: 'bg-gray-100 text-gray-700', text: paymentMethod };
+        return { color: 'bg-ink-100 text-ink-700', text: paymentMethod };
     }
   };
 
@@ -176,7 +176,7 @@ export default function OrdersPage() {
             key="confirm"
             onClick={() => updateOrderStatus(order._id, 'confirmed')}
             disabled={updatingOrderId === order._id}
-            className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-brand-700 transition disabled:opacity-50 text-xs"
           >
             <CheckCircle size={12} />
             কনফার্ম
@@ -340,8 +340,8 @@ export default function OrdersPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[#3B82F6] animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">অর্ডার লোড হচ্ছে...</p>
+          <Loader2 className="w-12 h-12 text-brand-600 animate-spin mx-auto mb-4" />
+          <p className="text-ink-600">অর্ডার লোড হচ্ছে...</p>
         </div>
       </div>
     );
@@ -351,13 +351,13 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">সাবস্ক্রিপশন অর্ডার লিস্ট</h1>
-          <p className="text-gray-500 mt-1">তারিখ এবং খাবারের সময় অনুযায়ী অর্ডার দেখুন</p>
+          <h1 className="text-2xl font-bold text-ink-900">সাবস্ক্রিপশন অর্ডার লিস্ট</h1>
+          <p className="text-ink-500 mt-1">তারিখ এবং খাবারের সময় অনুযায়ী অর্ডার দেখুন</p>
         </div>
         <button
           onClick={fetchSubscriptionOrders}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition"
+          className="flex items-center gap-2 px-4 py-2 bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-lg transition"
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           রিফ্রেশ
@@ -372,8 +372,8 @@ export default function OrdersPage() {
               <ShoppingBag className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">মোট সাবস্ক্রিপশন অর্ডার</p>
-              <p className="text-2xl font-bold text-gray-800">{totalOrders}</p>
+              <p className="text-sm text-ink-500">মোট সাবস্ক্রিপশন অর্ডার</p>
+              <p className="text-2xl font-bold text-ink-900">{totalOrders}</p>
             </div>
           </div>
         </div>
@@ -383,8 +383,8 @@ export default function OrdersPage() {
               <Clock className="w-6 h-6 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">পেন্ডিং অর্ডার</p>
-              <p className="text-2xl font-bold text-gray-800">{pendingOrders}</p>
+              <p className="text-sm text-ink-500">পেন্ডিং অর্ডার</p>
+              <p className="text-2xl font-bold text-ink-900">{pendingOrders}</p>
             </div>
           </div>
         </div>
@@ -394,8 +394,8 @@ export default function OrdersPage() {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">ডেলিভারি সম্পন্ন</p>
-              <p className="text-2xl font-bold text-gray-800">{deliveredOrders}</p>
+              <p className="text-sm text-ink-500">ডেলিভারি সম্পন্ন</p>
+              <p className="text-2xl font-bold text-ink-900">{deliveredOrders}</p>
             </div>
           </div>
         </div>
@@ -405,7 +405,7 @@ export default function OrdersPage() {
               <DollarSign className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">মোট রেভিনিউ</p>
+              <p className="text-sm text-ink-500">মোট রেভিনিউ</p>
               <p className="text-2xl font-bold text-green-600">৳ {totalRevenue.toLocaleString()}</p>
             </div>
           </div>
@@ -413,24 +413,24 @@ export default function OrdersPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-lg p-4">
+      <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-400" size={18} />
             <input
               type="text"
               placeholder="অর্ডার আইডি, নাম বা ফোন নম্বর দিয়ে সার্চ করুন..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800"
+              className="w-full pl-10 pr-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
             />
           </div>
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-400" size={18} />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-gray-800 appearance-none bg-white"
+              className="w-full pl-10 pr-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 appearance-none bg-white"
             >
               <option value="all">সব স্ট্যাটাস</option>
               <option value="pending">পেন্ডিং</option>
@@ -446,11 +446,11 @@ export default function OrdersPage() {
 
       {/* Date Wise Grouped Orders */}
       {filteredSortedDates.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search className="w-10 h-10 text-gray-400" />
+        <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
+          <div className="w-20 h-20 bg-ink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Search className="w-10 h-10 text-ink-400" />
           </div>
-          <p className="text-gray-500">কোনো সাবস্ক্রিপশন অর্ডার পাওয়া যায়নি</p>
+          <p className="text-ink-500">কোনো সাবস্ক্রিপশন অর্ডার পাওয়া যায়নি</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -461,17 +461,17 @@ export default function OrdersPage() {
             const totalOrdersCount = ordersForDate.length;
             
             return (
-              <div key={dateKey} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+              <div key={dateKey} className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden">
                 {/* Date Header - Click to expand/collapse */}
                 <button
                   onClick={() => toggleDate(dateKey)}
                   className="w-full flex items-center justify-between p-5 bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Calendar className="w-6 h-6 text-[#3B82F6]" />
+                    <Calendar className="w-6 h-6 text-brand-600" />
                     <div className="text-left">
-                      <p className="text-lg font-bold text-gray-800">{dateKey}</p>
-                      <p className="text-sm text-gray-500">{totalOrdersCount}টি অর্ডার</p>
+                      <p className="text-lg font-bold text-ink-900">{dateKey}</p>
+                      <p className="text-sm text-ink-500">{totalOrdersCount}টি অর্ডার</p>
                     </div>
                   </div>
                   {isDateExpanded ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
@@ -479,7 +479,7 @@ export default function OrdersPage() {
 
                 {/* Meal Time Sections - Show when date is expanded */}
                 {isDateExpanded && (
-                  <div className="p-4 space-y-3 border-t border-gray-200">
+                  <div className="p-4 space-y-3 border-t border-ink-200">
                     {/* Morning Section */}
                     {mealGrouped.morning.length > 0 && (
                       <MealTimeSection
@@ -555,70 +555,70 @@ export default function OrdersPage() {
 
       {/* Order Details Modal */}
       {showDetailsModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 text-black">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 text-ink-900">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex flex-wrap justify-between items-center gap-3">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">অর্ডার বিস্তারিত</h2>
-                <p className="text-sm text-gray-500">অর্ডার আইডি: #{selectedOrder.orderId || selectedOrder._id.slice(-8)}</p>
+                <h2 className="text-xl font-bold text-ink-900">অর্ডার বিস্তারিত</h2>
+                <p className="text-sm text-ink-500">অর্ডার আইডি: #{selectedOrder.orderId || selectedOrder._id.slice(-8)}</p>
               </div>
-              <button onClick={() => setShowDetailsModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
+              <button onClick={() => setShowDetailsModal(false)} className="p-2 hover:bg-ink-100 rounded-full">
                 <X size={24} />
               </button>
             </div>
 
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-ink-50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <div className={`w-2 h-2 rounded-full ${selectedOrder.status === 'delivered' ? 'bg-green-500' : selectedOrder.status === 'cancelled' ? 'bg-red-500' : 'bg-yellow-500'}`} />
-                    <p className="text-sm font-medium text-gray-600">বর্তমান স্ট্যাটাস</p>
+                    <p className="text-sm font-medium text-ink-600">বর্তমান স্ট্যাটাস</p>
                   </div>
                   <p className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(selectedOrder.status)}`}>
                     {getStatusText(selectedOrder.status)}
                   </p>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-sm font-medium text-gray-600 mb-2">পেমেন্ট তথ্য</p>
+                <div className="bg-ink-50 rounded-xl p-4">
+                  <p className="text-sm font-medium text-ink-600 mb-2">পেমেন্ট তথ্য</p>
                   <div className="space-y-1">
                     <p className="text-sm">পেমেন্ট মেথড: <span className="font-semibold">{getPaymentMethodBadge(selectedOrder.paymentMethod).text}</span></p>
-                    <p className="text-2xl font-bold text-[#3B82F6]">৳ {selectedOrder.totalAmount}</p>
+                    <p className="text-2xl font-bold text-brand-600">৳ {selectedOrder.totalAmount}</p>
                     {selectedOrder.deliveryCharge && (
-                      <p className="text-sm text-gray-500">ডেলিভারি চার্জ: ৳ {selectedOrder.deliveryCharge}</p>
+                      <p className="text-sm text-ink-500">ডেলিভারি চার্জ: ৳ {selectedOrder.deliveryCharge}</p>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-gray-800 mb-3">গ্রাহকের তথ্য</h3>
+              <div className="bg-ink-50 rounded-xl p-4">
+                <h3 className="font-semibold text-ink-900 mb-3">গ্রাহকের তথ্য</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div><p className="text-xs text-gray-500">নাম</p><p className="text-sm font-medium">{selectedOrder.userName}</p></div>
-                  <div><p className="text-xs text-gray-500">ফোন</p><p className="text-sm font-medium">{selectedOrder.phoneNumber}</p></div>
-                  <div><p className="text-xs text-gray-500">জোন</p><p className="text-sm font-medium">{selectedOrder.zone}</p></div>
-                  <div><p className="text-xs text-gray-500">ঠিকানা</p><p className="text-sm font-medium">{selectedOrder.address}</p></div>
+                  <div><p className="text-xs text-ink-500">নাম</p><p className="text-sm font-medium">{selectedOrder.userName}</p></div>
+                  <div><p className="text-xs text-ink-500">ফোন</p><p className="text-sm font-medium">{selectedOrder.phoneNumber}</p></div>
+                  <div><p className="text-xs text-ink-500">জোন</p><p className="text-sm font-medium">{selectedOrder.zone}</p></div>
+                  <div><p className="text-xs text-ink-500">ঠিকানা</p><p className="text-sm font-medium">{selectedOrder.address}</p></div>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-gray-800 mb-3">আইটেম সমূহ</h3>
+              <div className="bg-ink-50 rounded-xl p-4">
+                <h3 className="font-semibold text-ink-900 mb-3">আইটেম সমূহ</h3>
                 <div className="space-y-2">
                   {selectedOrder.items?.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
-                      <div><p className="font-medium">{item.name}</p><p className="text-xs text-gray-500">পরিমাণ: {item.quantity}</p></div>
-                      <p className="font-semibold text-[#3B82F6]">৳ {item.price * item.quantity}</p>
+                    <div key={idx} className="flex justify-between items-center py-2 border-b border-ink-200 last:border-0">
+                      <div><p className="font-medium">{item.name}</p><p className="text-xs text-ink-500">পরিমাণ: {item.quantity}</p></div>
+                      <p className="font-semibold text-brand-600">৳ {item.price * item.quantity}</p>
                     </div>
                   ))}
-                  <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-300">
+                  <div className="flex justify-between items-center pt-3 mt-2 border-t border-ink-300">
                     <p className="font-bold">মোট</p>
-                    <p className="text-xl font-bold text-[#3B82F6]">৳ {selectedOrder.totalAmount}</p>
+                    <p className="text-xl font-bold text-brand-600">৳ {selectedOrder.totalAmount}</p>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="sticky bottom-0 bg-white border-t px-6 py-4 flex justify-end gap-3">
-              <button onClick={() => setShowDetailsModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">বন্ধ করুন</button>
+              <button onClick={() => setShowDetailsModal(false)} className="px-4 py-2 border border-ink-300 rounded-lg text-ink-700 hover:bg-ink-50">বন্ধ করুন</button>
               {selectedOrder.status !== 'delivered' && selectedOrder.status !== 'cancelled' && (
                 <button onClick={() => { setShowDetailsModal(false); updateOrderStatus(selectedOrder._id, 'cancelled'); }} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">অর্ডার বাতিল করুন</button>
               )}
@@ -676,8 +676,8 @@ function MealTimeSection({
       >
         <div className="flex items-center gap-2">
           <Icon className={`w-5 h-5 ${iconColor}`} />
-          <span className="font-semibold text-gray-800">{title}</span>
-          <span className="text-sm text-gray-500">({orders.length}টি অর্ডার)</span>
+          <span className="font-semibold text-ink-900">{title}</span>
+          <span className="text-sm text-ink-500">({orders.length}টি অর্ডার)</span>
         </div>
         {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
       </button>
@@ -688,36 +688,36 @@ function MealTimeSection({
             const paymentBadge = getPaymentMethodBadge(order.paymentMethod);
             
             return (
-              <div key={order._id} className="bg-white rounded-lg border border-gray-100 p-3 hover:shadow-md transition">
+              <div key={order._id} className="bg-white rounded-lg border border-ink-100 p-3 hover:shadow-md transition">
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono text-gray-500">#{order.orderId?.slice(-8)}</span>
+                      <span className="text-xs font-mono text-ink-500">#{order.orderId?.slice(-8)}</span>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
                         {getStatusText(order.status)}
                       </span>
                     </div>
-                    <p className="font-semibold text-gray-800">{order.userName}</p>
-                    <p className="text-xs text-gray-500">{order.phoneNumber}</p>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-1">
+                    <p className="font-semibold text-ink-900">{order.userName}</p>
+                    <p className="text-xs text-ink-500">{order.phoneNumber}</p>
+                    <p className="text-xs text-ink-500 mt-1 line-clamp-1">
                       {order.items?.map(i => i.name).join(', ')}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-[#3B82F6]">৳ {order.totalAmount}</p>
+                    <p className="text-lg font-bold text-brand-600">৳ {order.totalAmount}</p>
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold mt-1 ${paymentBadge.color}`}>
                       {paymentBadge.text}
                     </span>
                     <button
                       onClick={() => onOrderClick(order)}
-                      className="mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 ml-auto"
+                      className="mt-1 text-xs text-blue-500 hover:text-brand-700 flex items-center gap-1 ml-auto"
                     >
                       <Eye size={12} />
                       বিস্তারিত
                     </button>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-100">
+                <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-ink-100">
                   {getStatusButtons(order).map((btn, idx) => (
                     <div key={idx}>{btn}</div>
                   ))}

@@ -111,8 +111,8 @@ export default function ZoneSelect({
   if (loading) {
     return (
       <div className="relative">
-        <label className="block text-gray-700 font-medium mb-2">{label}</label>
-        <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50">
+        <label className="block text-ink-700 font-medium mb-2">{label}</label>
+        <div className="w-full px-4 py-3 border border-ink-300 rounded-lg bg-ink-50">
           <Loader2 className="w-5 h-5 animate-spin mx-auto" />
         </div>
       </div>
@@ -126,7 +126,7 @@ export default function ZoneSelect({
           <select
             value={value}
             onChange={handleZoneChange}
-            className={`flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-white text-gray-800 ${className}`}
+            className={`flex-1 px-4 py-3 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-ink-900 ${className}`}
             required={required}
           >
             <option value="">সিলেক্ট করুন</option>
@@ -139,13 +139,13 @@ export default function ZoneSelect({
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-50 text-[#3B82F6] rounded-lg hover:bg-blue-100 transition flex items-center gap-1"
+            className="px-4 py-2 bg-blue-50 text-brand-600 rounded-lg hover:bg-blue-100 transition flex items-center gap-1"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">নতুন</span>
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-ink-500 mt-1">
           আপনার এলাকা না থাকলে "নতুন" বাটনে ক্লিক করে যোগ করুন
         </p>
       </div>
@@ -153,19 +153,19 @@ export default function ZoneSelect({
       {/* Add Zone Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 text-black">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 text-ink-900">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-black">নতুন জোন যোগ করুন</h3>
+              <h3 className="text-xl font-bold text-ink-900">নতুন জোন যোগ করুন</h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-full"
+                className="p-1 hover:bg-ink-100 rounded-full"
               >
                 <X size={24} />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-1">
+                <label className="block text-ink-700 font-medium mb-1">
                   জোনের নাম (ইংরেজি)
                 </label>
                 <input
@@ -173,11 +173,11 @@ export default function ZoneSelect({
                   value={newZoneName}
                   onChange={(e) => setNewZoneName(e.target.value)}
                   placeholder="যেমন: Uttara"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">
+                <label className="block text-ink-700 font-medium mb-1">
                   জোনের নাম (বাংলা)
                 </label>
                 <input
@@ -185,11 +185,11 @@ export default function ZoneSelect({
                   value={newZoneNameBn}
                   onChange={(e) => setNewZoneNameBn(e.target.value)}
                   placeholder="যেমন: উত্তরা"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">
+                <label className="block text-ink-700 font-medium mb-1">
                   ডেলিভারি চার্জ (৳)
                 </label>
                 <input
@@ -197,7 +197,7 @@ export default function ZoneSelect({
                   value={newZoneDeliveryCharge}
                   onChange={(e) => setNewZoneDeliveryCharge(e.target.value)}
                   placeholder="ডেলিভারি চার্জ"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   min="0"
                 />
               </div>
@@ -209,7 +209,7 @@ export default function ZoneSelect({
               <button
                 onClick={handleAddZone}
                 disabled={submitting}
-                className="w-full bg-gradient-to-br from-[#3B82F6] to-[#111827] text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50"
+                className="w-full bg-brand-600 text-white py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50"
               >
                 {submitting ? <Loader2 size={20} className="animate-spin mx-auto" /> : 'জোন যোগ করুন'}
               </button>
