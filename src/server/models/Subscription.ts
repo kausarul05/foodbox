@@ -16,6 +16,8 @@ export interface ISubscription {
   paymentStatus: 'pending' | 'paid' | 'failed';
   paymentMethod?: 'bkash' | 'nagad' | 'rocket' | 'bank';
   transactionId?: string;
+  /** The number the customer sent money from, for reconciliation. */
+  senderNumber?: string;
   address: string;
   zone: string;
   approvedBy?: Types.ObjectId;
@@ -42,6 +44,7 @@ const subscriptionSchema = new Schema<ISubscription>(
     paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' },
     paymentMethod: { type: String, enum: ['bkash', 'nagad', 'rocket', 'bank'] },
     transactionId: { type: String },
+    senderNumber: { type: String },
     address: { type: String, required: true },
     zone: { type: String, required: true },
     approvedBy: { type: Schema.Types.ObjectId, ref: 'Admin' },

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useDialog } from '@/components/ui/DialogProvider';
 import { Package, Edit, Trash2, Plus, Crown, Diamond, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { packageAPI } from '@/app/admin/lib/api';
@@ -17,6 +18,7 @@ interface PackageType {
 }
 
 export default function PackagesPage() {
+  const { confirm } = useDialog();
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -128,19 +130,24 @@ export default function PackagesPage() {
   };
 
   const handleDelete = async (id: string, title: string) => {
-    if (confirm(`"${title}" প্যাকেজটি ডিলিট করতে চান?`)) {
-      try {
-        const response = await packageAPI.deletePackage(id);
-        if (response.success) {
-          toast.success('প্যাকেজ ডিলিট করা হয়েছে!');
-          fetchPackages();
-        } else {
-          toast.error(response.message || 'ডিলিট ব্যর্থ হয়েছে');
-        }
-      } catch (error) {
-        console.error('Error deleting package:', error);
-        toast.error('প্যাকেজ ডিলিট করতে ব্যর্থ হয়েছে');
+    const ok = await confirm({
+      title: 'প্যাকেজ ডিলিট করবেন?',
+      message: `"${title}" আর কেউ সাবস্ক্রাইব করতে পারবে না। চালু সাবস্ক্রিপশনগুলো থেকে যাবে।`,
+      confirmLabel: 'ডিলিট করুন',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      const response = await packageAPI.deletePackage(id);
+      if (response.success) {
+        toast.success('প্যাকেজ ডিলিট করা হয়েছে!');
+        fetchPackages();
+      } else {
+        toast.error(response.message || 'ডিলিট ব্যর্থ হয়েছে');
       }
+    } catch {
+      toast.error('প্যাকেজ ডিলিট করতে ব্যর্থ হয়েছে');
     }
   };
 
@@ -259,7 +266,7 @@ export default function PackagesPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="যেমন: premium, standard, basic"
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
                 <p className="text-xs text-ink-500 mt-1">প্যাকেজের ইউনিক আইডেন্টিফায়ার (ছোট হাতের অক্ষরে)</p>
               </div>
@@ -271,7 +278,7 @@ export default function PackagesPage() {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="যেমন: প্রিমিয়াম প্যাকেজ"
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
               </div>
 
@@ -282,7 +289,7 @@ export default function PackagesPage() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="যেমন: 2500"
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
               </div>
 
@@ -293,7 +300,7 @@ export default function PackagesPage() {
                   value={formData.originalPrice}
                   onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                   placeholder="যেমন: 3500"
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
               </div>
 
@@ -306,7 +313,7 @@ export default function PackagesPage() {
                   onChange={(e) => setFormData({ ...formData, features: e.target.value })}
                   rows={4}
                   placeholder="যেমন: সপ্তাহের ৭ দিন ডেলিভারি, প্রতিদিন ৩ বেলা খাবার, ফ্রি হোম ডেলিভারি"
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
               </div>
 

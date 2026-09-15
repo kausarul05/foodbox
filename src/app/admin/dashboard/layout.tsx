@@ -94,7 +94,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       </div>
 
       {/* Bottom bar: the four daily screens, one thumb-reach away on a phone. */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
         <ul className="grid grid-cols-4">
           {QUICK_NAV.map((item) => {
             const active = pathname === item.href;

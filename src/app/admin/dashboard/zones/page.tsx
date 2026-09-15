@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from '@/app/admin/components/ui/DataTable';
 import { EmptyState, Pill } from '@/app/admin/components/ui/Shell';
+import { useDialog } from '@/components/ui/DialogProvider';
 import { taka } from '@/lib/format';
 import { 
   MapPin, 
@@ -36,6 +37,7 @@ interface Zone {
 }
 
 export default function ZonesPage() {
+  const { confirm, promptText } = useDialog();
   const [zones, setZones] = useState<Zone[]>([]);
   const [filteredZones, setFilteredZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,16 +109,22 @@ export default function ZonesPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`"${name}" জোনটি ডিলিট করতে চান?`)) {
-      try {
-        const response = await zoneAPI.adminDeleteZone(id);
-        if (response.success) {
-          toast.success('জোন ডিলিট করা হয়েছে');
-          await fetchZones();
-        }
-      } catch (error) {
-        toast.error('জোন ডিলিট করতে ব্যর্থ হয়েছে');
+    const ok = await confirm({
+      title: 'জোন ডিলিট করবেন?',
+      message: `"${name}" জোনটি মুছে যাবে। এই কাজটি ফেরানো যাবে না।`,
+      confirmLabel: 'ডিলিট করুন',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      const response = await zoneAPI.adminDeleteZone(id);
+      if (response.success) {
+        toast.success('জোন ডিলিট করা হয়েছে');
+        await fetchZones();
       }
+    } catch {
+      toast.error('জোন ডিলিট করতে ব্যর্থ হয়েছে');
     }
   };
 
@@ -133,16 +141,30 @@ export default function ZonesPage() {
   };
 
   const handleApprove = async (id: string) => {
-    const deliveryCharge = prompt('ডেলিভারি চার্জ দিন (৳):', '50');
-    if (deliveryCharge === null) return;
-    
+    const entered = await promptText({
+      title: 'জোন অনুমোদন করুন',
+      message: 'অনুমোদনের পর এই এলাকায় ডেলিভারি চালু হবে।',
+      label: 'ডেলিভারি চার্জ (৳)',
+      input: 'number',
+      defaultValue: '50',
+      required: true,
+      confirmLabel: 'অনুমোদন করুন',
+    });
+    if (entered === null) return;
+
+    const charge = Number(entered);
+    if (!Number.isFinite(charge) || charge < 0) {
+      toast.error('সঠিক ডেলিভারি চার্জ দিন');
+      return;
+    }
+
     try {
-      const response = await zoneAPI.approveZone(id, parseInt(deliveryCharge));
+      const response = await zoneAPI.approveZone(id, charge);
       if (response.success) {
         toast.success('জোন অনুমোদন করা হয়েছে');
         await fetchZones();
       }
-    } catch (error) {
+    } catch {
       toast.error('অনুমোদন করতে ব্যর্থ হয়েছে');
     }
   };
@@ -321,7 +343,7 @@ export default function ZonesPage() {
               placeholder="জোনের নাম দিয়ে সার্চ করুন..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+              className="w-full rounded-lg border border-ink-300 py-2.5 pr-4 pl-10 text-base text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none sm:text-sm"
             />
           </div>
           <div className="flex gap-2">
@@ -329,7 +351,7 @@ export default function ZonesPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+              className="rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none sm:text-sm"
             >
               <option value="all">সব জোন</option>
               <option value="active">সক্রিয় জোন</option>
@@ -426,7 +448,7 @@ export default function ZonesPage() {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                   placeholder="যেমন: Uttara"
                 />
               </div>
@@ -436,7 +458,7 @@ export default function ZonesPage() {
                   type="text"
                   value={formData.nameBn}
                   onChange={(e) => setFormData({ ...formData, nameBn: e.target.value })}
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                   placeholder="যেমন: উত্তরা"
                 />
               </div>
@@ -446,7 +468,7 @@ export default function ZonesPage() {
                   type="number"
                   value={formData.deliveryCharge}
                   onChange={(e) => setFormData({ ...formData, deliveryCharge: e.target.value })}
-                  className="w-full text-ink-900 px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                   min="0"
                 />
               </div>

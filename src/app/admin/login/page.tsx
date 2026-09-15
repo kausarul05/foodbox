@@ -70,7 +70,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 text-ink-900 pr-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full pl-10 text-ink-900 pr-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                   placeholder="admin@foodbox.com"
                   required
                 />
@@ -87,7 +87,7 @@ export default function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 text-ink-900 pr-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full pl-10 text-ink-900 pr-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                   placeholder="••••••••"
                   required
                 />

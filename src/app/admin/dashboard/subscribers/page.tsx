@@ -224,13 +224,13 @@ export default function SubscribersPage() {
               placeholder="নাম, ফোন, ইমেইল বা আইডি দিয়ে সার্চ করুন..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+              className="w-full rounded-lg border border-ink-300 py-2.5 pr-4 pl-10 text-base text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none sm:text-sm"
             />
           </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+            className="rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none sm:text-sm"
           >
             {statusOptions.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -239,7 +239,7 @@ export default function SubscribersPage() {
           <select
             value={filterPackage}
             onChange={(e) => setFilterPackage(e.target.value)}
-            className="px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+            className="rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none sm:text-sm"
           >
             {packageOptions.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -482,7 +482,7 @@ export default function SubscribersPage() {
             <div className="sticky bottom-0 bg-white border-t px-6 py-4 flex justify-end gap-3">
               <button
                 onClick={() => setShowDetailsModal(false)}
-                className="px-4 py-2 border border-ink-300 rounded-lg text-ink-700 hover:bg-ink-50 transition"
+                className="px-4 py-2.5 border border-ink-300 rounded-lg text-ink-700 hover:bg-ink-50 transition text-base sm:text-sm"
               >
                 বন্ধ করুন
               </button>

@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { AlertCircle, Check, Loader2, Sparkles, X } from 'lucide-react';
+import { AlertCircle, Check, Sparkles } from 'lucide-react';
 import { packageAPI, subscriptionAPI } from '@/lib/api';
 import SectionHeading from '@/components/ui/SectionHeading';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bn, taka } from '@/lib/format';
 
 interface PackageType {
@@ -20,12 +23,7 @@ interface PackageType {
   isActive: boolean;
 }
 
-const PAYMENT_METHODS = [
-  { value: 'bkash', label: 'bKash' },
-  { value: 'nagad', label: 'Nagad' },
-  { value: 'rocket', label: 'Rocket' },
-  { value: 'bank', label: 'ব্যাংক ট্রান্সফার' },
-];
+const EMPTY_PAYMENT: PaymentDetails = { paymentMethod: 'bkash', transactionId: '', senderNumber: '' };
 
 export default function Packages() {
   const router = useRouter();
@@ -33,7 +31,7 @@ export default function Packages() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selected, setSelected] = useState<PackageType | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState('bkash');
+  const [payment, setPayment] = useState<PaymentDetails>(EMPTY_PAYMENT);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,18 +56,28 @@ export default function Packages() {
       router.push('/login');
       return;
     }
+    setPayment(EMPTY_PAYMENT);
     setSelected(pkg);
   };
 
   const confirmSubscribe = async () => {
     if (!selected) return;
+
+    const problem = validatePayment(payment);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+
     setSubmitting(true);
     try {
       // address and zone are left empty on purpose — the API fills them from
       // the user's saved profile.
       const res = await subscriptionAPI.requestSubscription({
         package: selected.name,
-        paymentMethod,
+        paymentMethod: payment.paymentMethod,
+        transactionId: payment.transactionId.trim(),
+        senderNumber: payment.senderNumber.trim(),
         address: '',
         zone: '',
       });
@@ -170,89 +178,41 @@ export default function Packages() {
         )}
       </div>
 
-      {/* Confirmation modal */}
+      {/* Subscription request — same send-money-then-prove-it flow as the wallet */}
       {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-ink-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="subscribe-title"
-          onClick={() => !submitting && setSelected(null)}
+        <Modal
+          title="সাবস্ক্রিপশন রিকোয়েস্ট"
+          description="টাকা পাঠিয়ে ট্রানজেকশন আইডি দিন"
+          busy={submitting}
+          onClose={() => setSelected(null)}
+          footer={
+            <Button
+              fullWidth
+              size="lg"
+              loading={submitting}
+              icon={<Sparkles size={17} />}
+              onClick={confirmSubscribe}
+            >
+              {submitting ? 'পাঠানো হচ্ছে...' : 'রিকোয়েস্ট পাঠান'}
+            </Button>
+          }
         >
-          <div
-            className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <h3 id="subscribe-title" className="text-lg font-bold text-ink-900">
-                সাবস্ক্রিপশন নিশ্চিত করুন
-              </h3>
-              <button
-                onClick={() => setSelected(null)}
-                disabled={submitting}
-                className="grid size-8 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100 disabled:opacity-50"
-                aria-label="বন্ধ করুন"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="mt-5 rounded-2xl bg-brand-50 p-4">
-              <p className="text-xs text-ink-600">আপনি সাবস্ক্রাইব করছেন</p>
-              <p className="mt-0.5 font-semibold text-brand-800">{selected.title}</p>
-              <p className="mt-1 text-2xl font-bold text-ink-900">{taka(selected.price)}</p>
-              <p className="mt-0.5 text-xs text-ink-500">{bn(selected.duration)} দিনের জন্য</p>
-            </div>
-
-            <fieldset className="mt-5">
-              <legend className="text-sm font-medium text-ink-800">পেমেন্ট মেথড</legend>
-              <div className="mt-2.5 grid grid-cols-2 gap-2">
-                {PAYMENT_METHODS.map((method) => (
-                  <label
-                    key={method.value}
-                    className={`cursor-pointer rounded-xl border px-4 py-3 text-center text-sm font-medium transition ${
-                      paymentMethod === method.value
-                        ? 'border-brand-500 bg-brand-50 text-brand-800'
-                        : 'border-ink-200 text-ink-600 hover:border-ink-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value={method.value}
-                      checked={paymentMethod === method.value}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="sr-only"
-                    />
-                    {method.label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <p className="mt-5 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
-              রিকোয়েস্ট পাঠানোর পর অ্যাডমিন অনুমোদন দিলে আপনার সাবস্ক্রিপশন চালু হবে।
-            </p>
-
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={() => setSelected(null)}
-                disabled={submitting}
-                className="flex-1 rounded-full border border-ink-300 px-5 py-3 text-sm font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
-              >
-                বাতিল
-              </button>
-              <button
-                onClick={confirmSubscribe}
-                disabled={submitting}
-                className="flex flex-1 items-center justify-center gap-2 rounded-full bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              >
-                {submitting && <Loader2 size={16} className="animate-spin" />}
-                {submitting ? 'পাঠানো হচ্ছে...' : 'কনফার্ম করুন'}
-              </button>
-            </div>
+          <div className="rounded-2xl bg-brand-50 p-4">
+            <p className="text-xs text-ink-600">আপনি সাবস্ক্রাইব করছেন</p>
+            <p className="mt-0.5 font-semibold text-brand-800">{selected.title}</p>
+            <p className="mt-1 text-3xl font-bold text-ink-900">{taka(selected.price)}</p>
+            <p className="mt-0.5 text-xs text-ink-500">{bn(selected.duration)} দিনের জন্য</p>
           </div>
-        </div>
+
+          <div className="mt-5">
+            <PaymentFields amount={selected.price} value={payment} onChange={setPayment} />
+          </div>
+
+          <p className="mt-5 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
+            অ্যাডমিন ট্রানজেকশন আইডি মিলিয়ে দেখে অনুমোদন দিলে তবেই সাবস্ক্রিপশন চালু হবে। ভুল আইডি দিলে
+            রিকোয়েস্ট বাতিল হয়ে যাবে।
+          </p>
+        </Modal>
       )}
     </section>
   );

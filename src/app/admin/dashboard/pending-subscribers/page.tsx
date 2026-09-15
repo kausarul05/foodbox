@@ -1,6 +1,7 @@
 'use client';
 
-import { bengaliDateNumeric } from '@/lib/format';
+import { bengaliDateNumeric, taka } from '@/lib/format';
+import { useDialog } from '@/components/ui/DialogProvider';
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, UserPlus, Mail, Phone, MapPin, Loader2, RefreshCw, Package as PackageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,18 +14,22 @@ interface PendingSubscriber {
   userName: string;
   phoneNumber: string;
   email: string;
-  package: 'golden' | 'diamond';
+  /** A package name from the database, not a fixed pair. */
+  package: string;
   packageName: string;
   requestedDate: string;
   createdAt: string;
   address: string;
   zone: string;
   paymentMethod: string;
+  transactionId?: string;
+  senderNumber?: string;
   amount: number;
   status: string;
 }
 
 export default function PendingSubscribersPage() {
+  const { promptText } = useDialog();
   const [pendingSubscribers, setPendingSubscribers] = useState<PendingSubscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -74,8 +79,17 @@ export default function PendingSubscribersPage() {
   };
 
   const handleReject = async (id: string) => {
-    const reason = prompt('বাতিলের কারণ লিখুন:');
-    if (!reason) return;
+    const reason = await promptText({
+      title: 'সাবস্ক্রিপশন বাতিল করবেন?',
+      message: 'গ্রাহক এই কারণটি দেখতে পাবেন, তাই স্পষ্ট করে লিখুন।',
+      label: 'বাতিলের কারণ',
+      placeholder: 'যেমন: ট্রানজেকশন আইডি মেলেনি',
+      required: true,
+      confirmLabel: 'বাতিল করুন',
+      cancelLabel: 'ফিরে যান',
+      tone: 'danger',
+    });
+    if (reason === null) return;
     
     try {
       setProcessingId(id);
@@ -147,32 +161,32 @@ export default function PendingSubscribersPage() {
         <div className="grid grid-cols-1 gap-6">
           {pendingSubscribers.map((sub) => (
             <div key={sub._id} className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden hover:shadow-xl transition-shadow">
-              <div className={`p-4 ${sub.package === 'golden' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-blue-500 to-purple-600'} text-white`}>
-                <div className="flex justify-between items-center flex-wrap gap-4">
-                  <div>
-                    <h3 className="font-bold text-lg">{sub.userName}</h3>
-                    <p className="text-white/80 text-sm">
-                      রিকোয়েস্টেড: {bengaliDateNumeric(sub.createdAt)}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleApprove(sub._id)}
-                      disabled={processingId === sub._id}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50"
-                    >
-                      {processingId === sub._id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                      অনুমোদন
-                    </button>
-                    <button
-                      onClick={() => handleReject(sub._id)}
-                      disabled={processingId === sub._id}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition disabled:opacity-50"
-                    >
-                      {processingId === sub._id ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                      বাতিল
-                    </button>
-                  </div>
+              <div className="bg-brand-600 p-4 text-white">
+                <div>
+                  <h3 className="text-lg font-bold">{sub.userName}</h3>
+                  <p className="text-sm text-white/80">
+                    রিকোয়েস্ট: {bengaliDateNumeric(sub.createdAt)}
+                  </p>
+                </div>
+                {/* Full-width buttons on a phone: side-by-side they shrink to
+                    an unhittable size once the name wraps. */}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleApprove(sub._id)}
+                    disabled={processingId === sub._id}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-white py-2.5 font-semibold text-leaf-700 transition hover:bg-leaf-50 disabled:opacity-50"
+                  >
+                    {processingId === sub._id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                    অনুমোদন
+                  </button>
+                  <button
+                    onClick={() => handleReject(sub._id)}
+                    disabled={processingId === sub._id}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-ink-900/25 py-2.5 font-semibold text-white transition hover:bg-ink-900/40 disabled:opacity-50"
+                  >
+                    {processingId === sub._id ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                    বাতিল
+                  </button>
                 </div>
               </div>
 
@@ -203,31 +217,52 @@ export default function PendingSubscribersPage() {
                     <PackageIcon size={18} className="text-ink-400" />
                     <div>
                       <p className="text-xs text-ink-500">প্যাকেজ</p>
-                      <p className={`font-semibold ${sub.package === 'golden' ? 'text-amber-600' : 'text-purple-600'}`}>
-                        {sub.package === 'golden' ? 'গোল্ডেন প্যাকেজ' : 'ডায়মন্ড প্যাকেজ'} - ৳ {sub.amount}
+                      {/* Packages are database rows, not a fixed golden/diamond pair. */}
+                      <p className="font-semibold text-brand-700">
+                        {sub.packageName || sub.package} — {taka(sub.amount)}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-ink-100">
-                  <div className="flex flex-wrap justify-between items-center gap-4">
+                {/*
+                  Payment proof. Without the transaction id on screen there is
+                  nothing for the admin to check against their bKash statement,
+                  so approving was really just trusting the request.
+                */}
+                <div className="mt-4 rounded-2xl bg-ink-50 p-4">
+                  <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">পেমেন্ট যাচাই</p>
+                  <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
                     <div>
-                      <p className="text-xs text-ink-500">পেমেন্ট মেথড</p>
+                      <p className="text-xs text-ink-500">মাধ্যম</p>
                       <p className="font-medium text-ink-900 capitalize">
                         {getPaymentMethodText(sub.paymentMethod)}
                       </p>
                     </div>
                     <div>
+                      <p className="text-xs text-ink-500">ট্রানজেকশন আইডি</p>
+                      {sub.transactionId ? (
+                        <p className="font-mono text-sm font-semibold break-all text-ink-900">
+                          {sub.transactionId}
+                        </p>
+                      ) : (
+                        <p className="text-sm font-medium text-amber-700">দেওয়া হয়নি</p>
+                      )}
+                    </div>
+                    {sub.senderNumber && (
+                      <div>
+                        <p className="text-xs text-ink-500">যে নাম্বার থেকে</p>
+                        <p className="font-mono text-sm text-ink-900">{sub.senderNumber}</p>
+                      </div>
+                    )}
+                    <div>
                       <p className="text-xs text-ink-500">সাবস্ক্রিপশন আইডি</p>
-                      <p className="font-medium text-ink-900 font-mono text-sm">
-                        {sub.subscriptionId}
-                      </p>
+                      <p className="font-mono text-sm text-ink-900">{sub.subscriptionId}</p>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-ink-500">ঠিকানা</p>
-                      <p className="font-medium text-ink-900 text-sm">{sub.address}</p>
-                    </div>
+                  </div>
+                  <div className="mt-3 border-t border-ink-200 pt-3">
+                    <p className="text-xs text-ink-500">ঠিকানা</p>
+                    <p className="text-sm text-ink-900">{sub.address}</p>
                   </div>
                 </div>
               </div>

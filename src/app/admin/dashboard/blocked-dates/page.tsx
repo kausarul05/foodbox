@@ -2,6 +2,7 @@
 
 import { bengaliDateNumeric } from '@/lib/format';
 import { DateInput } from '@/components/ui/Field';
+import { useDialog } from '@/components/ui/DialogProvider';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, Trash2, Loader2, RefreshCw, X, AlertCircle } from 'lucide-react';
 import { blockedDateAPI } from '../../lib/api';
@@ -14,6 +15,7 @@ interface BlockedDate {
 }
 
 export default function BlockedDatesPage() {
+  const { confirm } = useDialog();
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -64,16 +66,22 @@ export default function BlockedDatesPage() {
   };
 
   const handleRemoveBlockedDate = async (id: string, date: string) => {
-    if (confirm(`"${bengaliDateNumeric(date)}" এই তারিখটি আনব্লক করতে চান?`)) {
-      try {
-        const response = await blockedDateAPI.removeBlockedDate(id);
-        if (response.success) {
-          toast.success('তারিখ আনব্লক করা হয়েছে');
-          await fetchBlockedDates();
-        }
-      } catch (error) {
-        toast.error('তারিখ আনব্লক করতে ব্যর্থ হয়েছে');
+    const ok = await confirm({
+      title: 'তারিখ আনব্লক করবেন?',
+      message: `${bengaliDateNumeric(date)} তারিখে আবার অর্ডার নেওয়া শুরু হবে।`,
+      confirmLabel: 'আনব্লক করুন',
+      tone: 'warning',
+    });
+    if (!ok) return;
+
+    try {
+      const response = await blockedDateAPI.removeBlockedDate(id);
+      if (response.success) {
+        toast.success('তারিখ আনব্লক করা হয়েছে');
+        await fetchBlockedDates();
       }
+    } catch {
+      toast.error('তারিখ আনব্লক করতে ব্যর্থ হয়েছে');
     }
   };
 
@@ -182,7 +190,7 @@ export default function BlockedDatesPage() {
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   placeholder="যেমন: বিশেষ ছুটির কারণে মিল বন্ধ থাকবে"
                 />
                 <p className="text-xs text-ink-500 mt-1">

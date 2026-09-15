@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, CheckCircle2, Clock, Copy, Hash, Plus, Wallet, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, Wallet, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { transactionAPI, walletAPI } from '@/lib/api';
 import Button from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
+import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bengaliDate, bn, taka } from '@/lib/format';
 
 interface Transaction {
@@ -18,10 +19,10 @@ interface Transaction {
   createdAt: string;
 }
 
-/** Admin bKash number customers send money to. */
-const BKASH_NUMBER = '01792695939';
 const MIN_RECHARGE = 50;
 const QUICK_AMOUNTS = [200, 500, 1000, 2000];
+
+const EMPTY_PAYMENT: PaymentDetails = { paymentMethod: 'bkash', transactionId: '', senderNumber: '' };
 
 const STATUS = {
   pending: { label: 'পেন্ডিং', icon: Clock, className: 'bg-amber-100 text-amber-800' },
@@ -35,9 +36,8 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [showRecharge, setShowRecharge] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState('');
-  const [transactionId, setTransactionId] = useState('');
+  const [payment, setPayment] = useState<PaymentDetails>(EMPTY_PAYMENT);
   const [submitting, setSubmitting] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const fetchWalletData = useCallback(async () => {
     try {
@@ -58,7 +58,7 @@ export default function WalletPage() {
   const closeRecharge = () => {
     setShowRecharge(false);
     setRechargeAmount('');
-    setTransactionId('');
+    setPayment(EMPTY_PAYMENT);
   };
 
   const handleRecharge = async () => {
@@ -67,8 +67,9 @@ export default function WalletPage() {
       toast.error(`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা রিচার্জ করতে হবে`);
       return;
     }
-    if (transactionId.trim().length < 6) {
-      toast.error('দয়া করে সঠিক ট্রানজেকশন আইডি দিন');
+    const problem = validatePayment(payment);
+    if (problem) {
+      toast.error(problem);
       return;
     }
 
@@ -76,8 +77,8 @@ export default function WalletPage() {
       setSubmitting(true);
       const res = await transactionAPI.createRechargeRequest({
         amount,
-        transactionId: transactionId.trim(),
-        paymentMethod: 'bkash',
+        transactionId: payment.transactionId.trim(),
+        paymentMethod: payment.paymentMethod,
       });
 
       if (res.success) {
@@ -92,13 +93,6 @@ export default function WalletPage() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const copyNumber = async () => {
-    await navigator.clipboard.writeText(BKASH_NUMBER);
-    setCopied(true);
-    toast.success('নাম্বার কপি হয়েছে');
-    setTimeout(() => setCopied(false), 2000);
   };
 
   if (loading) {
@@ -184,7 +178,7 @@ export default function WalletPage() {
       {showRecharge && (
         <Modal
           title="ওয়ালেট রিচার্জ"
-          description="বিকাশে সেন্ড মানি করে ট্রানজেকশন আইডি দিন"
+          description="টাকা পাঠিয়ে ট্রানজেকশন আইডি দিন"
           busy={submitting}
           onClose={closeRecharge}
           footer={
@@ -193,71 +187,42 @@ export default function WalletPage() {
             </Button>
           }
         >
-          <div className="rounded-2xl bg-[#e2136e] p-4 text-white">
-            <p className="text-xs text-white/80">বিকাশ নাম্বার — সেন্ড মানি</p>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <p className="font-mono text-2xl font-bold tracking-wide">{BKASH_NUMBER}</p>
-              <button
-                type="button"
-                onClick={copyNumber}
-                aria-label="নাম্বার কপি করুন"
-                className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/20 transition hover:bg-white/30"
-              >
-                {copied ? <Check size={18} /> : <Copy size={18} />}
-              </button>
+          <Field label="কত টাকা রিচার্জ করবেন?" htmlFor="amount" required hint={`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা`}>
+            <Input
+              id="amount"
+              type="number"
+              inputMode="numeric"
+              min={MIN_RECHARGE}
+              step={10}
+              value={rechargeAmount}
+              onChange={(e) => setRechargeAmount(e.target.value)}
+              placeholder="যেমন ৫০০"
+            />
+            <div className="mt-2.5 grid grid-cols-4 gap-2">
+              {QUICK_AMOUNTS.map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  onClick={() => setRechargeAmount(String(amount))}
+                  className={`rounded-full border py-2 text-sm font-medium transition ${
+                    rechargeAmount === String(amount)
+                      ? 'border-brand-500 bg-brand-50 text-brand-800'
+                      : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                  }`}
+                >
+                  {taka(amount)}
+                </button>
+              ))}
             </div>
+          </Field>
+
+          <div className="mt-5 border-t border-ink-100 pt-5">
+            <PaymentFields amount={Number(rechargeAmount) || undefined} value={payment} onChange={setPayment} />
           </div>
 
-          <div className="mt-5 space-y-4">
-            <Field label="টাকার পরিমাণ" htmlFor="amount" required hint={`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা`}>
-              <Input
-                id="amount"
-                type="number"
-                inputMode="numeric"
-                min={MIN_RECHARGE}
-                step={10}
-                value={rechargeAmount}
-                onChange={(e) => setRechargeAmount(e.target.value)}
-                placeholder="যেমন ৫০০"
-              />
-              <div className="mt-2.5 flex flex-wrap gap-2">
-                {QUICK_AMOUNTS.map((amount) => (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => setRechargeAmount(String(amount))}
-                    className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                      rechargeAmount === String(amount)
-                        ? 'border-brand-500 bg-brand-50 text-brand-800'
-                        : 'border-ink-200 text-ink-600 hover:border-ink-300'
-                    }`}
-                  >
-                    {taka(amount)}
-                  </button>
-                ))}
-              </div>
-            </Field>
-
-            <Field
-              label="ট্রানজেকশন আইডি"
-              htmlFor="txid"
-              required
-              hint="বিকাশ অ্যাপ বা এসএমএস থেকে হুবহু কপি করে দিন।"
-            >
-              <Input
-                id="txid"
-                icon={Hash}
-                value={transactionId}
-                onChange={(e) => setTransactionId(e.target.value)}
-                placeholder="যেমন 8Y7X9K2L5M"
-                autoCapitalize="characters"
-              />
-            </Field>
-
-            <p className="rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
-              অ্যাডমিন অনুমোদনের পরেই ব্যালেন্স যোগ হবে। ভুল আইডি দিলে রিকোয়েস্ট বাতিল হয়ে যাবে।
-            </p>
-          </div>
+          <p className="mt-5 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
+            অ্যাডমিন অনুমোদনের পরেই ব্যালেন্স যোগ হবে। ভুল আইডি দিলে রিকোয়েস্ট বাতিল হয়ে যাবে।
+          </p>
         </Modal>
       )}
     </div>

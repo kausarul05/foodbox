@@ -1,6 +1,7 @@
 'use client';
 
 import { bengaliDateTime } from '@/lib/format';
+import { useDialog } from '@/components/ui/DialogProvider';
 import React, { useState, useEffect } from 'react';
 import { Loader2, RefreshCw, CheckCircle, XCircle, Eye, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ interface Transaction {
 }
 
 export default function PendingTransactionsPage() {
+  const { promptText } = useDialog();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -58,8 +60,17 @@ export default function PendingTransactionsPage() {
   };
 
   const handleReject = async (id: string) => {
-    const reason = prompt('বাতিলের কারণ লিখুন:');
-    if (!reason) return;
+    const reason = await promptText({
+      title: 'ট্রানজেকশন বাতিল করবেন?',
+      message: 'গ্রাহক এই কারণটি দেখতে পাবেন, তাই স্পষ্ট করে লিখুন।',
+      label: 'বাতিলের কারণ',
+      placeholder: 'যেমন: এই ট্রানজেকশন আইডি পাওয়া যায়নি',
+      required: true,
+      confirmLabel: 'বাতিল করুন',
+      cancelLabel: 'ফিরে যান',
+      tone: 'danger',
+    });
+    if (reason === null) return;
     
     try {
       setProcessingId(id);

@@ -7,7 +7,21 @@ import User from '@/server/models/User';
 // POST /api/subscriptions — user requests a subscription (admin approves later)
 export const POST = handler(async (req: Request) => {
   const authUser = await requireUser(req);
-  const { package: packageType, paymentMethod, address, zone } = await body(req);
+  const {
+    package: packageType,
+    paymentMethod,
+    transactionId,
+    senderNumber,
+    address,
+    zone,
+  } = await body(req);
+
+  // A subscription request is a claim that money was sent, so it has to carry
+  // something the admin can check against their bKash/Nagad statement. Without
+  // this the request arrived with nothing to verify.
+  if (!transactionId || String(transactionId).trim().length < 6) {
+    return fail('ট্রানজেকশন আইডি দিন', 400);
+  }
 
   const user = await User.findById(authUser._id);
   if (!user) return fail('User not found', 404);
@@ -38,6 +52,8 @@ export const POST = handler(async (req: Request) => {
     startDate,
     endDate,
     paymentMethod,
+    transactionId: String(transactionId).trim(),
+    senderNumber: senderNumber ? String(senderNumber).trim() : undefined,
     address: address || user.address,
     zone: zone || user.zone,
   });

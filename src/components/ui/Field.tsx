@@ -13,7 +13,10 @@ import { bengaliDateNumeric } from '@/lib/format';
  */
 
 export const inputClass =
-  'w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-[15px] text-ink-900 ' +
+  // text-base (16px) on phones is deliberate: iOS Safari zooms the whole page
+  // when a focused input's font-size is under 16px, and the user then has to
+  // pinch back out after every field. 15px is fine from sm up.
+  'w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-base sm:text-[15px] text-ink-900 ' +
   'placeholder:text-ink-400 transition-colors ' +
   'focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500/25 ' +
   'disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-500';

@@ -194,7 +194,7 @@ export default function SettingsPage() {
                   type="text"
                   value={settings.siteName}
                   onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                 />
               </div>
 
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                   type="email"
                   value={settings.adminEmail}
                   onChange={(e) => setSettings({ ...settings, adminEmail: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                 />
               </div>
 
@@ -214,7 +214,7 @@ export default function SettingsPage() {
                   type="text"
                   value={settings.phoneNumber}
                   onChange={(e) => setSettings({ ...settings, phoneNumber: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                 />
               </div>
 
@@ -225,7 +225,7 @@ export default function SettingsPage() {
                     type="number"
                     value={settings.deliveryCharge}
                     onChange={(e) => setSettings({ ...settings, deliveryCharge: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                    className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                   />
                 </div>
                 <div>
@@ -234,7 +234,7 @@ export default function SettingsPage() {
                     type="number"
                     value={settings.minOrderAmount}
                     onChange={(e) => setSettings({ ...settings, minOrderAmount: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                    className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                   />
                 </div>
               </div>
@@ -305,7 +305,7 @@ export default function SettingsPage() {
                   value={passwordData.currentPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                   placeholder="বর্তমান পাসওয়ার্ড"
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                 />
               </div>
               <div>
@@ -315,7 +315,7 @@ export default function SettingsPage() {
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                   placeholder="নতুন পাসওয়ার্ড"
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                 />
               </div>
               <div>
@@ -325,7 +325,7 @@ export default function SettingsPage() {
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                   placeholder="কনফার্ম পাসওয়ার্ড"
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-ink-900 text-base sm:text-sm"
                 />
               </div>
               <button

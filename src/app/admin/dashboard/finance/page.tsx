@@ -2,6 +2,7 @@
 
 import { bengaliDateNumeric, taka } from '@/lib/format';
 import { DateInput } from '@/components/ui/Field';
+import { useDialog } from '@/components/ui/DialogProvider';
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
@@ -54,6 +55,7 @@ interface ManualOrder {
 }
 
 export default function FinancePage() {
+  const { confirm } = useDialog();
   const [activeTab, setActiveTab] = useState<'expenses' | 'manual-orders' | 'profit'>('profit');
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [manualOrders, setManualOrders] = useState<ManualOrder[]>([]);
@@ -153,16 +155,22 @@ export default function FinancePage() {
   };
 
   const handleDeleteExpense = async (id: string) => {
-    if (confirm('এই খরচটি ডিলিট করতে চান?')) {
-      try {
-        const response = await expenseAPI.deleteExpense(id);
-        if (response.success) {
-          toast.success('খরচ ডিলিট করা হয়েছে');
-          await fetchData();
-        }
-      } catch (error) {
-        toast.error('খরচ ডিলিট করতে ব্যর্থ হয়েছে');
+    const ok = await confirm({
+      title: 'খরচ ডিলিট করবেন?',
+      message: 'এই খরচটি হিসাব থেকে মুছে যাবে এবং লাভের হিসাব বদলে যাবে।',
+      confirmLabel: 'ডিলিট করুন',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      const response = await expenseAPI.deleteExpense(id);
+      if (response.success) {
+        toast.success('খরচ ডিলিট করা হয়েছে');
+        await fetchData();
       }
+    } catch {
+      toast.error('খরচ ডিলিট করতে ব্যর্থ হয়েছে');
     }
   };
 
@@ -599,7 +607,7 @@ export default function FinancePage() {
                       categoryName: cat?.label || '',
                     });
                   }}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                 >
                   {expenseCategories.map((cat) => (
                     <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
@@ -612,7 +620,7 @@ export default function FinancePage() {
                   type="number"
                   value={expenseForm.amount}
                   onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   placeholder="যেমন: 500"
                 />
               </div>
@@ -621,7 +629,7 @@ export default function FinancePage() {
                 <textarea
                   value={expenseForm.description}
                   onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   rows={3}
                   placeholder="বিস্তারিত বিবরণ লিখুন..."
                 />
@@ -700,7 +708,7 @@ export default function FinancePage() {
                   type="text"
                   value={orderForm.customerName}
                   onChange={(e) => setOrderForm({ ...orderForm, customerName: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   placeholder="গ্রাহকের নাম"
                 />
               </div>
@@ -712,7 +720,7 @@ export default function FinancePage() {
                   type="tel"
                   value={orderForm.phoneNumber}
                   onChange={(e) => setOrderForm({ ...orderForm, phoneNumber: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   placeholder="+8801XXXXXXXXX"
                 />
               </div>
@@ -723,7 +731,7 @@ export default function FinancePage() {
                 <select
                   value={orderForm.zone}
                   onChange={(e) => setOrderForm({ ...orderForm, zone: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                 >
                   <option value="">সিলেক্ট করুন</option>
                   {zones.map((zone) => (
@@ -738,7 +746,7 @@ export default function FinancePage() {
                 <textarea
                   value={orderForm.address}
                   onChange={(e) => setOrderForm({ ...orderForm, address: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   rows={2}
                   placeholder="বিস্তারিত ঠিকানা"
                 />
@@ -754,21 +762,21 @@ export default function FinancePage() {
                       value={item.name}
                       onChange={(e) => updateOrderItem(idx, 'name', e.target.value)}
                       placeholder="আইটেমের নাম"
-                      className="flex-1 px-3 py-2 border border-ink-300 rounded-lg text-ink-900"
+                      className="flex-1 px-3 py-2.5 border border-ink-300 rounded-lg text-ink-900 text-base sm:text-sm"
                     />
                     <input
                       type="number"
                       value={item.price}
                       onChange={(e) => updateOrderItem(idx, 'price', e.target.value)}
                       placeholder="দাম"
-                      className="w-24 px-3 py-2 border border-ink-300 rounded-lg text-ink-900"
+                      className="w-24 px-3 py-2.5 border border-ink-300 rounded-lg text-ink-900 text-base sm:text-sm"
                     />
                     <input
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateOrderItem(idx, 'quantity', e.target.value)}
                       placeholder="কত"
-                      className="w-20 px-3 py-2 border border-ink-300 rounded-lg text-ink-900"
+                      className="w-20 px-3 py-2.5 border border-ink-300 rounded-lg text-ink-900 text-base sm:text-sm"
                     />
                     {orderForm.items.length > 1 && (
                       <button
@@ -804,7 +812,7 @@ export default function FinancePage() {
                   <select
                     value={orderForm.deliveryTime}
                     onChange={(e) => setOrderForm({ ...orderForm, deliveryTime: e.target.value })}
-                    className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                    className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   >
                     {deliveryTimes.map((time) => (
                       <option key={time.value} value={time.value}>{time.icon} {time.label}</option>
@@ -829,7 +837,7 @@ export default function FinancePage() {
                 <textarea
                   value={orderForm.specialInstructions}
                   onChange={(e) => setOrderForm({ ...orderForm, specialInstructions: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
                   rows={2}
                   placeholder="কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
                 />

@@ -52,15 +52,20 @@ export default function Modal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[88vh] sm:rounded-3xl ${
+        className={`flex max-h-[92dvh] w-full animate-rise flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[88vh] sm:rounded-3xl ${
           wide ? 'sm:max-w-lg' : 'sm:max-w-md'
         }`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-5">
-          <div className="flex items-start gap-3">
+        {/* Grab handle — the usual signal that a sheet can be dismissed. */}
+        <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
+          <span className="h-1 w-10 rounded-full bg-ink-300" />
+        </div>
+
+        <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4 sm:px-6 sm:py-5">
+          <div className="flex min-w-0 items-start gap-3">
             {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
-            <div>
-              <h3 className="text-lg leading-tight font-bold text-ink-900">{title}</h3>
+            <div className="min-w-0">
+              <h3 className="text-lg leading-tight font-bold text-balance text-ink-900">{title}</h3>
               {description && <p className="mt-1 text-sm text-ink-500">{description}</p>}
             </div>
           </div>
@@ -69,15 +74,22 @@ export default function Modal({
             onClick={onClose}
             disabled={busy}
             aria-label="বন্ধ করুন"
-            className="grid size-8 shrink-0 place-items-center rounded-full text-ink-500 transition-colors hover:bg-ink-100 disabled:opacity-40"
+            // 44px: the minimum comfortable touch target on a phone.
+            className="-m-2 grid size-11 shrink-0 place-items-center rounded-full text-ink-500 transition-colors hover:bg-ink-100 disabled:opacity-40"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">{children}</div>
 
-        {footer && <div className="border-t border-ink-100 bg-white px-6 py-4">{footer}</div>}
+        {footer && (
+          // pb accounts for the home-indicator strip on modern phones, where a
+          // button flush to the bottom edge is hard to hit.
+          <div className="border-t border-ink-100 bg-white px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

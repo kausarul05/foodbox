@@ -2,6 +2,7 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from '../Common/Navbar';
 import Footer from '../Common/Footer';
 import NoticeBar from '../Common/NoticeBar';
+import DialogProvider from '@/components/ui/DialogProvider';
 
 /**
  * Chrome for the customer-facing site. The admin panel does not use this.
@@ -13,21 +14,23 @@ import NoticeBar from '../Common/NoticeBar';
  */
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-40">
-        <NoticeBar />
-        <Navbar />
-      </header>
+    <DialogProvider>
+      <div className="flex min-h-screen flex-col">
+        <header className="sticky top-0 z-40">
+          <NoticeBar />
+          <Navbar />
+        </header>
 
-      <main className="flex-1">{children}</main>
+        <main className="flex-1">{children}</main>
 
-      <Footer />
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          style: { background: '#1c1917', color: '#fff', borderRadius: '12px', fontSize: '14px' },
-        }}
-      />
-    </div>
+        <Footer />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: { background: '#1c1917', color: '#fff', borderRadius: '12px', fontSize: '14px' },
+          }}
+        />
+      </div>
+    </DialogProvider>
   );
 }

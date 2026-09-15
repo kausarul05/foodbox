@@ -173,7 +173,7 @@ export default function ZoneSelect({
                   value={newZoneName}
                   onChange={(e) => setNewZoneName(e.target.value)}
                   placeholder="যেমন: Uttara"
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
               </div>
               <div>
@@ -185,7 +185,7 @@ export default function ZoneSelect({
                   value={newZoneNameBn}
                   onChange={(e) => setNewZoneNameBn(e.target.value)}
                   placeholder="যেমন: উত্তরা"
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
               </div>
               <div>
@@ -197,7 +197,7 @@ export default function ZoneSelect({
                   value={newZoneDeliveryCharge}
                   onChange={(e) => setNewZoneDeliveryCharge(e.target.value)}
                   placeholder="ডেলিভারি চার্জ"
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                   min="0"
                 />
               </div>
