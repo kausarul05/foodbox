@@ -10,7 +10,6 @@ import {
   Settings,
   ShoppingBag,
   Users,
-  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -35,8 +34,9 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'অর্ডার',
     items: [
+      // Subscription, COD and manual orders are tabs inside this one screen —
+      // COD no longer has a page of its own.
       { name: 'অর্ডার লিস্ট', href: '/admin/dashboard/orders', icon: ShoppingBag },
-      { name: 'ক্যাশ অন ডেলিভারি', href: '/admin/dashboard/cod-orders', icon: Wallet },
       { name: 'মিল বন্ধের তারিখ', href: '/admin/dashboard/blocked-dates', icon: Ban },
     ],
   },

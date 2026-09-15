@@ -1,5 +1,6 @@
 'use client';
 
+import { bengaliDateNumeric } from '@/lib/format';
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, UserPlus, Mail, Phone, MapPin, Loader2, RefreshCw, Package as PackageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -151,7 +152,7 @@ export default function PendingSubscribersPage() {
                   <div>
                     <h3 className="font-bold text-lg">{sub.userName}</h3>
                     <p className="text-white/80 text-sm">
-                      রিকোয়েস্টেড: {new Date(sub.createdAt).toLocaleDateString('bn-BD')}
+                      রিকোয়েস্টেড: {bengaliDateNumeric(sub.createdAt)}
                     </p>
                   </div>
                   <div className="flex gap-2">

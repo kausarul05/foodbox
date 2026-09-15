@@ -1,5 +1,6 @@
 'use client';
 
+import { bengaliDateNumeric } from '@/lib/format';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, Trash2, Loader2, RefreshCw, X, AlertCircle } from 'lucide-react';
 import { blockedDateAPI } from '../../lib/api';
@@ -62,7 +63,7 @@ export default function BlockedDatesPage() {
   };
 
   const handleRemoveBlockedDate = async (id: string, date: string) => {
-    if (confirm(`"${new Date(date).toLocaleDateString('bn-BD')}" এই তারিখটি আনব্লক করতে চান?`)) {
+    if (confirm(`"${bengaliDateNumeric(date)}" এই তারিখটি আনব্লক করতে চান?`)) {
       try {
         const response = await blockedDateAPI.removeBlockedDate(id);
         if (response.success) {
@@ -138,7 +139,7 @@ export default function BlockedDatesPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar className="w-5 h-5 text-red-500" />
                     <span className="font-semibold text-ink-900">
-                      {new Date(item.date).toLocaleDateString('bn-BD')}
+                      {bengaliDateNumeric(item.date)}
                     </span>
                   </div>
                   <p className="text-sm text-ink-600 mt-1">{item.reason}</p>

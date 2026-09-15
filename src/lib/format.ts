@@ -80,10 +80,84 @@ const BN_MONTHS = [
   'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর',
 ];
 
+/**
+ * Splits a value into the day/month/year a Bangladeshi reader expects.
+ *
+ * Never use `toLocaleDateString('bn-BD')` for this. When the browser has no
+ * bn-BD locale data it silently falls back to the system locale, which on most
+ * machines prints month/day/year — so ৩রা ডিসেম্বর renders as ১২/৩, and dates
+ * appear scrambled for some visitors and not others.
+ *
+ * Delivery dates are stored as midnight UTC, i.e. a calendar date rather than
+ * an instant. Reading those with local getters shifts the day by one for any
+ * viewer west of UTC, so midnight-UTC values are read with UTC getters and
+ * everything else (createdAt and friends, which are real instants) with local
+ * ones.
+ */
+function parts(date: Date | string) {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return null;
+
+  const isCalendarDate =
+    d.getUTCHours() === 0 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0;
+
+  return isCalendarDate
+    ? { day: d.getUTCDate(), month: d.getUTCMonth(), year: d.getUTCFullYear() }
+    : { day: d.getDate(), month: d.getMonth(), year: d.getFullYear() };
+}
+
 /** "২ আগস্ট, ২০২৬" */
 export function bengaliDate(date: Date | string): string {
+  const p = parts(date);
+  if (!p) return '—';
+  return `${bn(p.day)} ${BN_MONTHS[p.month]}, ${bn(p.year)}`;
+}
+
+/** "০২/০৮/২০২৬" — always day/month/year, zero-padded. */
+export function bengaliDateNumeric(date: Date | string): string {
+  const p = parts(date);
+  if (!p) return '—';
+  const dd = String(p.day).padStart(2, '0');
+  const mm = String(p.month + 1).padStart(2, '0');
+  return `${bn(dd)}/${bn(mm)}/${bn(p.year)}`;
+}
+
+/** "২ আগস্ট, ২০২৬, ৮:৪১ PM" — for timestamps where the time matters. */
+export function bengaliDateTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return `${bn(d.getDate())} ${BN_MONTHS[d.getMonth()]}, ${bn(d.getFullYear())}`;
+  if (Number.isNaN(d.getTime())) return '—';
+  const hours24 = d.getHours();
+  const suffix = hours24 < 12 ? 'AM' : 'PM';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${bengaliDate(d)}, ${bn(hours12)}:${bn(minutes)} ${suffix}`;
+}
+
+/**
+ * The kitchen closes on the 2nd and last Friday of every month.
+ *
+ * Mirror of `isClosedFriday` in src/server/deadlines.ts, duplicated because
+ * client code must not import server code. The server still rejects these
+ * dates — this copy only lets the order form grey them out instead of letting
+ * someone fill in a whole week and fail at submit.
+ */
+export function isClosedFriday(date: Date): boolean {
+  if (date.getDay() !== 5) return false;
+
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const fridays: number[] = [];
+
+  for (let day = 1; day <= 31; day++) {
+    const d = new Date(year, month, day);
+    if (d.getMonth() !== month) break;
+    if (d.getDay() === 5) fridays.push(d.getDate());
+  }
+
+  return date.getDate() === fridays[1] || date.getDate() === fridays[fridays.length - 1];
 }
 
 /**

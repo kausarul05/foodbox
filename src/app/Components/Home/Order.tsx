@@ -25,7 +25,7 @@ import Button, { buttonClass } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
 import ZoneSelect from '@/components/ui/ZoneSelect';
-import { bengaliDate, bn, taka } from '@/lib/format';
+import { bengaliDate, bn, isClosedFriday, taka } from '@/lib/format';
 import { displayName, useHydrated, useSession } from '@/lib/useSession';
 
 /* -------------------------------------------------------------------------- */
@@ -107,6 +107,8 @@ export default function Order() {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<{ packageName?: string } | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  /** ISO date -> reason. Admin-blocked days the kitchen is shut. */
+  const [blockedDates, setBlockedDates] = useState<Map<string, string>>(new Map());
   const [walletBalance, setWalletBalance] = useState(0);
 
   /** The three global toggles at the top of the form. */
@@ -173,6 +175,30 @@ export default function Order() {
     };
   }, [hydrated, user]);
 
+  // Blocked dates are public and independent of the session, so they load on
+  // their own — the day list needs them before anything can be ticked.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await orderAPI.getBlockedDates();
+        if (cancelled || !res.success) return;
+        const map = new Map<string, string>();
+        for (const row of res.data ?? []) {
+          // Stored as midnight UTC, so read the calendar day in UTC.
+          const iso = new Date(row.date).toISOString().slice(0, 10);
+          map.set(iso, row.reason ?? '');
+        }
+        setBlockedDates(map);
+      } catch {
+        // Non-fatal: the server still rejects a blocked date at submit time.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /* ---------------------------------------------------------------------- */
   /* Derived data                                                           */
   /* ---------------------------------------------------------------------- */
@@ -191,15 +217,35 @@ export default function Order() {
     [menu]
   );
 
-  /** One entry per delivery date in the chosen range. */
-  const days = useMemo(() => {
-    const out: { date: string; dayName: string }[] = [];
+  /**
+   * Days in the range, split into orderable and closed.
+   *
+   * The kitchen is shut on admin-blocked dates and on the 2nd and last Friday
+   * of each month. The server has always rejected those, but the form used to
+   * let you tick a whole week of meals and only fail at submit — so closed days
+   * are now dropped from the orderable list and shown separately with a reason.
+   */
+  const { days, closedDays } = useMemo(() => {
+    const open: { date: string; dayName: string }[] = [];
+    const closed: { date: string; dayName: string; reason: string }[] = [];
     const end = fromISODate(range.end);
+
     for (let cursor = fromISODate(range.start); cursor <= end; cursor = addDays(cursor, 1)) {
-      out.push({ date: toISODate(cursor), dayName: WEEKDAYS[cursor.getDay()] });
+      const date = toISODate(cursor);
+      const dayName = WEEKDAYS[cursor.getDay()];
+      const blockedReason = blockedDates.get(date);
+
+      if (blockedReason !== undefined) {
+        closed.push({ date, dayName, reason: blockedReason || 'অনিবার্য কারণে মিল বন্ধ' });
+      } else if (isClosedFriday(cursor)) {
+        closed.push({ date, dayName, reason: 'মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ' });
+      } else {
+        open.push({ date, dayName });
+      }
     }
-    return out;
-  }, [range]);
+
+    return { days: open, closedDays: closed };
+  }, [range, blockedDates]);
 
   const selfMealsFor = useCallback(
     (date: string) => selfOverrides[date] ?? defaultMeals,
@@ -544,6 +590,25 @@ export default function Order() {
               <p className="mt-3 text-xs text-ink-500">
                 {bn(days.length)} দিনের খাবার নির্বাচন করা হয়েছে।
               </p>
+
+              {closedDays.length > 0 && (
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                    <AlertCircle size={15} className="shrink-0" />
+                    {bn(closedDays.length)} দিন রান্নাঘর বন্ধ — অর্ডার নেওয়া যাবে না
+                  </p>
+                  <ul className="mt-2.5 space-y-1.5">
+                    {closedDays.map((day) => (
+                      <li key={day.date} className="flex flex-wrap gap-x-2 text-xs text-amber-900/90">
+                        <span className="font-medium">
+                          {day.dayName}, {bengaliDate(day.date)}
+                        </span>
+                        <span className="text-amber-800/70">— {day.reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </section>
 
             {/* Per-day list */}
@@ -553,7 +618,9 @@ export default function Order() {
 
               {days.length === 0 ? (
                 <p className="mt-6 rounded-2xl bg-ink-50 p-6 text-center text-sm text-ink-500">
-                  তারিখ নির্বাচন করুন।
+                  {closedDays.length > 0
+                    ? 'এই তারিখগুলোর সবদিনই রান্নাঘর বন্ধ। অন্য তারিখ বেছে নিন।'
+                    : 'তারিখ নির্বাচন করুন।'}
                 </p>
               ) : (
                 <ul className="mt-4 space-y-2.5">

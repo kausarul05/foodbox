@@ -1,5 +1,6 @@
 'use client';
 
+import { bengaliDateTime } from '@/lib/format';
 import React, { useState, useEffect } from 'react';
 import { Loader2, RefreshCw, CheckCircle, XCircle, Eye, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -114,7 +115,7 @@ export default function PendingTransactionsPage() {
                   <p className="font-semibold text-ink-900">{tx.userName}</p>
                   <p className="text-2xl font-bold text-brand-600">৳ {tx.amount}</p>
                   <p className="text-sm text-ink-500 mt-1">ট্রানজেকশন আইডি: {tx.transactionId}</p>
-                  <p className="text-xs text-ink-400 mt-1">{new Date(tx.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-ink-400 mt-1">{bengaliDateTime(tx.createdAt)}</p>
                 </div>
                 <div className="flex gap-2">
                   <button

@@ -1,5 +1,6 @@
 'use client';
 
+import { bengaliDateNumeric, bengaliDateTime } from '@/lib/format';
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
@@ -289,7 +290,7 @@ export default function SubscribersPage() {
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar size={14} className="text-ink-400" />
                   <span className="text-ink-700">
-                    {new Date(sub.startDate).toLocaleDateString('bn-BD')} - {new Date(sub.endDate).toLocaleDateString('bn-BD')}
+                    {bengaliDateNumeric(sub.startDate)} - {bengaliDateNumeric(sub.endDate)}
                   </span>
                 </div>
 
@@ -422,26 +423,26 @@ export default function SubscribersPage() {
                   <div>
                     <p className="text-xs text-ink-500">রিকোয়েস্টের তারিখ</p>
                     <p className="text-sm font-medium">
-                      {selectedSubscriber.createdAt ? new Date(selectedSubscriber.createdAt).toLocaleString('bn-BD') : 'N/A'}
+                      {selectedSubscriber.createdAt ? bengaliDateTime(selectedSubscriber.createdAt) : 'N/A'}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-ink-500">শুরুর তারিখ</p>
                     <p className="text-sm font-medium">
-                      {new Date(selectedSubscriber.startDate).toLocaleDateString('bn-BD')}
+                      {bengaliDateNumeric(selectedSubscriber.startDate)}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-ink-500">শেষ তারিখ</p>
                     <p className="text-sm font-medium">
-                      {new Date(selectedSubscriber.endDate).toLocaleDateString('bn-BD')}
+                      {bengaliDateNumeric(selectedSubscriber.endDate)}
                     </p>
                   </div>
                   {selectedSubscriber.approvedAt && (
                     <div>
                       <p className="text-xs text-ink-500">অনুমোদনের তারিখ</p>
                       <p className="text-sm font-medium">
-                        {new Date(selectedSubscriber.approvedAt).toLocaleString('bn-BD')}
+                        {bengaliDateTime(selectedSubscriber.approvedAt)}
                       </p>
                     </div>
                   )}

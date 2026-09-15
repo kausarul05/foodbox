@@ -97,6 +97,10 @@ export const orderAPI = {
     post('/orders/check-deadline', { deliveryDate, deliveryTime }),
 
   checkDateBlocked: (date: string) => post('/blocked-dates/check', { date }),
+
+  /** Every admin-blocked date, so the order form can rule them out up front
+   *  instead of failing at submit. */
+  getBlockedDates: () => apiCall('/blocked-dates'),
 };
 
 export const subscriptionAPI = {

@@ -17,7 +17,7 @@ import CtaBand from '@/app/Components/Home/CtaBand';
  * show the menu, and hand off.
  *
  * Order of sections follows the visitor's questions:
- *   what is this → how does it work → what will I eat → what does it cost →
+ *   what is this → what will I eat → how does it work → what does it cost →
  *   why you → when & where we deliver → loose ends → act
  */
 /*
@@ -29,8 +29,8 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <HowItWorks />
       <WeeklyMenu />
+      <HowItWorks />
       <Packages />
       <Features />
       <DeliveryInfo />

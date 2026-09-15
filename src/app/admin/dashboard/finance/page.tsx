@@ -1,5 +1,6 @@
 'use client';
 
+import { bengaliDateNumeric, taka } from '@/lib/format';
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
@@ -356,7 +357,7 @@ export default function FinancePage() {
                 </div>
                 <p className="text-sm text-ink-500">মোট রেভিনিউ</p>
               </div>
-              <p className="text-3xl font-bold text-green-600">৳ {profitStats.totalRevenue?.toLocaleString() || 0}</p>
+              <p className="text-3xl font-bold text-green-600">{taka(profitStats.totalRevenue ?? 0)}</p>
             </div>
             <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
@@ -365,7 +366,7 @@ export default function FinancePage() {
                 </div>
                 <p className="text-sm text-ink-500">মোট খরচ</p>
               </div>
-              <p className="text-3xl font-bold text-red-600">৳ {profitStats.totalExpense?.toLocaleString() || 0}</p>
+              <p className="text-3xl font-bold text-red-600">{taka(profitStats.totalExpense ?? 0)}</p>
             </div>
             <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
@@ -374,7 +375,7 @@ export default function FinancePage() {
                 </div>
                 <p className="text-sm text-ink-500">নিট মুনাফা</p>
               </div>
-              <p className="text-3xl font-bold text-blue-600">৳ {profitStats.profit?.toLocaleString() || 0}</p>
+              <p className="text-3xl font-bold text-blue-600">{taka(profitStats.profit ?? 0)}</p>
             </div>
             <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
@@ -397,12 +398,12 @@ export default function FinancePage() {
                     <span className="text-xl">{cat.icon}</span>
                     <span className="font-medium text-ink-700">{cat.label}</span>
                   </div>
-                  <span className="font-semibold text-ink-900">৳ {profitStats.expenseBreakdown?.[cat.value]?.toLocaleString() || 0}</span>
+                  <span className="font-semibold text-ink-900">{taka(profitStats.expenseBreakdown?.[cat.value] ?? 0)}</span>
                 </div>
               ))}
               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg font-bold">
                 <span className="text-ink-900">মোট খরচ</span>
-                <span className="text-red-600">৳ {profitStats.totalExpense?.toLocaleString() || 0}</span>
+                <span className="text-red-600">{taka(profitStats.totalExpense ?? 0)}</span>
               </div>
             </div>
           </div>
@@ -430,7 +431,7 @@ export default function FinancePage() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-xl font-bold text-ink-900">খরচের তালিকা</h2>
-              <p className="text-ink-500">মোট খরচ: ৳ {calculateTotalExpense().toLocaleString()}</p>
+              <p className="text-ink-500">মোট খরচ: {taka(calculateTotalExpense())}</p>
             </div>
             <button
               onClick={() => setShowExpenseModal(true)}
@@ -452,11 +453,11 @@ export default function FinancePage() {
                       <div>
                         <p className="font-semibold text-ink-900">{expense.categoryName}</p>
                         <p className="text-sm text-ink-500">{expense.description || 'কোন বিবরণ নেই'}</p>
-                        <p className="text-xs text-ink-400 mt-1">{new Date(expense.date).toLocaleDateString('bn-BD')}</p>
+                        <p className="text-xs text-ink-400 mt-1">{bengaliDateNumeric(expense.date)}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-red-600">৳ {expense.amount.toLocaleString()}</p>
+                      <p className="text-xl font-bold text-red-600">{taka(expense.amount)}</p>
                       <button
                         onClick={() => handleDeleteExpense(expense._id)}
                         className="mt-2 text-red-500 hover:text-red-700"
