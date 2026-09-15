@@ -2,6 +2,7 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from '../Common/Navbar';
 import Footer from '../Common/Footer';
 import NoticeBar from '../Common/NoticeBar';
+import MobileTabBar from '../Common/MobileTabBar';
 import DialogProvider from '@/components/ui/DialogProvider';
 
 /**
@@ -21,9 +22,11 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           <Navbar />
         </header>
 
-        <main className="flex-1">{children}</main>
+        {/* pb clears the phone tab bar so the footer is never trapped behind it. */}
+        <main className="flex-1 pb-[4.5rem] lg:pb-0">{children}</main>
 
         <Footer />
+        <MobileTabBar />
         <Toaster
           position="top-center"
           toastOptions={{

@@ -29,20 +29,11 @@ export const POST = handler(async (req: Request) => {
   const packageData = await Package.findOne({ name: packageType });
   if (!packageData) return fail('Package not found', 404);
 
-  const existing = await Subscription.findOne({
-    userId: authUser._id,
-    status: { $in: ['pending', 'active'] },
-  });
-  if (existing) {
-    return fail('You already have an active or pending subscription', 400);
-  }
-
   const startDate = new Date();
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + packageData.duration);
 
-  const subscription = await Subscription.create({
-    userId: authUser._id,
+  const details = {
     userName: user.fullName,
     phoneNumber: user.phoneNumber,
     email: user.email,
@@ -56,8 +47,37 @@ export const POST = handler(async (req: Request) => {
     senderNumber: senderNumber ? String(senderNumber).trim() : undefined,
     address: address || user.address,
     zone: zone || user.zone,
-  });
+  };
 
+  /**
+   * One subscription document per customer, for their whole lifetime.
+   *
+   * This used to insert a new document on every request, and only blocked
+   * while an existing one was pending or active. So a customer who was
+   * rejected and asked again ended up with two rows, three rows, more — and
+   * the admin subscriber list showed the same account once per attempt.
+   * A re-request now reopens the existing record instead.
+   */
+  const existing = await Subscription.findOne({ userId: authUser._id });
+
+  if (existing) {
+    if (existing.status === 'pending' || existing.status === 'active') {
+      return fail('আপনার একটি সাবস্ক্রিপশন রিকোয়েস্ট ইতিমধ্যে চালু আছে', 400);
+    }
+
+    existing.set({
+      ...details,
+      status: 'pending',
+      paymentStatus: 'pending',
+      // A fresh attempt starts clean — the previous rejection does not apply.
+      cancellationReason: undefined,
+      cancelledBy: undefined,
+    });
+    const reopened = await existing.save();
+    return ok({ data: reopened });
+  }
+
+  const subscription = await Subscription.create({ userId: authUser._id, ...details });
   return ok({ data: subscription }, 201);
 });
 
@@ -74,5 +94,24 @@ export const GET = handler(async (req: Request) => {
   if (packageType) query.package = packageType;
 
   const subscriptions = await Subscription.find(query).sort({ createdAt: -1 });
-  return ok({ count: subscriptions.length, data: subscriptions });
+
+  /**
+   * One row per customer — the newest.
+   *
+   * New requests reuse a customer's existing document (see POST), but accounts
+   * that asked more than once before that change still have several rows, and
+   * the admin list showed the same person once per attempt. Collapsing here
+   * fixes the display without deleting anyone's history.
+   */
+  const latestPerUser = new Map<string, (typeof subscriptions)[number]>();
+  for (const sub of subscriptions) {
+    const key = String(sub.userId);
+    const seen = latestPerUser.get(key);
+    if (!seen || new Date(sub.createdAt) > new Date(seen.createdAt)) {
+      latestPerUser.set(key, sub);
+    }
+  }
+
+  const data = [...latestPerUser.values()];
+  return ok({ count: data.length, data });
 });
