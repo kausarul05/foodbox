@@ -1,6 +1,7 @@
 import { requireUser } from '@/server/auth';
 import { checkDeliveryDeadline } from '@/server/deadlines';
 import { body, handler, ok } from '@/server/http';
+import { bengaliDateNumeric, bengaliTime } from '@/lib/format';
 
 // POST /api/orders/check-deadline — user
 export const POST = handler(async (req: Request) => {
@@ -14,8 +15,11 @@ export const POST = handler(async (req: Request) => {
   return ok({
     data: {
       ...result,
-      currentTime: now.toLocaleTimeString('bn-BD'),
-      deliveryDate: orderDate.toLocaleDateString('bn-BD'),
+      // Formatted explicitly rather than with toLocale*: the server's ICU data
+      // decides that, so the same response could come back day/month/year on
+      // one host and month/day/year on another.
+      currentTime: bengaliTime(now),
+      deliveryDate: bengaliDateNumeric(orderDate),
       deliveryTime,
     },
   });

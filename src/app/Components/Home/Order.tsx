@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import Link from 'next/link';
 import {
   AlertCircle,
-  Calendar,
   CheckCircle2,
   ChevronDown,
   Coffee,
@@ -22,7 +21,7 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { menuAPI, orderAPI, subscriptionAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
-import { Field, Input, Textarea } from '@/components/ui/Field';
+import { DateInput, Field, Input, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
 import ZoneSelect from '@/components/ui/ZoneSelect';
 import { bengaliDate, bn, isClosedFriday, taka } from '@/lib/format';
@@ -562,28 +561,21 @@ export default function Order() {
               <h2 className="text-base font-bold text-ink-900">কোন দিনগুলোর জন্য?</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field label="শুরুর তারিখ" htmlFor="startDate" required>
-                  <Input
+                  <DateInput
                     id="startDate"
-                    icon={Calendar}
-                    type="date"
                     value={range.start}
                     min={toISODate(new Date())}
-                    onChange={(e) =>
-                      setRange((prev) => ({
-                        start: e.target.value,
-                        end: prev.end < e.target.value ? e.target.value : prev.end,
-                      }))
+                    onChange={(start) =>
+                      setRange((prev) => ({ start, end: prev.end < start ? start : prev.end }))
                     }
                   />
                 </Field>
                 <Field label="শেষ তারিখ" htmlFor="endDate" required>
-                  <Input
+                  <DateInput
                     id="endDate"
-                    icon={Calendar}
-                    type="date"
                     value={range.end}
                     min={range.start}
-                    onChange={(e) => setRange((prev) => ({ ...prev, end: e.target.value }))}
+                    onChange={(end) => setRange((prev) => ({ ...prev, end }))}
                   />
                 </Field>
               </div>

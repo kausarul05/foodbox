@@ -1,6 +1,7 @@
 'use client';
 
 import { bengaliDateNumeric } from '@/lib/format';
+import { DateInput } from '@/components/ui/Field';
 import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, Trash2, Loader2, RefreshCw, X, AlertCircle } from 'lucide-react';
 import { blockedDateAPI } from '../../lib/api';
@@ -169,12 +170,10 @@ export default function BlockedDatesPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-ink-700 mb-1">তারিখ নির্বাচন করুন</label>
-                <input
-                  type="date"
+                <DateInput
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={setSelectedDate}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
                 />
               </div>
               <div>

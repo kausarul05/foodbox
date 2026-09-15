@@ -170,3 +170,13 @@ export const MEAL_SLOTS = [
   { key: 'lunch', label: 'দুপুরের খাবার', window: 'দুপুর ১২টা – ২টা', cutoff: 'একই দিন সকাল ৮:৩০' },
   { key: 'dinner', label: 'রাতের খাবার', window: 'রাত ৮টা – ১০টা', cutoff: 'একই দিন দুপুর ১টা' },
 ] as const;
+
+/** "৮:৪১ PM" — clock only, for cut-off messages. */
+export function bengaliTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '—';
+  const h24 = d.getHours();
+  const suffix = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${bn(h12)}:${bn(String(d.getMinutes()).padStart(2, '0'))} ${suffix}`;
+}

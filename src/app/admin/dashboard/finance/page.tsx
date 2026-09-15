@@ -1,6 +1,7 @@
 'use client';
 
 import { bengaliDateNumeric, taka } from '@/lib/format';
+import { DateInput } from '@/components/ui/Field';
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
@@ -319,20 +320,16 @@ export default function FinancePage() {
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div>
             <label className="block text-sm text-ink-600 mb-1">শুরু তারিখ</label>
-            <input
-              type="date"
+            <DateInput
               value={dateRange.startDate}
-              onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-              className="px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+              onChange={(startDate) => setDateRange({ ...dateRange, startDate })}
             />
           </div>
           <div>
             <label className="block text-sm text-ink-600 mb-1">শেষ তারিখ</label>
-            <input
-              type="date"
+            <DateInput
               value={dateRange.endDate}
-              onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-              className="px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+              onChange={(endDate) => setDateRange({ ...dateRange, endDate })}
             />
           </div>
           <button
@@ -631,11 +628,9 @@ export default function FinancePage() {
               </div>
               <div>
                 <label className="block text-ink-700 mb-1">তারিখ</label>
-                <input
-                  type="date"
+                <DateInput
                   value={expenseForm.date}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                  className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                  onChange={(date) => setExpenseForm({ ...expenseForm, date })}
                 />
               </div>
               <button
@@ -799,11 +794,9 @@ export default function FinancePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-ink-700 mb-1">ডেলিভারির তারিখ</label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={orderForm.deliveryDate}
-                    onChange={(e) => setOrderForm({ ...orderForm, deliveryDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-ink-300 rounded-lg text-ink-900"
+                    onChange={(deliveryDate) => setOrderForm({ ...orderForm, deliveryDate })}
                   />
                 </div>
                 <div>

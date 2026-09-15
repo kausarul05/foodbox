@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
-import { ChevronDown, Eye, EyeOff, type LucideIcon } from 'lucide-react';
+import { useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { CalendarDays, ChevronDown, Eye, EyeOff, type LucideIcon } from 'lucide-react';
+import { bengaliDateNumeric } from '@/lib/format';
 
 /**
  * Form primitives.
@@ -123,6 +124,84 @@ export function PasswordInput({
       >
         {visible ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Date field that always reads দিন/মাস/বছর.
+ *
+ * `<input type="date">` renders its text using the BROWSER's locale, not the
+ * page's — on a machine set to US English it shows mm/dd/yyyy no matter what
+ * the site does. That is why dates looked scrambled even after every
+ * `toLocaleDateString` call was replaced: this widget was never ours to format.
+ *
+ * The native input is kept (so the OS date picker, keyboard entry and mobile
+ * wheel all still work) but made transparent and laid over our own text, which
+ * is formatted with the same helper the rest of the site uses.
+ */
+export function DateInput({
+  value,
+  onChange,
+  id,
+  min,
+  max,
+  required,
+  disabled,
+  className = '',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  id?: string;
+  min?: string;
+  max?: string;
+  required?: boolean;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+
+  /** Opens the OS picker from anywhere in the field, not just the tiny icon. */
+  const openPicker = () => {
+    const el = ref.current;
+    if (!el || disabled) return;
+    try {
+      // Chrome/Edge/Safari 16+. Older browsers fall back to focus alone.
+      el.showPicker?.();
+    } catch {
+      el.focus();
+    }
+  };
+
+  return (
+    <div
+      className={`relative ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${className}`}
+      onClick={openPicker}
+    >
+      <input
+        ref={ref}
+        id={id}
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        required={required}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        // Transparent but still focusable, clickable and keyboard-operable.
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+      />
+      <div
+        aria-hidden
+        className={`${inputClass} pointer-events-none flex items-center gap-2.5 ${
+          disabled ? 'bg-ink-50 text-ink-500' : ''
+        }`}
+      >
+        <CalendarDays size={18} className="shrink-0 text-ink-400" />
+        <span className={value ? 'text-ink-900' : 'text-ink-400'}>
+          {value ? bengaliDateNumeric(value) : 'দিন/মাস/বছর'}
+        </span>
+      </div>
     </div>
   );
 }
