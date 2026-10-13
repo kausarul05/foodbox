@@ -6,7 +6,8 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Coffee,
   MapPin,
@@ -25,7 +26,7 @@ import Button, { buttonClass } from '@/components/ui/Button';
 import { Select, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
 import { useDialog } from '@/components/ui/DialogProvider';
-import { bengaliDate, bn, taka, zoneLabel } from '@/lib/format';
+import { bengaliDate, bengaliWeekday, bn, taka, zoneLabel } from '@/lib/format';
 
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
 
@@ -49,6 +50,7 @@ const STATUS = {
   out_for_delivery: { label: 'ডেলিভারিতে', icon: Truck, className: 'bg-indigo-100 text-indigo-800' },
   delivered: { label: 'ডেলিভারি হয়েছে', icon: CheckCircle2, className: 'bg-leaf-100 text-leaf-700' },
   cancelled: { label: 'বাতিল', icon: XCircle, className: 'bg-red-100 text-red-700' },
+  returned: { label: 'ফেরত এসেছে', icon: XCircle, className: 'bg-ink-100 text-ink-700' },
 } as const;
 
 const MEALS = {
@@ -66,9 +68,6 @@ const STATUS_OPTIONS = [{ value: 'all', label: 'সব স্ট্যাটা�
   Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label }))
 );
 
-const MEAL_OPTIONS = [{ value: 'all', label: 'সব বেলা' }].concat(
-  Object.entries(MEALS).map(([value, m]) => ({ value, label: m.label }))
-);
 
 function statusOf(status: string) {
   return STATUS[status as keyof typeof STATUS] ?? STATUS.pending;
@@ -87,6 +86,17 @@ function mealOf(time: string) {
 function dayKey(value: string) {
   const d = new Date(value);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Local calendar-day helpers for the date bar. */
+function keyToDate(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function shiftKey(key: string, days: number) {
+  const d = keyToDate(key);
+  d.setDate(d.getDate() + days);
+  return dayKey(d.toISOString());
 }
 
 function startOfToday() {
@@ -151,10 +161,11 @@ export default function OrdersPage() {
   const [selected, setSelected] = useState<Order | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [mealFilter, setMealFilter] = useState('all');
+  const [mealFilter, setMealFilter] = useState<'all' | MealKey>('all');
   const [search, setSearch] = useState('');
-  /** Explicit open/closed overrides; anything not listed follows the default. */
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const todayKey = useMemo(() => dayKey(new Date().toISOString()), []);
+  /** The day being looked at — today when the page opens. */
+  const [day, setDay] = useState(todayKey);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -198,48 +209,48 @@ export default function OrdersPage() {
   /** Orders written before zones were normalised may hold a plain name. */
   const zoneOf = (value: string) => zoneNames[value] ?? (OBJECT_ID.test(value) ? '' : value);
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return orders.filter((order) => {
-      if (statusFilter !== 'all' && order.status !== statusFilter) return false;
-      if (mealFilter !== 'all' && order.deliveryTime !== mealFilter) return false;
-      if (!term) return true;
-      return (
-        order.orderId?.toLowerCase().includes(term) ||
-        order.items?.some((item) => item.name.toLowerCase().includes(term))
-      );
-    });
-  }, [orders, statusFilter, mealFilter, search]);
+  /** Every order on the chosen day, whatever the filters say. */
+  const dayOrders = useMemo(() => orders.filter((o) => dayKey(o.deliveryDate) === day), [orders, day]);
 
-  /**
-   * [isoDate, { byMeal, count }] pairs, newest first — the sort above already
-   * ordered them.
-   *
-   * Each date is split into সকাল / দুপুর / রাত rather than one flat list. A day
-   * with all three meals used to be three near-identical rows you had to read
-   * the small meal line on to tell apart; now the day's shape is visible from
-   * the header and each meal is its own block.
-   */
-  const grouped = useMemo(() => {
-    const map = new Map<string, Record<MealKey, Order[]>>();
-    for (const order of filtered) {
-      const key = dayKey(order.deliveryDate);
-      let bucket = map.get(key);
-      if (!bucket) {
-        bucket = { morning: [], lunch: [], dinner: [] };
-        map.set(key, bucket);
-      }
+  /** Live (not cancelled) orders per day, for the counts on the date strip. */
+  const perDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const o of orders) {
+      if (o.status === 'cancelled') continue;
+      const k = dayKey(o.deliveryDate);
+      map.set(k, (map.get(k) ?? 0) + 1);
+    }
+    return map;
+  }, [orders]);
+
+  /** Yesterday to five days on. */
+  const strip = useMemo(() => Array.from({ length: 7 }, (_, i) => shiftKey(todayKey, i - 1)), [todayKey]);
+
+  /** The first later day that has a live order — offered when the chosen day is empty. */
+  const nextDay = useMemo(() => [...perDay.keys()].filter((k) => k > day).sort()[0] ?? null, [perDay, day]);
+
+  /** The chosen day's orders, filtered, split into সকাল / দুপুর / রাত. */
+  const byMeal = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const out: Record<MealKey, Order[]> = { morning: [], lunch: [], dinner: [] };
+    for (const order of dayOrders) {
+      if (statusFilter !== 'all' && order.status !== statusFilter) continue;
       // Anything with an unrecognised slot is counted as lunch, matching mealOf.
       const meal: MealKey = order.deliveryTime in MEALS ? (order.deliveryTime as MealKey) : 'lunch';
-      bucket[meal].push(order);
+      if (mealFilter !== 'all' && meal !== mealFilter) continue;
+      if (
+        term &&
+        !order.orderId?.toLowerCase().includes(term) &&
+        !order.items?.some((item) => item.name.toLowerCase().includes(term))
+      ) {
+        continue;
+      }
+      out[meal].push(order);
     }
+    return out;
+  }, [dayOrders, statusFilter, mealFilter, search]);
 
-    return [...map.entries()].map(([isoDate, byMeal]) => ({
-      isoDate,
-      byMeal,
-      all: MEAL_ORDER.flatMap((meal) => byMeal[meal]),
-    }));
-  }, [filtered]);
+  const visibleCount = MEAL_ORDER.reduce((n, m) => n + byMeal[m].length, 0);
 
   /**
    * "মোট অর্ডার" counts live orders only.
@@ -254,15 +265,12 @@ export default function OrdersPage() {
     return {
       total: orders.length - cancelled,
       upcoming: orders.filter(
-        (o) => new Date(o.deliveryDate) >= today && o.status !== 'cancelled' && o.status !== 'delivered'
+        (o) => new Date(o.deliveryDate) >= today && !['cancelled', 'delivered', 'returned'].includes(o.status)
       ).length,
       delivered: orders.filter((o) => o.status === 'delivered').length,
       cancelled,
     };
   }, [orders]);
-
-  /** Today and later start open; older dates start collapsed. */
-  const isOpen = (isoDate: string) => toggled[isoDate] ?? new Date(isoDate) >= startOfToday();
 
   const openCancel = (order: Order) => {
     const { canCancel, message } = cancellability(order);
@@ -369,8 +377,122 @@ export default function OrdersPage() {
         </div>
       ) : (
         <>
-          {/* Filters */}
-          <div className="grid gap-3 rounded-3xl border border-ink-200 bg-white p-4 shadow-card sm:grid-cols-[1fr_auto_auto]">
+          {/* ── Date ─────────────────────────────────────────────────────── */}
+          <section className="rounded-3xl border border-ink-200 bg-white p-4 shadow-card sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDay((d) => shiftKey(d, -1))}
+                  aria-label="আগের দিন"
+                  className="grid size-10 place-items-center rounded-xl border border-ink-200 text-ink-600 hover:bg-ink-50"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <div className="min-w-0 px-1">
+                  <p className="text-xs font-medium text-ink-500">
+                    {day === todayKey ? 'আজ' : day === shiftKey(todayKey, 1) ? 'আগামীকাল' : 'তারিখ'}
+                  </p>
+                  <h2 className="text-lg font-bold text-ink-900">
+                    {bengaliWeekday(keyToDate(day))}, {bengaliDate(day)}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDay((d) => shiftKey(d, 1))}
+                  aria-label="পরের দিন"
+                  className="grid size-10 place-items-center rounded-xl border border-ink-200 text-ink-600 hover:bg-ink-50"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {day !== todayKey && (
+                  <button
+                    type="button"
+                    onClick={() => setDay(todayKey)}
+                    className="rounded-xl border border-ink-200 px-3.5 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
+                  >
+                    আজকে যান
+                  </button>
+                )}
+                <label className="relative flex cursor-pointer items-center gap-2 rounded-xl border border-ink-200 px-3.5 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50">
+                  <CalendarDays size={16} className="text-brand-600" />
+                  তারিখ বাছুন
+                  <input
+                    type="date"
+                    value={day}
+                    onChange={(e) => e.target.value && setDay(e.target.value)}
+                    aria-label="তারিখ বাছুন"
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* A week at a glance, with how many meals each day holds. */}
+            <div className="no-scrollbar mt-4 -mx-1 flex gap-2 overflow-x-auto px-1">
+              {strip.map((k) => {
+                const active = k === day;
+                const count = perDay.get(k) ?? 0;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setDay(k)}
+                    aria-pressed={active}
+                    className={`flex min-w-[4.25rem] shrink-0 flex-col items-center rounded-xl border px-3 py-2 transition-colors ${
+                      active
+                        ? 'border-brand-600 bg-brand-600 text-white'
+                        : 'border-ink-200 text-ink-700 hover:border-brand-300 hover:bg-brand-50'
+                    }`}
+                  >
+                    <span className={`text-[11px] ${active ? 'text-white/80' : 'text-ink-500'}`}>
+                      {k === todayKey ? 'আজ' : bengaliWeekday(keyToDate(k))}
+                    </span>
+                    <span className="text-base font-bold">{bn(keyToDate(k).getDate())}</span>
+                    <span
+                      className={`text-[11px] ${active ? 'text-white/90' : count ? 'text-brand-700' : 'text-ink-400'}`}
+                    >
+                      {count ? `${bn(count)}টি` : '—'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* The day's three meals at a glance — tap one to show only it. */}
+            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-ink-100 pt-4">
+              {MEAL_ORDER.map((meal) => {
+                const live = dayOrders.filter((o) => o.deliveryTime === meal && o.status !== 'cancelled').length;
+                const { short, icon: MealIcon, tint } = MEALS[meal];
+                const active = mealFilter === meal;
+                return (
+                  <button
+                    key={meal}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setMealFilter(active ? 'all' : meal)}
+                    className={`rounded-2xl border px-3 py-2.5 text-center transition-colors ${
+                      active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-ink-50 hover:bg-ink-100'
+                    }`}
+                  >
+                    <span className="flex items-center justify-center gap-1.5 text-xs text-ink-600">
+                      <MealIcon size={14} className={live ? tint : 'text-ink-300'} />
+                      {short}
+                    </span>
+                    <span className={`mt-0.5 block text-xl font-bold ${live ? 'text-ink-900' : 'text-ink-300'}`}>
+                      {bn(live)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* ── Filters ──────────────────────────────────────────────────── */}
+          <div className="grid gap-3 rounded-3xl border border-ink-200 bg-white p-4 shadow-card sm:grid-cols-[1fr_auto]">
             <div className="relative">
               <Search size={17} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-400" />
               <input
@@ -394,161 +516,111 @@ export default function OrdersPage() {
                 </option>
               ))}
             </Select>
-            <Select
-              value={mealFilter}
-              onChange={(e) => setMealFilter(e.target.value)}
-              aria-label="বেলা ফিল্টার"
-              className="py-2.5 text-sm"
-            >
-              {MEAL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
           </div>
 
-          {grouped.length === 0 ? (
-            <div className="rounded-3xl border border-ink-200 bg-white p-12 text-center shadow-card">
-              <p className="font-semibold text-ink-800">এই ফিল্টারে কোনো অর্ডার নেই</p>
-              <p className="mt-1 text-sm text-ink-500">অন্য স্ট্যাটাস বা বেলা বেছে দেখুন।</p>
+          {/* ── The day's orders ─────────────────────────────────────────── */}
+          {visibleCount === 0 ? (
+            <div className="rounded-3xl border border-ink-200 bg-white p-10 text-center shadow-card">
+              <div className="mx-auto grid size-14 place-items-center rounded-full bg-ink-100 text-ink-400">
+                <ShoppingBag size={24} />
+              </div>
+              <p className="mt-4 font-semibold text-ink-800">
+                {dayOrders.length === 0 ? 'এই দিনে কোনো অর্ডার নেই' : 'এই ফিল্টারে কোনো অর্ডার নেই'}
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {nextDay && (
+                  <button
+                    type="button"
+                    onClick={() => setDay(nextDay)}
+                    className={buttonClass('secondary', 'md')}
+                  >
+                    পরের অর্ডার: {bengaliDate(nextDay)}
+                  </button>
+                )}
+                <Link href="/order" className={buttonClass('primary', 'md')}>
+                  অর্ডার করুন
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
-              {grouped.map(({ isoDate, byMeal, all: dateOrders }) => {
-                const open = isOpen(isoDate);
-                const cancellable = dateOrders.filter((o) => cancellability(o).canCancel).length;
-
+              {MEAL_ORDER.filter((meal) => byMeal[meal].length > 0).map((meal) => {
+                const MealIcon = MEALS[meal].icon;
                 return (
-                  <section key={isoDate} className="overflow-hidden rounded-3xl border border-ink-200 bg-white shadow-card">
-                    <button
-                      type="button"
-                      onClick={() => setToggled((prev) => ({ ...prev, [isoDate]: !open }))}
-                      aria-expanded={open}
-                      className="flex w-full items-center justify-between gap-3 bg-ink-50 px-5 py-4 text-left transition-colors hover:bg-ink-100"
-                    >
-                      <span className="flex items-center gap-3">
-                        <CalendarDays size={18} className="shrink-0 text-brand-600" />
-                        <span>
-                          <span className="block font-semibold text-ink-900">{bengaliDate(isoDate)}</span>
-                          <span className="mt-0.5 block text-xs text-ink-500">
-                            {bn(dateOrders.length)}টি অর্ডার
-                            {cancellable > 0 && ` · ${bn(cancellable)}টি বাতিল করা যাবে`}
-                          </span>
-                        </span>
-                      </span>
-                      <ChevronDown
-                        size={18}
-                        className={`shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`}
-                      />
-                    </button>
+                  <section key={meal} className="overflow-hidden rounded-3xl border border-ink-200 bg-white shadow-card">
+                    <h3 className="flex items-center gap-2 bg-ink-50 px-5 py-3 text-sm font-semibold text-ink-800">
+                      <MealIcon size={16} className={MEALS[meal].tint} />
+                      {MEALS[meal].label}
+                      <span className="font-normal text-ink-400">· {bn(byMeal[meal].length)}টি</span>
+                    </h3>
+                    <ul className="divide-y divide-ink-100">
+                      {byMeal[meal].map((order) => {
+                        const status = statusOf(order.status);
+                        const StatusIcon = status.icon;
+                        const { canCancel } = cancellability(order);
 
-                    {/*
-                      The day's three meals at a glance, so you can see what is
-                      coming without expanding anything. A meal with nothing
-                      ordered is greyed rather than hidden — the gap is the
-                      information.
-                    */}
-                    <dl className="grid grid-cols-3 divide-x divide-ink-100 border-t border-ink-100 bg-white">
-                      {MEAL_ORDER.map((meal) => {
-                        const count = byMeal[meal].length;
-                        const { short, icon: MealIcon, tint } = MEALS[meal];
                         return (
-                          <div key={meal} className="px-3 py-2.5 text-center">
-                            <dt className="flex items-center justify-center gap-1.5 text-[11px] text-ink-500">
-                              <MealIcon size={13} className={count ? tint : 'text-ink-300'} />
-                              {short}
-                            </dt>
-                            <dd className={`mt-0.5 font-bold ${count ? 'text-ink-900' : 'text-ink-300'}`}>
-                              {bn(count)}
-                            </dd>
-                          </div>
+                          <li key={order._id} className="flex flex-wrap gap-4 p-5 transition-colors hover:bg-ink-50/60">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-600">
+                                  #{order.orderId?.slice(-8)}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}
+                                >
+                                  <StatusIcon size={12} />
+                                  {status.label}
+                                </span>
+                              </div>
+
+                              <p className="mt-2 text-sm text-ink-700">
+                                {order.items?.map((i) => i.name).join(', ') || '—'}
+                              </p>
+
+                              <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
+                                <MapPin size={12} className="shrink-0" />
+                                <span className="truncate">
+                                  {[zoneOf(order.zone), order.address].filter(Boolean).join(' · ') || '—'}
+                                </span>
+                              </p>
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <p className="text-lg font-bold text-ink-900">
+                                {order.totalAmount === 0 ? 'ফ্রি' : taka(order.totalAmount)}
+                              </p>
+                              {canCancel ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openCancel(order)}
+                                  className="mt-2 ml-auto flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
+                                >
+                                  <Trash2 size={12} />
+                                  বাতিল করুন
+                                </button>
+                              ) : (
+                                order.status === 'cancelled' && (
+                                  <>
+                                    <span className="mt-2 block text-xs text-red-600">বাতিল করা হয়েছে</span>
+                                    {/* Only a cancelled order can be removed from the history. */}
+                                    <button
+                                      type="button"
+                                      disabled={deletingId === order._id}
+                                      onClick={() => removeOrder(order)}
+                                      className="mt-1.5 ml-auto flex items-center gap-1 text-xs font-medium text-ink-500 hover:text-red-600 hover:underline disabled:opacity-50"
+                                    >
+                                      <Trash2 size={12} />
+                                      মুছে ফেলুন
+                                    </button>
+                                  </>
+                                )
+                              )}
+                            </div>
+                          </li>
                         );
                       })}
-                    </dl>
-
-                    {open &&
-                      MEAL_ORDER.filter((meal) => byMeal[meal].length > 0).map((meal) => (
-                        <div key={meal} className="border-t border-ink-100">
-                          <p className="flex items-center gap-2 bg-ink-50/50 px-5 py-2 text-xs font-semibold text-ink-700">
-                            {(() => {
-                              const MealIcon = MEALS[meal].icon;
-                              return <MealIcon size={14} className={MEALS[meal].tint} />;
-                            })()}
-                            {MEALS[meal].label}
-                            <span className="text-ink-400">· {bn(byMeal[meal].length)}টি</span>
-                          </p>
-                          <ul className="divide-y divide-ink-100">
-                            {byMeal[meal].map((order) => {
-                              const status = statusOf(order.status);
-                              const StatusIcon = status.icon;
-                              const { canCancel } = cancellability(order);
-
-                              return (
-                                <li key={order._id} className="flex flex-wrap gap-4 p-5 transition-colors hover:bg-ink-50/60">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="rounded bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-600">
-                                        #{order.orderId?.slice(-8)}
-                                      </span>
-                                      <span
-                                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}
-                                      >
-                                        <StatusIcon size={12} />
-                                        {status.label}
-                                      </span>
-                                    </div>
-
-                                    {/* The meal is the group heading above, not repeated here. */}
-                                    <p className="mt-2 text-sm text-ink-600">
-                                      {order.items?.map((i) => i.name).join(', ') || '—'}
-                                    </p>
-
-                                    <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
-                                      <MapPin size={12} className="shrink-0" />
-                                      <span className="truncate">
-                                        {[zoneOf(order.zone), order.address].filter(Boolean).join(' · ') || '—'}
-                                      </span>
-                                    </p>
-                                  </div>
-
-                                  <div className="shrink-0 text-right">
-                                    <p className="text-lg font-bold text-ink-900">
-                                      {order.totalAmount === 0 ? 'ফ্রি' : taka(order.totalAmount)}
-                                    </p>
-                                    {canCancel ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => openCancel(order)}
-                                        className="mt-2 ml-auto flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
-                                      >
-                                        <Trash2 size={12} />
-                                        বাতিল করুন
-                                      </button>
-                                    ) : (
-                                      order.status === 'cancelled' && (
-                                        <>
-                                          <span className="mt-2 block text-xs text-red-600">বাতিল করা হয়েছে</span>
-                                          {/* Only a cancelled order can be removed from the history. */}
-                                          <button
-                                            type="button"
-                                            disabled={deletingId === order._id}
-                                            onClick={() => removeOrder(order)}
-                                            className="mt-1.5 ml-auto flex items-center gap-1 text-xs font-medium text-ink-500 hover:text-red-600 hover:underline disabled:opacity-50"
-                                          >
-                                            <Trash2 size={12} />
-                                            মুছে ফেলুন
-                                          </button>
-                                        </>
-                                      )
-                                    )}
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      ))}
+                    </ul>
                   </section>
                 );
               })}
@@ -597,7 +669,7 @@ export default function OrdersPage() {
           </div>
 
           <p className="mt-4 rounded-xl bg-brand-50 p-3.5 text-xs leading-relaxed text-brand-900">
-            ওয়ালেট থেকে পেমেন্ট করা হলে টাকা আপনার ওয়ালেটে ফেরত যোগ হবে।
+            ওয়ালেটের অর্ডারে টাকা কাটে ডেলিভারির দিন — বাতিল করলে আটকানো টাকা আবার নতুন অর্ডারে ব্যবহার করা যাবে।
           </p>
         </Modal>
       )}

@@ -34,6 +34,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   out_for_delivery: { label: 'কনফার্মড', tone: 'info' },
   delivered: { label: 'ডেলিভারি হয়েছে', tone: 'success' },
   cancelled: { label: 'বাতিল', tone: 'danger' },
+  returned: { label: 'ফেরত এসেছে', tone: 'neutral' },
 };
 
 export default function AdminDashboardPage() {

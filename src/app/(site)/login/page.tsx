@@ -127,6 +127,11 @@ export default function LoginPage() {
                 required
               />
             </Field>
+            <div className="-mt-2 text-right">
+              <Link href="/forgot-password" className="text-sm font-medium text-brand-700 hover:underline">
+                পাসওয়ার্ড ভুলে গেছেন?
+              </Link>
+            </div>
 
             <Button type="submit" size="lg" fullWidth loading={loading} icon={<LogIn size={18} />}>
               {loading ? 'লগইন হচ্ছে...' : 'লগইন করুন'}

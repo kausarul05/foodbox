@@ -15,6 +15,11 @@ export interface IUser {
   walletBalance: number;
   role: 'user' | 'admin';
   isActive: boolean;
+  /** Forgot-password code, hashed. See src/server/passwordReset.ts. */
+  resetCodeHash?: string;
+  resetCodeExpires?: Date;
+  resetCodeSentAt?: Date;
+  resetAttempts?: number;
   createdAt: Date;
   updatedAt: Date;
   matchPassword(entered: string): Promise<boolean>;
@@ -41,6 +46,12 @@ const userSchema = new Schema<IUser>(
     walletBalance: { type: Number, default: 0 },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     isActive: { type: Boolean, default: true },
+    // Never sent to a client: select: false keeps them out of every query
+    // unless a route asks for them by name.
+    resetCodeHash: { type: String, select: false },
+    resetCodeExpires: { type: Date, select: false },
+    resetCodeSentAt: { type: Date, select: false },
+    resetAttempts: { type: Number, select: false },
   },
   { timestamps: true }
 );

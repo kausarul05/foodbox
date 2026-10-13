@@ -17,7 +17,9 @@ const getToken = () => {
 
 // Helper function for API calls
 const apiCall = async (endpoint, options = {}) => {
-  const token = getToken()
+  // The login screen never sends the stored token: a stale one would turn a
+  // wrong password (401) into the forced logout-and-reload below.
+  const token = endpoint === '/auth/admin/login' ? null : getToken()
 
   const defaultHeaders = {
     'Content-Type': 'application/json',
@@ -37,8 +39,9 @@ const apiCall = async (endpoint, options = {}) => {
     const data = await response.json()
 
     if (!response.ok) {
-      // Handle token expiration
-      if (response.status === 401) {
+      // Handle token expiration — only when a token was sent. A wrong password
+      // at login is also a 401 and must show its message instead.
+      if (response.status === 401 && token) {
         localStorage.removeItem('adminToken')
         localStorage.removeItem('adminData')
         if (typeof window !== 'undefined') {
@@ -411,6 +414,14 @@ export const subscriptionAPI = {
 
 // User Management APIs (Admin)
 export const userAPI = {
+  // Give a customer with no email a temporary password (super_admin, manager)
+  resetCustomerPassword: (phoneNumber) => {
+    return apiCall('/admin/users/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber }),
+    })
+  },
+
   // Get all users
   getAllUsers: (filters = {}) => {
     const queryParams = new URLSearchParams(filters).toString()

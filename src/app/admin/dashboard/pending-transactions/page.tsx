@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, RefreshCw, CheckCircle, XCircle, Eye, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { transactionAPI } from '../../lib/api';
+import { isHandCash, paymentLabel } from '@/lib/payment';
 
 interface Transaction {
   _id: string;
@@ -125,7 +126,14 @@ export default function PendingTransactionsPage() {
                 <div>
                   <p className="font-semibold text-ink-900">{tx.userName}</p>
                   <p className="text-2xl font-bold text-brand-600">৳ {tx.amount}</p>
-                  <p className="text-sm text-ink-500 mt-1">ট্রানজেকশন আইডি: {tx.transactionId}</p>
+                  <p className="text-sm text-ink-500 mt-1">
+                    মাধ্যম: <span className="font-semibold text-ink-800">{paymentLabel(tx.paymentMethod)}</span>
+                  </p>
+                  {isHandCash(tx.paymentMethod) ? (
+                    <p className="text-sm font-medium text-amber-700 mt-1">হাতে টাকা পাওয়ার পর অনুমোদন করুন</p>
+                  ) : (
+                    <p className="text-sm text-ink-500 mt-1">ট্রানজেকশন আইডি: {tx.transactionId}</p>
+                  )}
                   <p className="text-xs text-ink-400 mt-1">{bengaliDateTime(tx.createdAt)}</p>
                 </div>
                 <div className="flex gap-2">

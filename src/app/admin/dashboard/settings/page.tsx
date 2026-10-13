@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Bell, Shield, Globe, Mail, Save, Loader2, RefreshCw, Key, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { settingsAPI, authAPI } from '@/app/admin/lib/api';
+import CustomerPasswordReset from '@/app/admin/components/admin/CustomerPasswordReset';
 
 interface SettingsType {
   siteName: string;
@@ -177,6 +178,8 @@ export default function SettingsPage() {
           রিফ্রেশ
         </button>
       </div>
+
+      <CustomerPasswordReset />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* General Settings */}

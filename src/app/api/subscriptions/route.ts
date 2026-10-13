@@ -1,3 +1,4 @@
+import { isHandCash } from '@/lib/payment';
 import { requireAdmin, requireUser } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
 import Package from '@/server/models/Package';
@@ -18,8 +19,10 @@ export const POST = handler(async (req: Request) => {
 
   // A subscription request is a claim that money was sent, so it has to carry
   // something the admin can check against their bKash/Nagad statement. Without
-  // this the request arrived with nothing to verify.
-  if (!transactionId || String(transactionId).trim().length < 6) {
+  // this the request arrived with nothing to verify. Hand cash is the one
+  // exception: it is paid in person, and the admin approves once it is in hand.
+  const cash = isHandCash(paymentMethod);
+  if (!cash && (!transactionId || String(transactionId).trim().length < 6)) {
     return fail('ট্রানজেকশন আইডি দিন', 400);
   }
 
@@ -43,7 +46,8 @@ export const POST = handler(async (req: Request) => {
     startDate,
     endDate,
     paymentMethod,
-    transactionId: String(transactionId).trim(),
+    // Explicitly blank for cash, so a re-request does not keep an old id.
+    transactionId: cash ? undefined : String(transactionId).trim(),
     senderNumber: senderNumber ? String(senderNumber).trim() : undefined,
     address: address || user.address,
     zone: zone || user.zone,

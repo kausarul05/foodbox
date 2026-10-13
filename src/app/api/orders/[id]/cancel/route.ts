@@ -27,8 +27,10 @@ export const PUT = handler(async (req: Request, ctx: RouteContext<{ id: string }
   order.cancelledBy = authUser.role === 'admin' ? 'admin' : 'user';
   order.cancellationReason = reason;
 
-  // Wallet orders are refunded to the balance.
-  if (order.paymentMethod === 'wallet') {
+  // Only a wallet order that was actually charged is refunded — one placed
+  // before charge-on-delivery. A reserved order (walletCharged: false) never
+  // took any money; cancelling it is what releases the reservation.
+  if (order.paymentMethod === 'wallet' && order.walletCharged !== false) {
     const owner = await User.findById(order.userId);
     if (owner) {
       owner.walletBalance += order.totalAmount;

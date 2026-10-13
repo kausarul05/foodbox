@@ -6,7 +6,9 @@ export type OrderStatus =
   | 'preparing'
   | 'out_for_delivery'
   | 'delivered'
-  | 'cancelled';
+  | 'cancelled'
+  // A cash order the customer did not take. Not revenue; never refunded.
+  | 'returned';
 
 export type DeliveryTime = 'morning' | 'lunch' | 'dinner';
 
@@ -40,6 +42,8 @@ export interface IOrder {
   orderType: 'self' | 'guest';
   guestName: string;
   guestPhone: string;
+  /** Wallet orders only — see src/server/wallet.ts. Missing on older rows. */
+  walletCharged?: boolean;
   createdAt: Date;
   updatedAt: Date;
   isWithinDeadline(): boolean;
@@ -57,7 +61,7 @@ const orderSchema = new Schema<IOrder>(
     deliveryCharge: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'],
+      enum: ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled', 'returned'],
       default: 'pending',
     },
     paymentMethod: {
@@ -75,6 +79,8 @@ const orderSchema = new Schema<IOrder>(
     cancelledBy: { type: String, enum: ['user', 'admin'] },
     cancellationReason: { type: String },
     orderType: { type: String, enum: ['self', 'guest'], default: 'self' },
+    // No default: older wallet orders must read as missing. See src/server/wallet.ts.
+    walletCharged: { type: Boolean },
     guestName: { type: String, default: '' },
     guestPhone: { type: String, default: '' },
   },

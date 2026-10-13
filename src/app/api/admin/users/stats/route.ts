@@ -3,6 +3,7 @@ import { handler, ok } from '@/server/http';
 import Order from '@/server/models/Order';
 import Transaction from '@/server/models/Transaction';
 import User from '@/server/models/User';
+import { reservedByUser } from '@/server/wallet';
 
 /**
  * GET /api/admin/users/stats
@@ -16,7 +17,7 @@ import User from '@/server/models/User';
 export const GET = handler(async (req: Request) => {
   authorize(await requireAdmin(req), 'super_admin', 'manager');
 
-  const [orderRows, rechargeRows, users] = await Promise.all([
+  const [orderRows, rechargeRows, users, reserved] = await Promise.all([
     // Cancelled orders are not something the customer received, so they do not
     // count towards "how many orders has this person placed".
     Order.aggregate([
@@ -29,14 +30,17 @@ export const GET = handler(async (req: Request) => {
       { $group: { _id: '$userId', recharged: { $sum: '$amount' } } },
     ]),
     User.find().select('_id walletBalance'),
+    // Held by wallet orders not yet delivered — see src/server/wallet.ts.
+    reservedByUser(),
   ]);
 
   const byUser: Record<
     string,
-    { orders: number; spent: number; recharged: number; walletBalance: number }
+    { orders: number; spent: number; recharged: number; walletBalance: number; reserved: number }
   > = {};
 
-  const seed = (id: string) => (byUser[id] ??= { orders: 0, spent: 0, recharged: 0, walletBalance: 0 });
+  const seed = (id: string) =>
+    (byUser[id] ??= { orders: 0, spent: 0, recharged: 0, walletBalance: 0, reserved: 0 });
 
   for (const row of orderRows) {
     const entry = seed(String(row._id));
@@ -48,6 +52,7 @@ export const GET = handler(async (req: Request) => {
   }
   for (const user of users) {
     seed(String(user._id)).walletBalance = user.walletBalance ?? 0;
+    seed(String(user._id)).reserved = reserved.get(String(user._id))?.reserved ?? 0;
   }
 
   return ok({ data: byUser });

@@ -9,6 +9,7 @@ import { Field, Input } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
 import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bengaliDate, bn, taka } from '@/lib/format';
+import { isHandCash } from '@/lib/payment';
 
 interface Transaction {
   _id: string;
@@ -32,6 +33,8 @@ const STATUS = {
 
 export default function WalletPage() {
   const [walletBalance, setWalletBalance] = useState(0);
+  /** Held by orders placed but not yet delivered — charged on delivery. */
+  const [reserved, setReserved] = useState({ amount: 0, orders: 0 });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRecharge, setShowRecharge] = useState(false);
@@ -42,7 +45,10 @@ export default function WalletPage() {
   const fetchWalletData = useCallback(async () => {
     try {
       const [wallet, txns] = await Promise.all([walletAPI.getBalance(), transactionAPI.getMyTransactions()]);
-      if (wallet.success) setWalletBalance(wallet.data.balance);
+      if (wallet.success) {
+        setWalletBalance(wallet.data.balance);
+        setReserved({ amount: wallet.data.reserved ?? 0, orders: wallet.data.reservedOrders ?? 0 });
+      }
       if (txns.success) setTransactions(txns.data);
     } catch {
       toast.error('ওয়ালেট ডাটা লোড করতে ব্যর্থ হয়েছে');
@@ -142,7 +148,7 @@ export default function WalletPage() {
           the balance, so there was no way to tell a ৳৫০০ balance that came
           from a ৳৫০০ top-up from one left over after ৳২,০০০ of orders.
         */}
-        <dl className="relative mt-6 grid grid-cols-2 gap-3 border-t border-white/10 pt-5 sm:max-w-sm">
+        <dl className="relative mt-6 grid grid-cols-2 gap-x-3 gap-y-4 border-t border-white/10 pt-5 sm:grid-cols-4">
           <div>
             <dt className="text-xs text-ink-400">মোট রিচার্জ</dt>
             <dd className="mt-0.5 text-lg font-bold">{taka(rechargedTotal)}</dd>
@@ -151,7 +157,24 @@ export default function WalletPage() {
             <dt className="text-xs text-ink-400">খরচ হয়েছে</dt>
             <dd className="mt-0.5 text-lg font-bold">{taka(Math.max(rechargedTotal - walletBalance, 0))}</dd>
           </div>
+          <div>
+            <dt className="text-xs text-ink-400">অর্ডারে আটকানো</dt>
+            <dd className="mt-0.5 text-lg font-bold text-brand-300">{taka(reserved.amount)}</dd>
+            {reserved.orders > 0 && (
+              <dd className="text-[11px] text-ink-400">{bn(reserved.orders)}টি খাবার ডেলিভারি বাকি</dd>
+            )}
+          </div>
+          <div>
+            <dt className="text-xs text-ink-400">নতুন অর্ডারের জন্য আছে</dt>
+            <dd className="mt-0.5 text-lg font-bold text-leaf-500">
+              {taka(Math.max(walletBalance - reserved.amount, 0))}
+            </dd>
+          </div>
         </dl>
+        <p className="relative mt-4 text-xs leading-relaxed text-ink-400">
+          অর্ডার করলে টাকা আটকে থাকে, কাটা হয় না। প্রতিটি খাবার ডেলিভারি হলে শুধু সেই খাবারের টাকা কাটা হয়। অর্ডার বাতিল
+          করলে আটকানো টাকা আবার ব্যবহার করা যায়।
+        </p>
       </section>
 
       {/* History */}
@@ -179,8 +202,12 @@ export default function WalletPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="hidden text-right sm:block">
-                      <span className="block text-[11px] text-ink-400">ট্রানজেকশন আইডি</span>
-                      <span className="block font-mono text-xs text-ink-600">{tx.transactionId}</span>
+                      <span className="block text-[11px] text-ink-400">
+                        {isHandCash(tx.paymentMethod) ? 'মাধ্যম' : 'ট্রানজেকশন আইডি'}
+                      </span>
+                      <span className="block font-mono text-xs text-ink-600">
+                        {isHandCash(tx.paymentMethod) ? 'হ্যান্ড ক্যাশ' : tx.transactionId}
+                      </span>
                     </span>
                     <span
                       className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}

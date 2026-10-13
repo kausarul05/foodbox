@@ -6,9 +6,9 @@
  * Update these when the business changes accounts.
  */
 export interface PaymentChannel {
-  value: 'bkash' | 'nagad' | 'rocket' | 'bank';
+  value: 'bkash' | 'nagad' | 'rocket' | 'bank' | 'cash';
   label: string;
-  /** The account money is sent to. */
+  /** The account money is sent to. Empty for hand cash. */
   number: string;
   /** What the customer does in their app. */
   instruction: string;
@@ -38,6 +38,13 @@ export const PAYMENT_CHANNELS: PaymentChannel[] = [
     instruction: 'রকেট অ্যাপ বা *322# থেকে "সেন্ড মানি" করুন',
     accent: '#8c3494',
   },
+  {
+    value: 'cash',
+    label: 'হ্যান্ড ক্যাশ',
+    number: '',
+    instruction: 'টাকা সরাসরি আমাদের প্রতিনিধির হাতে দিন। টাকা পাওয়ার পর অ্যাডমিন অনুমোদন করবেন।',
+    accent: '#3f3a36',
+  },
 ];
 
 export const DEFAULT_CHANNEL = PAYMENT_CHANNELS[0];
@@ -48,3 +55,21 @@ export function channelByValue(value: string): PaymentChannel {
 
 /** Shortest transaction id any of these providers issues. */
 export const MIN_TRANSACTION_ID_LENGTH = 6;
+
+/** Paid in person, so there is no transaction id to give. */
+export function isHandCash(method: string | undefined): boolean {
+  return method === 'cash';
+}
+
+/** "বিকাশ", "হ্যান্ড ক্যাশ" … — the raw value when it is not one of ours. */
+export function paymentLabel(method: string | undefined): string {
+  return PAYMENT_CHANNELS.find((c) => c.value === method)?.label ?? method ?? '—';
+}
+
+/**
+ * Stand-in id for a hand-cash top-up. `Transaction.transactionId` is required
+ * and unique, and a cash payment has no id from any provider.
+ */
+export function cashReference(): string {
+  return `CASH-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}

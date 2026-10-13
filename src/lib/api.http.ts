@@ -22,8 +22,12 @@ const API_BASE_URL = '/api';
 const getToken = () =>
   typeof window !== 'undefined' ? localStorage.getItem('userToken') : null;
 
+const PUBLIC_AUTH = /^\/auth\/(login|register|forgot-password|reset-password)$/;
+
 async function apiCall(endpoint: string, options: RequestInit = {}): Promise<ApiResponse> {
-  const token = getToken();
+  // Sign-in screens never send the stored token: a stale one would turn a
+  // wrong password (401) into a forced logout-and-reload below.
+  const token = PUBLIC_AUTH.test(endpoint) ? null : getToken();
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
@@ -37,13 +41,16 @@ async function apiCall(endpoint: string, options: RequestInit = {}): Promise<Api
   const data = await response.json();
 
   if (!response.ok) {
-    // An expired or invalid token means the stored session is useless.
-    if (response.status === 401 && typeof window !== 'undefined') {
+    // An expired or invalid token means the stored session is useless. Only
+    // when a token was actually sent, though: a wrong password at login is
+    // also a 401, and that must show its message, not reload the page.
+    if (response.status === 401 && token && typeof window !== 'undefined') {
       localStorage.removeItem('userToken');
       localStorage.removeItem('userData');
       window.location.href = '/login';
     }
-    throw new Error(data.message || 'Something went wrong');
+    // The envelope rides along as `error.data`, for fields like `retryAfter`.
+    throw Object.assign(new Error(data.message || 'Something went wrong'), { data });
   }
 
   return data;
@@ -77,6 +84,15 @@ export const authAPI = {
   getUserProfile: () => apiCall('/auth/profile'),
 
   updateUserProfile: (userData: Record<string, unknown>) => put('/auth/profile', userData),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    put('/auth/change-password', { currentPassword, newPassword }),
+
+  /** Mails a reset code, or answers `channel: 'admin'` when there is no email. */
+  forgotPassword: (phoneNumber: string) => post('/auth/forgot-password', { phoneNumber }),
+
+  resetPassword: (phoneNumber: string, code: string, password: string) =>
+    post('/auth/reset-password', { phoneNumber, code, password }),
 
   logout: () => {
     if (typeof window !== 'undefined') {

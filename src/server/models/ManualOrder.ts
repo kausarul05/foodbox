@@ -35,7 +35,7 @@ const manualOrderSchema = new Schema<IManualOrder>(
     paymentMethod: { type: String, enum: ['cash', 'bkash', 'nagad'], default: 'cash' },
     status: {
       type: String,
-      enum: ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'],
+      enum: ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled', 'returned'],
       default: 'pending',
     },
     deliveryDate: { type: Date, required: true },

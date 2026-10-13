@@ -1,14 +1,28 @@
 'use client';
 
-import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { CalendarCheck, Home, MessageCircle, Package, Pencil, Phone, Save, User, Wallet, X } from 'lucide-react';
+import {
+  CalendarCheck,
+  Home,
+  KeyRound,
+  Lock,
+  Mail,
+  MessageCircle,
+  Package,
+  Pencil,
+  Phone,
+  Save,
+  User,
+  Wallet,
+  X,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
-import { Field, Input, Textarea } from '@/components/ui/Field';
+import { Field, Input, PasswordInput, Textarea } from '@/components/ui/Field';
 import ZoneSelect from '@/components/ui/ZoneSelect';
-import { bengaliDate, taka, zoneLabel } from '@/lib/format';
+import { bengaliDate, bn, taka, zoneLabel } from '@/lib/format';
 import { displayName, saveSessionUser, useSession, type SessionUser } from '@/lib/useSession';
 
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
@@ -42,6 +56,85 @@ function Card({ title, icon: Icon, children }: { title: string; icon: typeof Use
   );
 }
 
+const MIN_PASSWORD = 6;
+
+/**
+ * Change password. Also how a customer replaces the temporary password an
+ * admin issued after a forgotten-password request.
+ */
+function ChangePasswordCard() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!current) return toast.error('বর্তমান পাসওয়ার্ড দিন');
+    if (next.length < MIN_PASSWORD) return toast.error(`নতুন পাসওয়ার্ড কমপক্ষে ${bn(MIN_PASSWORD)} অক্ষরের হতে হবে`);
+    if (next !== confirm) return toast.error('নতুন পাসওয়ার্ড দুটি মিলছে না');
+    if (next === current) return toast.error('নতুন পাসওয়ার্ড আগেরটির থেকে আলাদা হতে হবে');
+
+    try {
+      setSaving(true);
+      await authAPI.changePassword(current, next);
+      toast.success('পাসওয়ার্ড বদলানো হয়েছে');
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'পাসওয়ার্ড বদলানো যায়নি');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card title="পাসওয়ার্ড পরিবর্তন" icon={KeyRound}>
+      <form onSubmit={submit} className="grid gap-4 md:grid-cols-3">
+        <Field label="বর্তমান পাসওয়ার্ড" htmlFor="currentPassword" required>
+          <PasswordInput
+            id="currentPassword"
+            icon={Lock}
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            placeholder="••••••••"
+          />
+        </Field>
+        <Field label="নতুন পাসওয়ার্ড" htmlFor="newPassword" required hint={`কমপক্ষে ${bn(MIN_PASSWORD)} অক্ষর`}>
+          <PasswordInput
+            id="newPassword"
+            icon={Lock}
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            placeholder="••••••••"
+          />
+        </Field>
+        <Field label="নতুন পাসওয়ার্ড আবার" htmlFor="confirmPassword" required>
+          <PasswordInput
+            id="confirmPassword"
+            icon={Lock}
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="••••••••"
+          />
+        </Field>
+        <div className="md:col-span-3">
+          <p className="mb-3 text-xs text-ink-500">
+            অ্যাডমিনের দেওয়া অস্থায়ী পাসওয়ার্ড দিয়ে লগইন করে থাকলে সেটিই “বর্তমান পাসওয়ার্ড”।
+          </p>
+          <Button type="submit" loading={saving} icon={<KeyRound size={16} />}>
+            {saving ? 'বদলানো হচ্ছে...' : 'পাসওয়ার্ড বদলান'}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 export default function ProfilePage() {
   const { user } = useSession();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -55,6 +148,7 @@ export default function ProfilePage() {
     fullName: '',
     phoneNumber: '',
     whatsappNumber: '',
+    email: '',
     zone: '',
     address: '',
   });
@@ -107,6 +201,7 @@ export default function ProfilePage() {
       phoneNumber: user?.phoneNumber ?? '',
       // Older accounts have none stored; the phone number is the safe default.
       whatsappNumber: user?.whatsappNumber || user?.phoneNumber || '',
+      email: user?.email ?? '',
       zone: userZone,
       address: user?.address ?? '',
     });
@@ -132,7 +227,7 @@ export default function ProfilePage() {
         return;
       }
 
-      const updated: SessionUser = { ...user, ...editForm };
+      const updated: SessionUser = { ...user, ...editForm, email: editForm.email.trim().toLowerCase() || undefined };
       saveSessionUser(updated);
       toast.success('প্রোফাইল আপডেট করা হয়েছে!');
       setIsEditing(false);
@@ -185,6 +280,23 @@ export default function ProfilePage() {
                   value={editForm.fullName}
                   onChange={handleChange}
                   placeholder="আপনার নাম"
+                />
+              </Field>
+              <Field
+                label="ইমেইল"
+                htmlFor="email"
+                hint="পাসওয়ার্ড ভুলে গেলে এই ঠিকানায় রিসেট কোড যাবে। না দিলেও চলবে।"
+              >
+                <Input
+                  id="email"
+                  name="email"
+                  icon={Mail}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={editForm.email}
+                  onChange={handleChange}
+                  placeholder="you@example.com"
                 />
               </Field>
               <Field label="জোন / এলাকা" htmlFor="zone" required>
@@ -261,7 +373,13 @@ export default function ProfilePage() {
 
       {isEditing && (
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" size="lg" icon={<X size={16} />} onClick={() => setIsEditing(false)} disabled={saving}>
+          <Button
+            variant="secondary"
+            size="lg"
+            icon={<X size={16} />}
+            onClick={() => setIsEditing(false)}
+            disabled={saving}
+          >
             বাতিল
           </Button>
           <Button size="lg" icon={<Save size={16} />} loading={saving} onClick={handleSave}>
@@ -315,6 +433,8 @@ export default function ProfilePage() {
           )}
         </section>
       </div>
+
+      <ChangePasswordCard />
     </div>
   );
 }

@@ -28,7 +28,7 @@ export interface Order {
   package: string;
   items: string[];
   totalAmount: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'delivered' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'delivered' | 'cancelled' | 'returned';
   orderDate: Date;
   deliveryDate: Date;
   address: string;

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, Copy, Hash } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Field, Input } from './Field';
-import { PAYMENT_CHANNELS, channelByValue, MIN_TRANSACTION_ID_LENGTH } from '@/lib/payment';
+import { PAYMENT_CHANNELS, channelByValue, isHandCash, MIN_TRANSACTION_ID_LENGTH } from '@/lib/payment';
 import { bn, taka } from '@/lib/format';
 
 /**
@@ -23,6 +23,8 @@ export interface PaymentDetails {
 
 export function validatePayment(details: PaymentDetails): string | null {
   if (!details.paymentMethod) return 'পেমেন্ট মাধ্যম নির্বাচন করুন';
+  // Hand cash is handed over in person — there is no id to check.
+  if (isHandCash(details.paymentMethod)) return null;
   if (details.transactionId.trim().length < MIN_TRANSACTION_ID_LENGTH) {
     return 'সঠিক ট্রানজেকশন আইডি দিন';
   }
@@ -41,6 +43,7 @@ export default function PaymentFields({
 }) {
   const [copied, setCopied] = useState(false);
   const channel = channelByValue(value.paymentMethod);
+  const cash = isHandCash(value.paymentMethod);
 
   const copyNumber = async () => {
     try {
@@ -65,7 +68,7 @@ export default function PaymentFields({
           </span>
           কোন মাধ্যমে পাঠাবেন?
         </legend>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {PAYMENT_CHANNELS.map((option) => {
             const active = value.paymentMethod === option.value;
             return (
@@ -92,79 +95,93 @@ export default function PaymentFields({
         </div>
       </fieldset>
 
-      {/* 2. Where to send it */}
-      <div>
-        <p className="mb-2 text-sm font-medium text-ink-800">
-          <span className="mr-1.5 inline-grid size-5 place-items-center rounded-full bg-ink-900 text-[11px] font-bold text-white">
-            {bn(2)}
-          </span>
-          এই নাম্বারে টাকা পাঠান
-        </p>
+      {/* 2. Hand cash: no number to send to and no id to give — just say so. */}
+      {cash ? (
         <div className="rounded-2xl p-4 text-white" style={{ backgroundColor: channel.accent }}>
-          <p className="text-xs text-white/80">{channel.label} — সেন্ড মানি</p>
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <p className="font-mono text-2xl font-bold tracking-wide">{channel.number}</p>
-            <button
-              type="button"
-              onClick={copyNumber}
-              aria-label="নাম্বার কপি করুন"
-              className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/20 transition hover:bg-white/30"
-            >
-              {copied ? <Check size={18} /> : <Copy size={18} />}
-            </button>
-          </div>
+          <p className="text-xs text-white/80">হ্যান্ড ক্যাশ</p>
+          <p className="mt-1 text-lg font-bold">টাকা হাতে দিন</p>
           {amount !== undefined && amount > 0 && (
-            <p className="mt-2 rounded-lg bg-white/15 px-2.5 py-1.5 text-sm font-semibold">
-              পাঠাতে হবে {taka(amount)}
-            </p>
+            <p className="mt-2 rounded-lg bg-white/15 px-2.5 py-1.5 text-sm font-semibold">দিতে হবে {taka(amount)}</p>
           )}
           <p className="mt-2 text-xs text-white/80">{channel.instruction}</p>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* 2. Where to send it */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-ink-800">
+              <span className="mr-1.5 inline-grid size-5 place-items-center rounded-full bg-ink-900 text-[11px] font-bold text-white">
+                {bn(2)}
+              </span>
+              এই নাম্বারে টাকা পাঠান
+            </p>
+            <div className="rounded-2xl p-4 text-white" style={{ backgroundColor: channel.accent }}>
+              <p className="text-xs text-white/80">{channel.label} — সেন্ড মানি</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="font-mono text-2xl font-bold tracking-wide">{channel.number}</p>
+                <button
+                  type="button"
+                  onClick={copyNumber}
+                  aria-label="নাম্বার কপি করুন"
+                  className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/20 transition hover:bg-white/30"
+                >
+                  {copied ? <Check size={18} /> : <Copy size={18} />}
+                </button>
+              </div>
+              {amount !== undefined && amount > 0 && (
+                <p className="mt-2 rounded-lg bg-white/15 px-2.5 py-1.5 text-sm font-semibold">
+                  পাঠাতে হবে {taka(amount)}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-white/80">{channel.instruction}</p>
+            </div>
+          </div>
 
-      {/* 3. Proof */}
-      <div>
-        <p className="mb-2 text-sm font-medium text-ink-800">
-          <span className="mr-1.5 inline-grid size-5 place-items-center rounded-full bg-ink-900 text-[11px] font-bold text-white">
-            {bn(3)}
-          </span>
-          ট্রানজেকশন আইডি দিন
-        </p>
-        <div className="space-y-4">
-          <Field
-            label="ট্রানজেকশন আইডি"
-            htmlFor="transactionId"
-            required
-            hint="টাকা পাঠানোর পর যে এসএমএস আসে, তাতে আইডিটি থাকে।"
-          >
-            <Input
-              id="transactionId"
-              icon={Hash}
-              value={value.transactionId}
-              onChange={(e) => onChange({ ...value, transactionId: e.target.value })}
-              placeholder="যেমন 8Y7X9K2L5M"
-              autoCapitalize="characters"
-              autoComplete="off"
-            />
-          </Field>
+          {/* 3. Proof */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-ink-800">
+              <span className="mr-1.5 inline-grid size-5 place-items-center rounded-full bg-ink-900 text-[11px] font-bold text-white">
+                {bn(3)}
+              </span>
+              ট্রানজেকশন আইডি দিন
+            </p>
+            <div className="space-y-4">
+              <Field
+                label="ট্রানজেকশন আইডি"
+                htmlFor="transactionId"
+                required
+                hint="টাকা পাঠানোর পর যে এসএমএস আসে, তাতে আইডিটি থাকে।"
+              >
+                <Input
+                  id="transactionId"
+                  icon={Hash}
+                  value={value.transactionId}
+                  onChange={(e) => onChange({ ...value, transactionId: e.target.value })}
+                  placeholder="যেমন 8Y7X9K2L5M"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                />
+              </Field>
 
-          <Field
-            label="যে নাম্বার থেকে পাঠিয়েছেন"
-            htmlFor="senderNumber"
-            hint="মিলিয়ে দেখতে সুবিধা হয় — না দিলেও চলবে।"
-          >
-            <Input
-              id="senderNumber"
-              type="tel"
-              inputMode="tel"
-              value={value.senderNumber}
-              onChange={(e) => onChange({ ...value, senderNumber: e.target.value })}
-              placeholder="01XXXXXXXXX"
-              autoComplete="tel"
-            />
-          </Field>
-        </div>
-      </div>
+              <Field
+                label="যে নাম্বার থেকে পাঠিয়েছেন"
+                htmlFor="senderNumber"
+                hint="মিলিয়ে দেখতে সুবিধা হয় — না দিলেও চলবে।"
+              >
+                <Input
+                  id="senderNumber"
+                  type="tel"
+                  inputMode="tel"
+                  value={value.senderNumber}
+                  onChange={(e) => onChange({ ...value, senderNumber: e.target.value })}
+                  placeholder="01XXXXXXXXX"
+                  autoComplete="tel"
+                />
+              </Field>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

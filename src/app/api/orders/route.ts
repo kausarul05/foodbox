@@ -6,6 +6,7 @@ import BlockedDate from '@/server/models/BlockedDate';
 import Order from '@/server/models/Order';
 import Subscription from '@/server/models/Subscription';
 import User from '@/server/models/User';
+import { walletSummary } from '@/server/wallet';
 
 // POST /api/orders — user
 export const POST = handler(async (req: Request) => {
@@ -69,7 +70,29 @@ export const POST = handler(async (req: Request) => {
     }
   }
 
-  // 5. Wallet payments require an active subscription and sufficient balance
+  // 4b. One order per meal per day for the customer themselves. A cancelled one
+  //     does not count, so cancelling frees the slot again. Guest meals are
+  //     separate orders by design and are not limited here.
+  if (!isGuest) {
+    const dayStart = new Date(deliveryDate);
+    dayStart.setUTCHours(0, 0, 0, 0); // delivery dates are stored as midnight UTC
+    const taken = await Order.exists({
+      userId: authUser._id,
+      deliveryTime,
+      deliveryDate: { $gte: dayStart, $lt: new Date(dayStart.getTime() + 24 * 60 * 60 * 1000) },
+      status: { $ne: 'cancelled' },
+      orderType: { $ne: 'guest' },
+      // Older guest orders were saved as `self`; they are recognisable by package.
+      package: { $ne: 'Guest' },
+    });
+    if (taken) {
+      return fail('এই দিনের এই বেলার খাবার আগেই অর্ডার করা আছে', 400, { alreadyOrdered: true });
+    }
+  }
+
+  // 5. Wallet payments require an active subscription and enough *available*
+  //    balance. Nothing is taken yet: the order reserves its price and is
+  //    charged when it is delivered (src/server/wallet.ts).
   if (paymentMethod === 'wallet') {
     const activeSubscription = await Subscription.findOne({
       userId: authUser._id,
@@ -79,15 +102,13 @@ export const POST = handler(async (req: Request) => {
       return fail('No active subscription found. Please subscribe first.', 400);
     }
 
-    if (user.walletBalance < totalAmount) {
+    const { available } = await walletSummary(authUser._id);
+    if (available < totalAmount) {
       return fail(
-        `Insufficient wallet balance. Need ৳${totalAmount}, Available: ৳${user.walletBalance}`,
+        `ওয়ালেটে যথেষ্ট টাকা নেই। দরকার ৳${totalAmount}, অর্ডারের জন্য আছে ৳${Math.max(available, 0)}`,
         400
       );
     }
-
-    user.walletBalance -= totalAmount;
-    await user.save();
   }
 
   const order = await Order.create({
@@ -99,7 +120,9 @@ export const POST = handler(async (req: Request) => {
     totalAmount,
     deliveryCharge: deliveryCharge || 0,
     paymentMethod: paymentMethod === 'wallet' ? 'wallet' : 'cash',
-    paymentStatus: paymentMethod === 'wallet' ? 'paid' : 'pending',
+    // Paid when delivered, for wallet and cash alike.
+    paymentStatus: 'pending',
+    ...(paymentMethod === 'wallet' ? { walletCharged: false } : {}),
     deliveryDate,
     deliveryTime,
     address: address || user.address,
@@ -108,7 +131,17 @@ export const POST = handler(async (req: Request) => {
     orderType: isGuest ? 'guest' : 'self',
   });
 
-  return ok({ data: order, walletBalance: user.walletBalance }, 201);
+  // A server still holding the Order schema from before `walletCharged`
+  // existed (a dev server not restarted) drops the field without a word, and
+  // the order would read as an old, already-paid one — never charged. Refuse
+  // loudly instead of creating a free meal.
+  if (paymentMethod === 'wallet' && order.walletCharged !== false) {
+    await Order.deleteOne({ _id: order._id });
+    return fail('Server is running an outdated Order model — restart it and try again', 500);
+  }
+
+  const wallet = await walletSummary(authUser._id);
+  return ok({ data: order, walletBalance: wallet.balance, walletAvailable: wallet.available }, 201);
 });
 
 // GET /api/orders — admin, with filters

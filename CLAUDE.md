@@ -131,6 +131,14 @@ localStorage, so Next middleware cannot see them and does not gate `/admin`.
 If you want a server-side gate on the pages themselves, that means moving the
 admin token to an httpOnly cookie first.
 
+Forgot password (`/forgot-password`): customers log in by phone and email is
+optional, so an account *with* email gets a 6-digit code mailed through the
+Gmail SMTP in `EMAIL_*` (`src/server/mail.ts`, rules in
+`src/server/passwordReset.ts`); one *without* is sent to WhatsApp support, and
+an admin issues a temporary password from Settings. Both cases answer
+`channel: 'admin'` for unknown numbers, so the endpoint does not reveal who is
+registered. `EMAIL_*` must be set on the host too.
+
 Admin roles: `super_admin`, `manager`, `support`. Gate with
 `authorize(await requireAdmin(req), 'super_admin')`.
 
@@ -158,8 +166,14 @@ inline:
 - kitchen closed on the 2nd and last Friday of every month
 - admins can block individual dates (`BlockedDate`)
 
-Wallet orders require an active subscription and sufficient balance; cancelling a
-wallet order refunds it. Wallet top-ups are manual: the user submits a bKash/Nagad
+Wallet orders require an active subscription and enough *available* balance.
+They are **charged on delivery, not when placed**: placing one reserves its price
+(`available = balance − reserved`), delivering it deducts the money, cancelling it
+just releases the reservation. `Order.walletCharged` is `false` while reserved,
+`true` once charged, and missing on orders from before this rule (those were
+charged up front, so they are never charged again and are refunded on cancel).
+All of it lives in `src/server/wallet.ts` — never touch `walletBalance` for an
+order anywhere else. Wallet top-ups are manual: the user submits a bKash/Nagad
 transaction id, an admin approves it, and only then is the balance credited.
 
 Menu days are Bengali strings in a fixed order — see `MENU_DAYS` in

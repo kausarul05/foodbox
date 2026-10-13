@@ -116,7 +116,7 @@ export default function PendingSubscribersPage() {
       case 'nagad': return 'নগদ';
       case 'rocket': return 'রকেট';
       case 'bank': return 'ব্যাংক';
-      case 'cash': return 'ক্যাশ';
+      case 'cash': return 'হ্যান্ড ক্যাশ';
       default: return method;
     }
   };
@@ -246,7 +246,9 @@ export default function PendingSubscribersPage() {
                           {sub.transactionId}
                         </p>
                       ) : (
-                        <p className="text-sm font-medium text-amber-700">দেওয়া হয়নি</p>
+                        <p className="text-sm font-medium text-amber-700">
+                          {sub.paymentMethod === 'cash' ? 'লাগবে না — হাতে টাকা' : 'দেওয়া হয়নি'}
+                        </p>
                       )}
                     </div>
                     {sub.senderNumber && (

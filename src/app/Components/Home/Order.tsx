@@ -108,7 +108,8 @@ export default function Order() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   /** ISO date -> reason. Admin-blocked days the kitchen is shut. */
   const [blockedDates, setBlockedDates] = useState<Map<string, string>>(new Map());
-  const [walletBalance, setWalletBalance] = useState(0);
+  /** What a new order can spend: balance minus what undelivered orders hold. */
+  const [walletAvailable, setWalletAvailable] = useState(0);
 
   /** The three global toggles at the top of the form. */
   const [defaultMeals, setDefaultMeals] = useState<MealSelection>({ morning: true, lunch: true, dinner: true });
@@ -148,7 +149,7 @@ export default function Order() {
         const res = await subscriptionAPI.getMySubscriptions();
         if (res.success && res.data) {
           active = res.data.find((s: { status: string }) => s.status === 'active') ?? null;
-          balance = res.walletBalance ?? balance;
+          balance = res.walletAvailable ?? res.walletBalance ?? balance;
         }
       } catch {
         /* treated as "no subscription" below */
@@ -165,7 +166,7 @@ export default function Order() {
       if (cancelled) return;
       setHasActiveSubscription(Boolean(active));
       setSubscriptionData(active);
-      setWalletBalance(balance);
+      setWalletAvailable(balance);
       setMenu(rows);
       setPhoneNumber(user.phoneNumber ?? '');
       setSelectedZone(user.zone ?? '');
@@ -203,6 +204,42 @@ export default function Order() {
       cancelled = true;
     };
   }, [hydrated, user, guestMonth, guestQuotaKey]);
+
+  /**
+   * "date|meal" for every meal the customer has already ordered for themselves
+   * and not cancelled. Those cannot be ordered twice (the server refuses too);
+   * cancelling one frees it here on the next load. Re-read after placing orders
+   * via the same `guestQuotaKey` bump.
+   */
+  const [ordered, setOrdered] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!hydrated || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await orderAPI.getMyOrders();
+        if (cancelled || !res.success) return;
+        const taken = new Set<string>();
+        for (const o of res.data ?? []) {
+          if (o.status === 'cancelled') continue;
+          // Older guest orders were saved as `self`; they carry package "Guest".
+          if (o.orderType === 'guest' || o.package === 'Guest') continue;
+          // Stored as midnight UTC, so read the calendar day in UTC.
+          const iso = new Date(o.deliveryDate).toISOString().slice(0, 10);
+          taken.add(`${iso}|${o.deliveryTime}`);
+        }
+        setOrdered(taken);
+      } catch {
+        // Non-fatal: the server rejects a duplicate at submit time anyway.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, user, guestQuotaKey]);
+
+  const isOrdered = useCallback((date: string, meal: MealKey) => ordered.has(`${date}|${meal}`), [ordered]);
 
   // Blocked dates are public and independent of the session, so they load on
   // their own — the day list needs them before anything can be ticked.
@@ -276,9 +313,17 @@ export default function Order() {
     return { days: open, closedDays: closed };
   }, [range, blockedDates]);
 
+  /** What the customer has ticked for a day, minus meals already ordered. */
   const selfMealsFor = useCallback(
-    (date: string) => selfOverrides[date] ?? defaultMeals,
-    [selfOverrides, defaultMeals]
+    (date: string): MealSelection => {
+      const picked = selfOverrides[date] ?? defaultMeals;
+      return {
+        morning: picked.morning && !isOrdered(date, 'morning'),
+        lunch: picked.lunch && !isOrdered(date, 'lunch'),
+        dinner: picked.dinner && !isOrdered(date, 'dinner'),
+      };
+    },
+    [selfOverrides, defaultMeals, isOrdered]
   );
   const guestMealsFor = useCallback((date: string) => guestOverrides[date] ?? NONE, [guestOverrides]);
 
@@ -380,8 +425,8 @@ export default function Order() {
       return;
     }
     // Only the subscriber's own meals come out of the wallet; guest meals are cash.
-    if (hasActiveSubscription && totals.selfMealPrice > walletBalance) {
-      setShortfall(totals.selfMealPrice - walletBalance);
+    if (hasActiveSubscription && totals.selfMealPrice > walletAvailable) {
+      setShortfall(totals.selfMealPrice - walletAvailable);
       return;
     }
     setShowConfirm(true);
@@ -401,7 +446,7 @@ export default function Order() {
       }
 
       let placed = 0;
-      let latestBalance = walletBalance;
+      let latestBalance = walletAvailable;
 
       for (const { date, dayName } of days) {
         const self = selfMealsFor(date);
@@ -432,7 +477,7 @@ export default function Order() {
             });
             if (res.success) {
               placed++;
-              if (typeof res.walletBalance === 'number') latestBalance = res.walletBalance;
+              if (typeof res.walletAvailable === 'number') latestBalance = res.walletAvailable;
             }
           }
 
@@ -455,7 +500,7 @@ export default function Order() {
         return;
       }
 
-      setWalletBalance(latestBalance);
+      setWalletAvailable(latestBalance);
       toast.success(`${bn(placed)}টি অর্ডার সফলভাবে সম্পন্ন হয়েছে!`);
 
       // Roll the form forward to the week after the one just ordered.
@@ -526,9 +571,9 @@ export default function Order() {
             <div className="text-right">
               <p className="flex items-center justify-end gap-1.5 text-xs text-ink-500">
                 <Wallet size={13} />
-                ওয়ালেট ব্যালেন্স
+                অর্ডারের জন্য আছে
               </p>
-              <p className="text-2xl font-bold text-ink-900">{taka(walletBalance)}</p>
+              <p className="text-2xl font-bold text-ink-900">{taka(walletAvailable)}</p>
             </div>
           )}
         </div>
@@ -673,9 +718,16 @@ export default function Order() {
                     const guestChosen = enableGuestMeal
                       ? MEALS.filter((m) => guest[m.key] && nameOf(dayName, m.key))
                       : [];
+                    const onMenu = MEALS.filter((m) => nameOf(dayName, m.key));
+                    const already = onMenu.filter((m) => isOrdered(date, m.key));
+                    // Every meal on the menu is already ordered: nothing left to add.
+                    const full = onMenu.length > 0 && already.length === onMenu.length;
 
                     return (
-                      <li key={date} className="overflow-hidden rounded-2xl border border-ink-200">
+                      <li
+                        key={date}
+                        className={`overflow-hidden rounded-2xl border border-ink-200 ${full && !enableGuestMeal ? 'opacity-60' : ''}`}
+                      >
                         <button
                           type="button"
                           aria-expanded={open}
@@ -686,6 +738,12 @@ export default function Order() {
                             <span className="block text-sm font-semibold text-ink-900">
                               {dayName} · {bengaliDate(date)}
                             </span>
+                            {already.length > 0 && (
+                              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-leaf-100 px-2 py-0.5 text-[11px] font-semibold text-leaf-700">
+                                <CheckCircle2 size={11} />
+                                {full ? 'সব বেলার অর্ডার করা আছে' : `অর্ডার করা আছে: ${already.map((m) => m.label).join(', ')}`}
+                              </span>
+                            )}
                             <span className="mt-0.5 block truncate text-xs text-ink-500">
                               {chosen.length === 0 && guestChosen.length === 0
                                 ? 'কোনো খাবার নির্বাচিত হয়নি'
@@ -712,6 +770,7 @@ export default function Order() {
                               selection={self}
                               nameOf={nameOf}
                               priceOf={priceOf}
+                              taken={(meal) => isOrdered(date, meal)}
                               onToggle={(meal) => toggleSelfMeal(date, meal)}
                               accent="brand"
                             />
@@ -801,7 +860,7 @@ export default function Order() {
 
               {hasActiveSubscription && (
                 <p className="mt-4 rounded-xl bg-brand-50 p-3 text-xs leading-relaxed text-brand-900">
-                  ওয়ালেট থেকে কাটা হবে {taka(totals.selfMealPrice)} — বর্তমান ব্যালেন্স {taka(walletBalance)}।
+                  মোট {taka(totals.selfMealPrice)} — প্রতিটি খাবার ডেলিভারি হলে তখন ওয়ালেট থেকে কাটা হবে। বাতিল করলে কাটা হবে না। অর্ডারের জন্য আছে {taka(walletAvailable)}।
                 </p>
               )}
               {enableGuestMeal && totals.guestTotal > 0 && (
@@ -866,7 +925,7 @@ export default function Order() {
         >
           <dl className="space-y-2.5 rounded-2xl bg-ink-50 p-4 text-sm">
             <Line label="প্রয়োজন" value={taka(totals.selfMealPrice)} />
-            <Line label="বর্তমান ব্যালেন্স" value={taka(walletBalance)} />
+            <Line label="অর্ডারের জন্য আছে" value={taka(walletAvailable)} />
             <div className="flex justify-between border-t border-ink-200 pt-2.5">
               <dt className="font-semibold text-ink-900">ঘাটতি</dt>
               <dd className="font-bold text-red-600">{taka(shortfall)}</dd>
@@ -953,6 +1012,7 @@ function MealPicker({
   priceOf,
   onToggle,
   accent,
+  taken,
 }: {
   legend: string;
   icon: ReactNode;
@@ -962,6 +1022,8 @@ function MealPicker({
   priceOf: (day: string, meal: MealKey) => number;
   onToggle: (meal: MealKey) => void;
   accent: 'brand' | 'leaf';
+  /** Meals already ordered for this day — shown, but cannot be picked again. */
+  taken?: (meal: MealKey) => boolean;
 }) {
   const ring = accent === 'brand' ? 'text-brand-600' : 'text-leaf-600';
 
@@ -975,7 +1037,8 @@ function MealPicker({
       <div className="mt-2 space-y-1">
         {MEALS.map((meal) => {
           const itemName = nameOf(dayName, meal.key);
-          const available = Boolean(itemName);
+          const already = taken?.(meal.key) ?? false;
+          const available = Boolean(itemName) && !already;
 
           return (
             <label
@@ -995,7 +1058,9 @@ function MealPicker({
                 <meal.icon size={16} className={`shrink-0 ${meal.tint}`} />
                 <span className="min-w-0">
                   <span className="block text-sm text-ink-800">{meal.full}</span>
-                  <span className="block truncate text-xs text-ink-500">{itemName || 'এখনো ঠিক হয়নি'}</span>
+                  <span className="block truncate text-xs text-ink-500">
+                    {already ? 'অর্ডার করা আছে' : itemName || 'এখনো ঠিক হয়নি'}
+                  </span>
                 </span>
               </span>
               {available && (

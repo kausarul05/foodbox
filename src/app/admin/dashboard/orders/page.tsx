@@ -14,6 +14,7 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   ShoppingBag,
   Sun,
@@ -73,6 +74,7 @@ const STATUS: Record<string, { label: string; tone: Tone; icon: typeof Package }
   confirmed: { label: 'কনফার্মড', tone: 'info', icon: CheckCircle2 },
   delivered: { label: 'ডেলিভারি হয়েছে', tone: 'success', icon: CheckCircle2 },
   cancelled: { label: 'বাতিল', tone: 'danger', icon: XCircle },
+  returned: { label: 'ফেরত এসেছে', tone: 'neutral', icon: RotateCcw },
 };
 
 /**
@@ -80,7 +82,16 @@ const STATUS: Record<string, { label: string; tone: Tone; icon: typeof Package }
  * customer, whose cancel route refunds the wallet — the admin status route
  * never did.
  */
-type Step = 'confirmed' | 'delivered';
+type Step = 'confirmed' | 'delivered' | 'returned';
+
+/**
+ * A cash meal the customer did not take. Only cash: a wallet or bKash order
+ * was paid up front, and the server refuses it too. Allowed after "delivered"
+ * as well, because "all delivered" is often pressed before the rider is back.
+ */
+function canReturn(r: { paymentMethod: string; status: string }) {
+  return r.paymentMethod === 'cash' && (r.status === 'confirmed' || r.status === 'delivered');
+}
 
 /** The one button an order shows next, if any. */
 const NEXT_STEP: Record<string, { to: Step; label: string }> = {
@@ -193,6 +204,7 @@ const STATUS_FILTERS: { key: string; label: string }[] = [
   { key: 'pending', label: 'পেন্ডিং' },
   { key: 'confirmed', label: 'কনফার্মড' },
   { key: 'delivered', label: 'ডেলিভারি হয়েছে' },
+  { key: 'returned', label: 'ফেরত' },
   { key: 'cancelled', label: 'বাতিল' },
 ];
 
@@ -353,14 +365,20 @@ function OrdersView() {
       const res = await orderAPI.batchStatus(
         targets.filter((r) => r.source !== 'manual').map((r) => r._id),
         targets.filter((r) => r.source === 'manual').map((r) => r._id),
-        to
+        to,
       );
       if (!res.success) {
         toast.error(res.message || 'আপডেট করা যায়নি');
         return;
       }
       const n = res.data?.updated ?? 0;
-      toast.success(to === 'confirmed' ? `${bn(n)}টি অর্ডার কনফার্ম হয়েছে` : `${bn(n)}টি অর্ডার ডেলিভারি সম্পন্ন`);
+      toast.success(
+        to === 'confirmed'
+          ? `${bn(n)}টি অর্ডার কনফার্ম হয়েছে`
+          : to === 'delivered'
+            ? `${bn(n)}টি অর্ডার ডেলিভারি সম্পন্ন`
+            : `${bn(n)}টি অর্ডার ফেরত হিসেবে রাখা হয়েছে`,
+      );
       // Reload rather than patch: the server skips anything that changed since
       // this page loaded, so only a fresh read shows what really moved.
       await load();
@@ -374,6 +392,7 @@ function OrdersView() {
 
   const advanceMeal = async (meal: string, to: Step) => {
     const targets = slotRows(meal, to);
+    const cash = to === 'delivered' ? targets.filter((r) => r.paymentMethod === 'cash').length : 0;
     const ok = await confirm({
       title:
         to === 'confirmed'
@@ -381,7 +400,11 @@ function OrdersView() {
           : `${MEALS[meal]?.label}ের সব অর্ডার ডেলিভারি সম্পন্ন?`,
       message: `${bengaliWeekday(keyToDate(day))}, ${bengaliDate(day)} — ${bn(targets.length)}টি অর্ডার ${
         to === 'confirmed' ? 'কনফার্ম' : 'ডেলিভারি সম্পন্ন'
-      } হবে।`,
+      } হবে।${
+        cash > 0
+          ? ` এর মধ্যে ${bn(cash)}টি ক্যাশ অন ডেলিভারি — কোনোটি ফেরত এলে আগে তালিকায় সেই অর্ডারে “ফেরত” দিন।`
+          : ''
+      }`,
       confirmLabel: to === 'confirmed' ? 'হ্যাঁ, কনফার্ম করুন' : 'হ্যাঁ, ডেলিভারি সম্পন্ন',
     });
     if (ok) await advance(targets, to, `meal|${meal}|${to}`);
@@ -431,7 +454,8 @@ function OrdersView() {
   }
 
   const live = dayRows.filter((r) => r.status !== 'cancelled');
-  const dayTotal = live.reduce((sum, r) => sum + r.totalAmount, 0);
+  // A returned meal brought in no money, so it is not part of the day's value.
+  const dayTotal = live.filter((r) => r.status !== 'returned').reduce((sum, r) => sum + r.totalAmount, 0);
   const cancelledCount = dayRows.length - live.length;
 
   return (
@@ -556,6 +580,8 @@ function OrdersView() {
           const pending = slotRows(mealKey, 'confirmed').length;
           const confirmed = slotRows(mealKey, 'delivered').length;
           const delivered = mealRows.filter((r) => r.status === 'delivered').length;
+          const returned = mealRows.filter((r) => r.status === 'returned').length;
+          const cashAwaiting = slotRows(mealKey, 'delivered').filter((r) => r.paymentMethod === 'cash').length;
           const total = mealRows.length;
           const MealIcon = meal.icon;
 
@@ -564,10 +590,7 @@ function OrdersView() {
           const packages = [...byPackage.entries()].sort((a, b) => b[1] - a[1]);
 
           return (
-            <section
-              key={mealKey}
-              className="flex flex-col rounded-2xl border border-ink-200 bg-white p-5 shadow-card"
-            >
+            <section key={mealKey} className="flex flex-col rounded-2xl border border-ink-200 bg-white p-5 shadow-card">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <span className="grid size-10 place-items-center rounded-xl bg-ink-50">
@@ -603,6 +626,12 @@ function OrdersView() {
                   <dd className="font-bold text-leaf-700">{bn(delivered)}</dd>
                 </div>
               </dl>
+              {returned > 0 && (
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-600">
+                  <RotateCcw size={12} />
+                  ফেরত এসেছে <b className="text-ink-900">{bn(returned)}টি</b>
+                </p>
+              )}
 
               {packages.length > 0 && (
                 <ul className="mt-3 flex flex-wrap gap-1.5">
@@ -639,7 +668,13 @@ function OrdersView() {
                       ? 'আপডেট হচ্ছে…'
                       : `${bn(confirmed)}টি অর্ডার ডেলিভারি সম্পন্ন`}
                   </button>
-                ) : (
+                ) : null}
+                {pending === 0 && confirmed > 0 && cashAwaiting > 0 && (
+                  <p className="mt-2 text-center text-xs text-ink-500">
+                    COD মিল ফেরত এলে আগে নিচের তালিকায় সেই অর্ডারে “ফেরত” দিন
+                  </p>
+                )}
+                {pending === 0 && confirmed === 0 && (
                   <p className="flex items-center justify-center gap-1.5 rounded-xl bg-ink-50 px-4 py-2.5 text-sm text-ink-500">
                     {total > 0 ? (
                       <>
@@ -678,7 +713,10 @@ function OrdersView() {
           </div>
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <div className="relative">
-              <Search size={16} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-400" />
+              <Search
+                size={16}
+                className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-400"
+              />
               <input
                 type="search"
                 value={search}
@@ -722,7 +760,10 @@ function OrdersView() {
               const next = NEXT_STEP[row.status];
 
               return (
-                <li key={`${row.source}-${row._id}`} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 hover:bg-ink-50/60">
+                <li
+                  key={`${row.source}-${row._id}`}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 hover:bg-ink-50/60"
+                >
                   <button type="button" onClick={() => setDetail(row)} className="min-w-0 flex-1 text-left">
                     <p className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-ink-900">{row.customerName}</span>
@@ -753,7 +794,18 @@ function OrdersView() {
 
                   <span className="w-20 text-right font-bold text-ink-900">{taka(row.totalAmount)}</span>
 
-                  <div className="flex w-36 justify-end">
+                  <div className="flex min-w-36 justify-end gap-2">
+                    {canReturn(row) && (
+                      <button
+                        type="button"
+                        disabled={updating !== null}
+                        onClick={() => void advance([row], 'returned', row._id)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-ink-300 px-3 py-1.5 text-sm font-semibold text-ink-700 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+                      >
+                        <RotateCcw size={13} />
+                        ফেরত
+                      </button>
+                    )}
                     {next ? (
                       <button
                         type="button"
@@ -870,25 +922,51 @@ function OrdersView() {
               {detail.specialInstructions && (
                 <div>
                   <p className="text-xs font-semibold tracking-wide text-ink-500">নোট</p>
-                  <p className="mt-1.5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{detail.specialInstructions}</p>
+                  <p className="mt-1.5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                    {detail.specialInstructions}
+                  </p>
                 </div>
               )}
             </div>
 
             <div className="flex items-center justify-between gap-3 border-t border-ink-100 px-6 py-4">
               <Pill tone={statusOf(detail.status).tone}>{statusOf(detail.status).label}</Pill>
-              {NEXT_STEP[detail.status] && (
-                <button
-                  type="button"
-                  disabled={updating !== null}
-                  onClick={() => void advance([detail], NEXT_STEP[detail.status].to, detail._id)}
-                  className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
-                    detail.status === 'pending' ? 'bg-brand-600 hover:bg-brand-700' : 'bg-leaf-600 hover:bg-leaf-700'
-                  }`}
-                >
-                  {NEXT_STEP[detail.status].label}
-                </button>
-              )}
+              <div className="ml-auto flex gap-2">
+                {canReturn(detail) && (
+                  <button
+                    type="button"
+                    disabled={updating !== null}
+                    onClick={() => void advance([detail], 'returned', detail._id)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-ink-300 px-4 py-2.5 text-sm font-semibold text-ink-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+                  >
+                    <RotateCcw size={15} />
+                    ফেরত এসেছে
+                  </button>
+                )}
+                {/* Undo for a return marked by mistake. */}
+                {detail.status === 'returned' && (
+                  <button
+                    type="button"
+                    disabled={updating !== null}
+                    onClick={() => void advance([detail], 'delivered', detail._id)}
+                    className="rounded-xl bg-leaf-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-leaf-700 disabled:opacity-60"
+                  >
+                    আসলে ডেলিভারি হয়েছে
+                  </button>
+                )}
+                {NEXT_STEP[detail.status] && (
+                  <button
+                    type="button"
+                    disabled={updating !== null}
+                    onClick={() => void advance([detail], NEXT_STEP[detail.status].to, detail._id)}
+                    className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+                      detail.status === 'pending' ? 'bg-brand-600 hover:bg-brand-700' : 'bg-leaf-600 hover:bg-leaf-700'
+                    }`}
+                  >
+                    {NEXT_STEP[detail.status].label}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

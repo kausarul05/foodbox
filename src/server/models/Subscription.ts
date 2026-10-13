@@ -15,7 +15,7 @@ export interface ISubscription {
   endDate: Date;
   status: 'pending' | 'active' | 'expired' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'failed';
-  paymentMethod?: 'bkash' | 'nagad' | 'rocket' | 'bank';
+  paymentMethod?: 'bkash' | 'nagad' | 'rocket' | 'bank' | 'cash';
   transactionId?: string;
   /** The number the customer sent money from, for reconciliation. */
   senderNumber?: string;
@@ -43,7 +43,7 @@ const subscriptionSchema = new Schema<ISubscription>(
     endDate: { type: Date, required: true },
     status: { type: String, enum: ['pending', 'active', 'expired', 'cancelled'], default: 'pending' },
     paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' },
-    paymentMethod: { type: String, enum: ['bkash', 'nagad', 'rocket', 'bank'] },
+    paymentMethod: { type: String, enum: ['bkash', 'nagad', 'rocket', 'bank', 'cash'] },
     transactionId: { type: String },
     senderNumber: { type: String },
     address: { type: String, required: true },

@@ -8,7 +8,7 @@ export const POST = handler(async (req: Request) => {
 
   const admin = await Admin.findOne({ email });
   if (!admin || !(await admin.matchPassword(password))) {
-    return fail('Invalid email or password', 401);
+    return fail('ইমেইল বা পাসওয়ার্ড ভুল', 401);
   }
 
   admin.lastLogin = new Date();

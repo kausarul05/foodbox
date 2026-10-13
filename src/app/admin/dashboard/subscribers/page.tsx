@@ -57,10 +57,10 @@ export default function SubscribersPage() {
   const [packages, setPackages] = useState<{ name: string; title: string }[]>([]);
   /** userId -> order count, total top-ups and current wallet balance. */
   const [userStats, setUserStats] = useState<
-    Record<string, { orders: number; spent: number; recharged: number; walletBalance: number }>
+    Record<string, { orders: number; spent: number; recharged: number; walletBalance: number; reserved: number }>
   >({});
 
-  const EMPTY_STATS = { orders: 0, spent: 0, recharged: 0, walletBalance: 0 };
+  const EMPTY_STATS = { orders: 0, spent: 0, recharged: 0, walletBalance: 0, reserved: 0 };
   const statsFor = (userId: string) => userStats[String(userId)] ?? EMPTY_STATS;
 
   useEffect(() => {
@@ -348,6 +348,16 @@ export default function SubscribersPage() {
                     </dd>
                   </div>
                 </dl>
+                {/* The same split the customer sees on their wallet page. */}
+                {statsFor(sub.userId).reserved > 0 && (
+                  <p className="text-xs text-ink-600">
+                    অর্ডারে আটকানো <b className="text-ink-900">{taka(statsFor(sub.userId).reserved)}</b> · নতুন অর্ডারের
+                    জন্য আছে{' '}
+                    <b className="text-ink-900">
+                      {taka(Math.max(statsFor(sub.userId).walletBalance - statsFor(sub.userId).reserved, 0))}
+                    </b>
+                  </p>
+                )}
 
                 <div className="flex items-center gap-2 text-sm">
                   <Mail size={14} className="text-ink-400" />

@@ -2,12 +2,13 @@ import { generateToken } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
 import User from '@/server/models/User';
 import Zone from '@/server/models/Zone';
+import { byPhone, normalizePhone } from '@/server/phone';
 
 // POST /api/auth/register
 export const POST = handler(async (req: Request) => {
   const {
     fullName,
-    phoneNumber,
+    phoneNumber: rawPhone,
     whatsappNumber,
     email,
     password,
@@ -25,7 +26,9 @@ export const POST = handler(async (req: Request) => {
    * a sparse index still stores '' , so two blank emails would collide.
    */
   const cleanEmail = typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : undefined;
-  const cleanWhatsapp = typeof whatsappNumber === 'string' ? whatsappNumber.trim() : '';
+  // Stored as 01XXXXXXXXX whatever shape was typed — see src/server/phone.ts.
+  const phoneNumber = normalizePhone(rawPhone);
+  const cleanWhatsapp = typeof whatsappNumber === 'string' ? normalizePhone(whatsappNumber) : '';
 
   if (!cleanWhatsapp) {
     return fail('হোয়াটসঅ্যাপ নাম্বার দিতে হবে', 400);
@@ -34,13 +37,14 @@ export const POST = handler(async (req: Request) => {
   // Built up conditionally: `{ email: undefined }` is stripped by mongoose, which
   // would leave `$or: [{ phoneNumber }, {}]` — and `{}` matches every document,
   // so every signup without an email would be rejected as already existing.
-  const clashes: Record<string, unknown>[] = [{ phoneNumber }];
+  // byPhone, so "01…" still clashes with an older "+8801…" account.
+  const clashes: Record<string, unknown>[] = [byPhone(phoneNumber)];
   if (cleanEmail) clashes.push({ email: cleanEmail });
 
   const userExists = await User.findOne({ $or: clashes });
   if (userExists) {
     return fail(
-      userExists.phoneNumber === phoneNumber
+      normalizePhone(userExists.phoneNumber) === phoneNumber
         ? 'এই ফোন নাম্বার দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে'
         : 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে',
       400

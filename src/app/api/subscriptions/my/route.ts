@@ -1,19 +1,24 @@
 import { requireUser } from '@/server/auth';
 import { handler, ok } from '@/server/http';
 import Subscription from '@/server/models/Subscription';
-import User from '@/server/models/User';
+import { walletSummary } from '@/server/wallet';
 
 // GET /api/subscriptions/my — user
 export const GET = handler(async (req: Request) => {
   const authUser = await requireUser(req);
 
-  const subscriptions = await Subscription.find({ userId: authUser._id }).sort({ createdAt: -1 });
-  const user = await User.findById(authUser._id);
+  const [subscriptions, wallet] = await Promise.all([
+    Subscription.find({ userId: authUser._id }).sort({ createdAt: -1 }),
+    walletSummary(authUser._id),
+  ]);
 
-  // walletBalance rides along at the top level — several pages read it from here.
+  // The wallet rides along at the top level — several pages read it from here.
+  // `walletAvailable` is what a new order can spend; see src/server/wallet.ts.
   return ok({
     count: subscriptions.length,
     data: subscriptions,
-    walletBalance: user?.walletBalance ?? 0,
+    walletBalance: wallet.balance,
+    walletReserved: wallet.reserved,
+    walletAvailable: wallet.available,
   });
 });
