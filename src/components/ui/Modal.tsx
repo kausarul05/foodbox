@@ -9,6 +9,8 @@ import { X } from 'lucide-react';
  * Render it conditionally (`{open && <Modal …>}`) — mounting is what arms the
  * Escape handler and the body-scroll lock, and unmounting releases them.
  */
+const SIZES = { md: 'sm:max-w-md', lg: 'sm:max-w-lg', xl: 'sm:max-w-5xl' } as const;
+
 export default function Modal({
   onClose,
   title,
@@ -17,7 +19,8 @@ export default function Modal({
   children,
   footer,
   busy = false,
-  wide = false,
+  size = 'md',
+  hideFooterOnDesktop = false,
 }: {
   onClose: () => void;
   title: string;
@@ -28,7 +31,11 @@ export default function Modal({
   footer?: ReactNode;
   /** While a request is in flight, Escape and the overlay stop dismissing. */
   busy?: boolean;
-  wide?: boolean;
+  /** How much room the content needs. 'xl' fits the two-column order layout. */
+  size?: 'md' | 'lg' | 'xl';
+  /** For layouts whose footer is a phone-only action bar — keeps the bordered
+   *  strip from rendering empty on desktop. */
+  hideFooterOnDesktop?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,7 +60,7 @@ export default function Modal({
       <div
         onClick={(e) => e.stopPropagation()}
         className={`flex max-h-[92dvh] w-full animate-rise flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[88vh] sm:rounded-3xl ${
-          wide ? 'sm:max-w-lg' : 'sm:max-w-md'
+          SIZES[size]
         }`}
       >
         {/* Grab handle — the usual signal that a sheet can be dismissed. */}
@@ -86,7 +93,11 @@ export default function Modal({
         {footer && (
           // pb accounts for the home-indicator strip on modern phones, where a
           // button flush to the bottom edge is hard to hit.
-          <div className="border-t border-ink-100 bg-white px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
+          <div
+            className={`border-t border-ink-100 bg-white px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-4 ${
+              hideFooterOnDesktop ? 'lg:hidden' : ''
+            }`}
+          >
             {footer}
           </div>
         )}

@@ -8,24 +8,13 @@ import {
   DollarSign,
   TrendingUp,
   TrendingDown,
-  Calendar,
   Plus,
-  Edit,
   Trash2,
   Loader2,
   RefreshCw,
-  Search,
   X,
-  CheckCircle,
-  Clock,
-  Truck,
-  Package,
-  UserPlus,
-  Phone,
-  MapPin,
-  Home
 } from 'lucide-react';
-import { expenseAPI, manualOrderAPI, profitAPI } from '../../lib/api';
+import { expenseAPI, profitAPI } from '../../lib/api';
 import toast from 'react-hot-toast';
 
 interface Expense {
@@ -37,33 +26,14 @@ interface Expense {
   date: string;
 }
 
-interface ManualOrder {
-  _id: string;
-  orderId: string;
-  customerName: string;
-  phoneNumber: string;
-  address: string;
-  zone: string;
-  items: Array<{ name: string; price: number; quantity: number }>;
-  totalAmount: number;
-  deliveryCharge: number;
-  paymentMethod: string;
-  status: string;
-  deliveryDate: string;
-  deliveryTime: string;
-  specialInstructions: string;
-}
-
 export default function FinancePage() {
   const { confirm } = useDialog();
-  const [activeTab, setActiveTab] = useState<'expenses' | 'manual-orders' | 'profit'>('profit');
+  // Manual orders moved to the order list; Finance is expenses and profit.
+  const [activeTab, setActiveTab] = useState<'expenses' | 'profit'>('profit');
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [manualOrders, setManualOrders] = useState<ManualOrder[]>([]);
   const [profitStats, setProfitStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
   const [expenseForm, setExpenseForm] = useState({
     category: 'daily_bazar',
@@ -72,26 +42,7 @@ export default function FinancePage() {
     description: '',
     date: new Date().toISOString().split('T')[0],
   });
-  const [orderForm, setOrderForm] = useState({
-    customerName: '',
-    phoneNumber: '',
-    address: '',
-    zone: '',
-    items: [{ name: '', price: '', quantity: '1' }],
-    deliveryDate: new Date().toISOString().split('T')[0],
-    deliveryTime: 'lunch',
-    paymentMethod: 'cash',
-    orderType: 'cod', // 'subscription' or 'cod'
-    specialInstructions: '',
-  });
   const [submitting, setSubmitting] = useState(false);
-
-  const zones = ['উত্তরা', 'ধানমন্ডি', 'গুলশান', 'বনানী', 'মিরপুর', 'মোহাম্মদপুর', 'পুরান ঢাকা', 'যাত্রাবাড়ী', 'নিউ মার্কেট', 'বসুন্ধরা'];
-  const deliveryTimes = [
-    { value: 'morning', label: 'সকালের খাবার', icon: '🌅' },
-    { value: 'lunch', label: 'দুপুরের খাবার', icon: '☀️' },
-    { value: 'dinner', label: 'রাতের খাবার', icon: '🌙' },
-  ];
 
   const expenseCategories = [
     { value: 'daily_bazar', label: 'দৈনিক বাজার', icon: '🛒' },
@@ -111,9 +62,6 @@ export default function FinancePage() {
       if (activeTab === 'expenses') {
         const response = await expenseAPI.getAllExpenses(dateRange);
         if (response.success) setExpenses(response.data);
-      } else if (activeTab === 'manual-orders') {
-        const response = await manualOrderAPI.getAllOrders(dateRange);
-        if (response.success) setManualOrders(response.data);
       } else if (activeTab === 'profit') {
         const response = await profitAPI.getStats(dateRange);
         if (response.success) setProfitStats(response.data);
@@ -174,114 +122,6 @@ export default function FinancePage() {
     }
   };
 
-  const handleAddManualOrder = async () => {
-    if (!orderForm.customerName || !orderForm.phoneNumber || !orderForm.address || !orderForm.zone) {
-      toast.error('দয়া করে সব তথ্য পূরণ করুন');
-      return;
-    }
-
-    if (!orderForm.orderType) {
-      toast.error('দয়া করে অর্ডার টাইপ নির্বাচন করুন');
-      return;
-    }
-
-    // Calculate total amount
-    let totalAmount = 0;
-    orderForm.items.forEach(item => {
-      totalAmount += (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0);
-    });
-
-    try {
-      setSubmitting(true);
-
-      // Determine payment method based on order type
-      const paymentMethod = orderForm.orderType === 'subscription' ? 'wallet' : 'cash';
-
-      const response = await manualOrderAPI.createOrder({
-        ...orderForm,
-        totalAmount,
-        paymentMethod,
-        items: orderForm.items.map(item => ({
-          name: item.name,
-          price: parseFloat(item.price),
-          quantity: parseInt(item.quantity),
-        })),
-      });
-
-      if (response.success) {
-        const orderTypeText = orderForm.orderType === 'subscription' ? 'সাবস্ক্রিপশন অর্ডার' : 'ক্যাশ অন ডেলিভারি অর্ডার';
-        toast.success(`${orderTypeText} যোগ করা হয়েছে`);
-        setShowOrderModal(false);
-        setOrderForm({
-          customerName: '',
-          phoneNumber: '',
-          address: '',
-          zone: '',
-          items: [{ name: '', price: '', quantity: '1' }],
-          deliveryDate: new Date().toISOString().split('T')[0],
-          deliveryTime: 'lunch',
-          paymentMethod: 'cash',
-          orderType: 'cod',
-          specialInstructions: '',
-        });
-        await fetchData();
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'অর্ডার যোগ করতে ব্যর্থ হয়েছে');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const updateOrderItem = (index: number, field: string, value: string) => {
-    const newItems = [...orderForm.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setOrderForm({ ...orderForm, items: newItems });
-  };
-
-  const addOrderItem = () => {
-    setOrderForm({
-      ...orderForm,
-      items: [...orderForm.items, { name: '', price: '', quantity: '1' }],
-    });
-  };
-
-  const removeOrderItem = (index: number) => {
-    const newItems = orderForm.items.filter((_, i) => i !== index);
-    setOrderForm({ ...orderForm, items: newItems });
-  };
-
-  const updateOrderStatus = async (id: string, newStatus: string) => {
-    try {
-      const response = await manualOrderAPI.updateOrderStatus(id, newStatus);
-      if (response.success) {
-        toast.success('স্ট্যাটাস আপডেট হয়েছে');
-        await fetchData();
-      }
-    } catch (error) {
-      toast.error('স্ট্যাটাস আপডেট করতে ব্যর্থ হয়েছে');
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      confirmed: 'bg-blue-100 text-blue-800',
-      preparing: 'bg-purple-100 text-purple-800',
-      out_for_delivery: 'bg-indigo-100 text-indigo-800',
-      delivered: 'bg-leaf-100 text-leaf-700',
-      cancelled: 'bg-red-100 text-red-800',
-    };
-    const labels: Record<string, string> = {
-      pending: 'পেন্ডিং',
-      confirmed: 'কনফার্মড',
-      preparing: 'প্রস্তুত হচ্ছে',
-      out_for_delivery: 'ডেলিভারিতে',
-      delivered: 'ডেলিভারি হয়েছে',
-      cancelled: 'বাতিল',
-    };
-    return { className: styles[status] || 'bg-ink-100 text-ink-900', label: labels[status] || status };
-  };
 
   const calculateTotalExpense = () => expenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -299,7 +139,7 @@ export default function FinancePage() {
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-ink-900">ফাইন্যান্স ম্যানেজমেন্ট</h1>
-          <p className="text-ink-500 mt-1">খরচ ব্যবস্থাপনা এবং ম্যানুয়াল অর্ডার</p>
+          <p className="text-ink-500 mt-1">খরচ ও লাভের হিসাব</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -313,12 +153,6 @@ export default function FinancePage() {
             className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'expenses' ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}
           >
             খরচ সমূহ
-          </button>
-          <button
-            onClick={() => setActiveTab('manual-orders')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === 'manual-orders' ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}
-          >
-            ম্যানুয়াল অর্ডার
           </button>
         </div>
       </div>
@@ -486,104 +320,6 @@ export default function FinancePage() {
       )}
 
       {/* Manual Orders Section */}
-      {activeTab === 'manual-orders' && (
-        <div>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-ink-900">ম্যানুয়াল অর্ডার</h2>
-            <button
-              onClick={() => setShowOrderModal(true)}
-              className="bg-brand-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-            >
-              <UserPlus size={18} />
-              নতুন অর্ডার
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {manualOrders.map((order) => {
-              const status = getStatusBadge(order.status);
-              return (
-                <div key={order._id} className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden hover:shadow-xl transition">
-                  <div className="p-4 bg-gradient-to-r from-orange-500 to-red-500 text-white">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="text-sm font-mono opacity-80">#{order.orderId}</span>
-                        <div className="mt-1">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${status.className}`}>
-                            {status.label}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xl font-bold">৳ {order.totalAmount + order.deliveryCharge}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <p className="font-semibold text-ink-900">{order.customerName}</p>
-                      <div className="flex items-center gap-1 text-ink-500 text-sm mt-1">
-                        <Phone size={14} />
-                        <span>{order.phoneNumber}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-ink-600">
-                      <MapPin size={14} />
-                      <span>{order.zone}</span>
-                    </div>
-                    <div className="pt-2 border-t">
-                      <p className="text-xs text-ink-500">আইটেম</p>
-                      <p className="text-sm text-ink-700">{order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {order.status === 'pending' && (
-                        <button
-                          onClick={() => updateOrderStatus(order._id, 'confirmed')}
-                          className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm"
-                        >
-                          কনফার্ম
-                        </button>
-                      )}
-                      {order.status === 'confirmed' && (
-                        <button
-                          onClick={() => updateOrderStatus(order._id, 'preparing')}
-                          className="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm"
-                        >
-                          প্রস্তুত
-                        </button>
-                      )}
-                      {order.status === 'preparing' && (
-                        <button
-                          onClick={() => updateOrderStatus(order._id, 'out_for_delivery')}
-                          className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm"
-                        >
-                          ডেলিভারি
-                        </button>
-                      )}
-                      {order.status === 'out_for_delivery' && (
-                        <button
-                          onClick={() => updateOrderStatus(order._id, 'delivered')}
-                          className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm"
-                        >
-                          সম্পন্ন
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {manualOrders.length === 0 && (
-            <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-12 text-center">
-              <UserPlus className="w-16 h-16 text-ink-400 mx-auto mb-4" />
-              <p className="text-ink-500">কোনো ম্যানুয়াল অর্ডার নেই</p>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Add Expense Modal */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -653,207 +389,6 @@ export default function FinancePage() {
         </div>
       )}
 
-      {/* Add Manual Order Modal */}
-      {showOrderModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 my-8">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-ink-900">নতুন ম্যানুয়াল অর্ডার</h3>
-              <button onClick={() => setShowOrderModal(false)} className="p-1 hover:bg-ink-100 rounded">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-              {/* Order Type Selection - Add this first */}
-              <div>
-                <label className="block text-ink-700 mb-2 font-semibold">
-                  অর্ডার টাইপ সিলেক্ট করুন <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${orderForm.orderType === 'subscription' ? 'border-brand-500 bg-blue-50' : 'border-ink-300 hover:border-brand-500'}`}>
-                    <input
-                      type="radio"
-                      name="orderType"
-                      value="subscription"
-                      checked={orderForm.orderType === 'subscription'}
-                      onChange={(e) => setOrderForm({ ...orderForm, orderType: e.target.value as 'subscription' | 'cod', paymentMethod: e.target.value === 'subscription' ? 'wallet' : 'cash' })}
-                      className="w-4 h-4 text-brand-600"
-                    />
-                    <div>
-                      <p className="font-semibold text-ink-900">সাবস্ক্রিপশন অর্ডার</p>
-                      <p className="text-xs text-ink-500">এই অর্ডার "অর্ডার লিস্ট" পেইজে দেখাবে</p>
-                    </div>
-                  </label>
-                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${orderForm.orderType === 'cod' ? 'border-brand-500 bg-blue-50' : 'border-ink-300 hover:border-brand-500'}`}>
-                    <input
-                      type="radio"
-                      name="orderType"
-                      value="cod"
-                      checked={orderForm.orderType === 'cod'}
-                      onChange={(e) => setOrderForm({ ...orderForm, orderType: e.target.value as 'subscription' | 'cod', paymentMethod: e.target.value === 'cod' ? 'cash' : 'wallet' })}
-                      className="w-4 h-4 text-brand-600"
-                    />
-                    <div>
-                      <p className="font-semibold text-ink-900">ক্যাশ অন ডেলিভারি</p>
-                      <p className="text-xs text-ink-500">এই অর্ডার "ক্যাশ অন ডেলিভারি" পেইজে দেখাবে</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Customer Name */}
-              <div>
-                <label className="block text-ink-700 mb-1">গ্রাহকের নাম <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={orderForm.customerName}
-                  onChange={(e) => setOrderForm({ ...orderForm, customerName: e.target.value })}
-                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
-                  placeholder="গ্রাহকের নাম"
-                />
-              </div>
-
-              {/* Phone Number */}
-              <div>
-                <label className="block text-ink-700 mb-1">ফোন নাম্বার <span className="text-red-500">*</span></label>
-                <input
-                  type="tel"
-                  value={orderForm.phoneNumber}
-                  onChange={(e) => setOrderForm({ ...orderForm, phoneNumber: e.target.value })}
-                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
-                  placeholder="+8801XXXXXXXXX"
-                />
-              </div>
-
-              {/* Zone */}
-              <div>
-                <label className="block text-ink-700 mb-1">জোন <span className="text-red-500">*</span></label>
-                <select
-                  value={orderForm.zone}
-                  onChange={(e) => setOrderForm({ ...orderForm, zone: e.target.value })}
-                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
-                >
-                  <option value="">সিলেক্ট করুন</option>
-                  {zones.map((zone) => (
-                    <option key={zone} value={zone}>{zone}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Address */}
-              <div>
-                <label className="block text-ink-700 mb-1">ঠিকানা <span className="text-red-500">*</span></label>
-                <textarea
-                  value={orderForm.address}
-                  onChange={(e) => setOrderForm({ ...orderForm, address: e.target.value })}
-                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
-                  rows={2}
-                  placeholder="বিস্তারিত ঠিকানা"
-                />
-              </div>
-
-              {/* Items */}
-              <div>
-                <label className="block text-ink-700 mb-1">আইটেম সমূহ <span className="text-red-500">*</span></label>
-                {orderForm.items.map((item, idx) => (
-                  <div key={idx} className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={item.name}
-                      onChange={(e) => updateOrderItem(idx, 'name', e.target.value)}
-                      placeholder="আইটেমের নাম"
-                      className="flex-1 px-3 py-2.5 border border-ink-300 rounded-lg text-ink-900 text-base sm:text-sm"
-                    />
-                    <input
-                      type="number"
-                      value={item.price}
-                      onChange={(e) => updateOrderItem(idx, 'price', e.target.value)}
-                      placeholder="দাম"
-                      className="w-24 px-3 py-2.5 border border-ink-300 rounded-lg text-ink-900 text-base sm:text-sm"
-                    />
-                    <input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => updateOrderItem(idx, 'quantity', e.target.value)}
-                      placeholder="কত"
-                      className="w-20 px-3 py-2.5 border border-ink-300 rounded-lg text-ink-900 text-base sm:text-sm"
-                    />
-                    {orderForm.items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeOrderItem(idx)}
-                        className="px-2 py-2 text-red-500 hover:text-red-700"
-                      >
-                        <X size={20} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addOrderItem}
-                  className="text-brand-600 text-sm flex items-center gap-1 mt-2"
-                >
-                  <Plus size={16} /> আরও আইটেম যোগ করুন
-                </button>
-              </div>
-
-              {/* Delivery Date & Time */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-ink-700 mb-1">ডেলিভারির তারিখ</label>
-                  <DateInput
-                    value={orderForm.deliveryDate}
-                    onChange={(deliveryDate) => setOrderForm({ ...orderForm, deliveryDate })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-ink-700 mb-1">ডেলিভারির সময়</label>
-                  <select
-                    value={orderForm.deliveryTime}
-                    onChange={(e) => setOrderForm({ ...orderForm, deliveryTime: e.target.value })}
-                    className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
-                  >
-                    {deliveryTimes.map((time) => (
-                      <option key={time.value} value={time.value}>{time.icon} {time.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Payment Method - Auto based on order type, but can be shown as info */}
-              <div className="bg-ink-50 rounded-lg p-3">
-                <p className="text-sm text-ink-600">
-                  পেমেন্ট মেথড:
-                  <span className="font-semibold ml-1">
-                    {orderForm.orderType === 'subscription' ? 'ওয়ালেট (সাবস্ক্রিপশন)' : 'ক্যাশ অন ডেলিভারি'}
-                  </span>
-                </p>
-              </div>
-
-              {/* Special Instructions */}
-              <div>
-                <label className="block text-ink-700 mb-1">বিশেষ নির্দেশনা</label>
-                <textarea
-                  value={orderForm.specialInstructions}
-                  onChange={(e) => setOrderForm({ ...orderForm, specialInstructions: e.target.value })}
-                  className="w-full rounded-lg border border-ink-300 px-4 py-2.5 text-base text-ink-900 sm:text-sm"
-                  rows={2}
-                  placeholder="কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
-                />
-              </div>
-
-              <button
-                onClick={handleAddManualOrder}
-                disabled={submitting}
-                className="w-full bg-brand-600 text-white py-2 rounded-lg font-semibold"
-              >
-                {submitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'অর্ডার তৈরি করুন'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

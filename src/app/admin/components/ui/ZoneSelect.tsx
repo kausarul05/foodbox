@@ -126,7 +126,10 @@ export default function ZoneSelect({
           <select
             value={value}
             onChange={handleZoneChange}
-            className={`flex-1 px-4 py-3 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-ink-900 ${className}`}
+            // min-w-0 matters: a flex child will not shrink below its content
+            // width without it, so the long option labels pushed the "নতুন"
+            // button out of the dialog and created a horizontal scrollbar.
+            className={`min-w-0 flex-1 rounded-lg border border-ink-300 bg-white px-4 py-3 text-base text-ink-900 focus:ring-2 focus:ring-brand-500 focus:outline-none sm:text-sm ${className}`}
             required={required}
           >
             <option value="">সিলেক্ট করুন</option>
@@ -139,7 +142,7 @@ export default function ZoneSelect({
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-50 text-brand-600 rounded-lg hover:bg-blue-100 transition flex items-center gap-1"
+            className="flex shrink-0 items-center gap-1 rounded-lg bg-brand-50 px-3 py-2 text-brand-700 transition hover:bg-brand-100"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">নতুন</span>
