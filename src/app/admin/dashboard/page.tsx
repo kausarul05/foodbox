@@ -29,8 +29,9 @@ const BN_MONTHS = [
 const STATUS: Record<string, { label: string; tone: Tone }> = {
   pending: { label: 'পেন্ডিং', tone: 'warning' },
   confirmed: { label: 'কনফার্মড', tone: 'info' },
-  preparing: { label: 'রান্না হচ্ছে', tone: 'brand' },
-  out_for_delivery: { label: 'ডেলিভারিতে', tone: 'info' },
+  // Retired steps; older rows that still hold them read as confirmed.
+  preparing: { label: 'কনফার্মড', tone: 'info' },
+  out_for_delivery: { label: 'কনফার্মড', tone: 'info' },
   delivered: { label: 'ডেলিভারি হয়েছে', tone: 'success' },
   cancelled: { label: 'বাতিল', tone: 'danger' },
 };

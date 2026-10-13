@@ -324,6 +324,14 @@ export const orderAPI = {
     })
   },
 
+  // Move orders to 'confirmed' or 'delivered' — one order or a whole slot (Admin)
+  batchStatus: (orderIds, manualIds, to) => {
+    return apiCall('/admin/orders/batch-status', {
+      method: 'POST',
+      body: JSON.stringify({ orderIds, manualIds, to })
+    })
+  },
+
   // Cancel order (Admin)
   cancelOrder: (id, reason) => {
     return apiCall(`/orders/${id}/cancel`, {

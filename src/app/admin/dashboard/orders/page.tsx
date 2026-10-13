@@ -1,11 +1,12 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Coffee,
   Moon,
@@ -19,18 +20,16 @@ import {
   Trash2,
   Truck,
   User,
-  Wallet,
   X,
   XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { manualOrderAPI, orderAPI } from '@/app/admin/lib/api';
-import StatsCard from '@/app/admin/components/admin/StatsCard';
 import { EmptyState, LoadingBlock, Pill, type Tone } from '@/app/admin/components/ui/Shell';
 import ManualOrderForm from '@/app/admin/components/admin/ManualOrderForm';
 import Button from '@/components/ui/Button';
 import { useDialog } from '@/components/ui/DialogProvider';
-import { bengaliDate, bengaliDateNumeric, bn, taka } from '@/lib/format';
+import { bengaliDate, bengaliDateNumeric, bengaliWeekday, bn, taka } from '@/lib/format';
 
 /* -------------------------------------------------------------------------- */
 
@@ -42,9 +41,6 @@ import { bengaliDate, bengaliDateNumeric, bn, taka } from '@/lib/format';
  * of them — so no page in the admin panel ever showed a true order total.
  */
 type Source = 'subscription' | 'cod' | 'manual';
-
-/** Tabs are the three sources plus an "all" view and a cancelled bin. */
-type TabKey = 'all' | Source | 'cancelled';
 
 interface Row {
   _id: string;
@@ -75,18 +71,27 @@ const SOURCE_META: Record<Source, { label: string; tone: Tone }> = {
 const STATUS: Record<string, { label: string; tone: Tone; icon: typeof Package }> = {
   pending: { label: 'পেন্ডিং', tone: 'warning', icon: ClipboardList },
   confirmed: { label: 'কনফার্মড', tone: 'info', icon: CheckCircle2 },
-  preparing: { label: 'রান্না হচ্ছে', tone: 'brand', icon: Package },
-  out_for_delivery: { label: 'ডেলিভারিতে', tone: 'info', icon: Truck },
   delivered: { label: 'ডেলিভারি হয়েছে', tone: 'success', icon: CheckCircle2 },
   cancelled: { label: 'বাতিল', tone: 'danger', icon: XCircle },
 };
 
-const STATUS_FLOW = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
+/**
+ * The admin makes two moves: confirm, then deliver. Cancelling is left to the
+ * customer, whose cancel route refunds the wallet — the admin status route
+ * never did.
+ */
+type Step = 'confirmed' | 'delivered';
 
-const BN_MONTHS = [
-  'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
-  'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর',
-];
+/** The one button an order shows next, if any. */
+const NEXT_STEP: Record<string, { to: Step; label: string }> = {
+  pending: { to: 'confirmed', label: 'কনফার্ম' },
+  confirmed: { to: 'delivered', label: 'ডেলিভারি সম্পন্ন' },
+};
+
+/** Older rows may still say `preparing` / `out_for_delivery`; both mean confirmed now. */
+function normalizeStatus(s: string) {
+  return s === 'preparing' || s === 'out_for_delivery' ? 'confirmed' : s;
+}
 
 const MEALS: Record<string, { label: string; icon: typeof Coffee; tint: string }> = {
   morning: { label: 'সকাল', icon: Coffee, tint: 'text-amber-600' },
@@ -153,7 +158,7 @@ function toRow(o: ApiOrder, source: Source): Row {
     items: Array.isArray(o.items) ? (o.items as Row['items']) : [],
     totalAmount: Number(o.totalAmount ?? 0),
     deliveryCharge: Number(o.deliveryCharge ?? 0),
-    status: String(o.status ?? 'pending'),
+    status: normalizeStatus(String(o.status ?? 'pending')),
     paymentMethod: String(o.paymentMethod ?? ''),
     package: o.package ? String(o.package) : undefined,
     deliveryDate: String(o.deliveryDate ?? ''),
@@ -166,33 +171,97 @@ function toRow(o: ApiOrder, source: Source): Row {
 
 /* -------------------------------------------------------------------------- */
 
+/** "2026-10-13" for a local calendar day. Not toISOString(): that is UTC, and
+ * between midnight and 6am in Dhaka it returns yesterday. */
+function localKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function keyToDate(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function shiftKey(key: string, days: number) {
+  const d = keyToDate(key);
+  d.setDate(d.getDate() + days);
+  return localKey(d);
+}
+
+const STATUS_FILTERS: { key: string; label: string }[] = [
+  { key: 'all', label: 'সব' },
+  { key: 'pending', label: 'পেন্ডিং' },
+  { key: 'confirmed', label: 'কনফার্মড' },
+  { key: 'delivered', label: 'ডেলিভারি হয়েছে' },
+  { key: 'cancelled', label: 'বাতিল' },
+];
+
+const SOURCE_FILTERS: { key: 'all' | Source; label: string }[] = [
+  { key: 'all', label: 'সব ধরন' },
+  { key: 'subscription', label: 'সাবস্ক্রিপশন' },
+  { key: 'cod', label: 'ক্যাশ অন ডেলিভারি' },
+  { key: 'manual', label: 'ম্যানুয়াল' },
+];
+
+/** Segmented control — one look for every filter on the page. */
+function Segmented<K extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: { key: K; label: string; count?: number }[];
+  value: K;
+  onChange: (k: K) => void;
+  label: string;
+}) {
+  return (
+    <div role="group" aria-label={label} className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl bg-ink-100 p-1">
+      {options.map((o) => {
+        const active = o.key === value;
+        return (
+          <button
+            key={o.key}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(o.key)}
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+              active ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600 hover:text-ink-900'
+            }`}
+          >
+            {o.label}
+            {o.count !== undefined && (
+              <span className={`ml-1.5 text-xs ${active ? 'text-brand-700' : 'text-ink-400'}`}>{bn(o.count)}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
 function OrdersView() {
   const { confirm } = useDialog();
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const todayKey = useMemo(() => localKey(new Date()), []);
+
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  // Tab lives in the URL so /orders?tab=cod is linkable and survives a reload.
-  const tabParam = searchParams.get('tab');
-  const tab: TabKey =
-    tabParam === 'subscription' || tabParam === 'cod' || tabParam === 'manual' || tabParam === 'cancelled'
-      ? tabParam
-      : 'all';
-  const setTab = (next: TabKey) =>
-    router.replace(next === 'all' ? '/admin/dashboard/orders' : `/admin/dashboard/orders?tab=${next}`, {
-      scroll: false,
-    });
+  const [day, setDay] = useState(todayKey);
+  const [mealFilter, setMealFilter] = useState<'all' | keyof typeof MEALS>('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  // ?tab=cod is still honoured: the old COD page redirects here with it.
+  const [sourceFilter, setSourceFilter] = useState<'all' | Source>(() => {
+    const t = searchParams.get('tab');
+    return t === 'subscription' || t === 'cod' || t === 'manual' ? t : 'all';
+  });
   const [search, setSearch] = useState('');
-  const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
   const [detail, setDetail] = useState<Row | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
-  /** Which half of the calendar to show — upcoming by default. */
-  const [period, setPeriod] = useState<'upcoming' | 'past'>('upcoming');
-  /** `${isoDate}|${meal}` of the breakdown currently expanded, if any. */
-  const [openBreakdown, setOpenBreakdown] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     // Three independent sources. allSettled so one failing endpoint does not
@@ -217,7 +286,6 @@ function OrdersView() {
       toast.error('কিছু অর্ডার লোড করা যায়নি');
     }
 
-    out.sort((a, b) => new Date(b.deliveryDate).getTime() - new Date(a.deliveryDate).getTime());
     setRows(out);
     setLoading(false);
     setRefreshing(false);
@@ -227,38 +295,34 @@ function OrdersView() {
     void load();
   }, [load]);
 
-  /**
-   * Counts ignore cancelled orders.
-   *
-   * They used to include them, so cancelling both of two orders still read
-   * "২ অর্ডার" — the number meant "rows ever created", which is not what anyone
-   * reads it as. Cancelled rows live in their own tab instead of inflating
-   * every other figure.
-   */
-  const live = useMemo(() => rows.filter((r) => r.status !== 'cancelled'), [rows]);
+  /** Every order on the chosen day, whatever the filters say. */
+  const dayRows = useMemo(() => rows.filter((r) => dayKey(r.deliveryDate) === day), [rows, day]);
 
-  const counts = useMemo(
-    () => ({
-      all: live.length,
-      subscription: live.filter((r) => r.source === 'subscription').length,
-      cod: live.filter((r) => r.source === 'cod').length,
-      manual: live.filter((r) => r.source === 'manual').length,
-      cancelled: rows.length - live.length,
-    }),
-    [rows, live]
-  );
+  /** Live (not cancelled) orders per day, for the counts on the date strip. */
+  const perDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of rows) {
+      if (r.status === 'cancelled') continue;
+      const k = dayKey(r.deliveryDate);
+      map.set(k, (map.get(k) ?? 0) + 1);
+    }
+    return map;
+  }, [rows]);
+
+  /** Yesterday to five days on — the window a kitchen actually works in. */
+  const strip = useMemo(() => Array.from({ length: 7 }, (_, i) => shiftKey(todayKey, i - 1)), [todayKey]);
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      // The cancelled tab is the only place cancelled rows appear.
-      if (tab === 'cancelled') {
-        if (r.status !== 'cancelled') return false;
-      } else {
+    return dayRows.filter((r) => {
+      if (mealFilter !== 'all' && r.deliveryTime !== mealFilter) return false;
+      if (sourceFilter !== 'all' && r.source !== sourceFilter) return false;
+      if (statusFilter === 'all') {
+        // Cancelled orders stay out of the working list unless asked for.
         if (r.status === 'cancelled') return false;
-        if (tab !== 'all' && r.source !== tab) return false;
+      } else if (r.status !== statusFilter) {
+        return false;
       }
-      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
       if (!term) return true;
       return (
         r.orderId.toLowerCase().includes(term) ||
@@ -267,81 +331,60 @@ function OrdersView() {
         r.items.some((i) => i.name?.toLowerCase().includes(term))
       );
     });
-  }, [rows, tab, statusFilter, search]);
+  }, [dayRows, mealFilter, sourceFilter, statusFilter, search]);
 
   /**
-   * Today, in local time. `toISOString()` converts to UTC first, so between
-   * midnight and 6am in Dhaka it returns yesterday — which would file today's
-   * orders under "past".
+   * Orders on the chosen day and meal waiting for `to`, from every source.
+   * Reads `dayRows`, not the filtered list — a filter or a search should never
+   * leave half a meal unconfirmed.
    */
-  const todayKey = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, []);
+  const slotRows = (meal: string, to: Step) =>
+    dayRows.filter((r) => r.deliveryTime === meal && NEXT_STEP[r.status]?.to === to);
 
   /**
-   * Upcoming days run forwards (today, tomorrow, the day after) because that is
-   * the order the kitchen cooks in. Past days run backwards, newest first,
-   * because that is the order you look things up in. They used to share one
-   * newest-first list, which put next week above tomorrow.
+   * Moves orders one step on — a single row, or a whole meal. Goes through the
+   * batch route either way, which only moves pending → confirmed and
+   * confirmed → delivered, so nothing can skip a step or undo a delivery.
    */
-  const { upcoming, past } = useMemo(() => {
-    const map = new Map<string, Row[]>();
-    for (const row of visible) {
-      const key = dayKey(row.deliveryDate);
-      const bucket = map.get(key);
-      if (bucket) bucket.push(row);
-      else map.set(key, [row]);
-    }
-    const entries = [...map.entries()];
-    return {
-      upcoming: entries.filter(([k]) => k >= todayKey).sort((a, b) => a[0].localeCompare(b[0])),
-      past: entries.filter(([k]) => k < todayKey).sort((a, b) => b[0].localeCompare(a[0])),
-    };
-  }, [visible, todayKey]);
-
-  const grouped = period === 'upcoming' ? upcoming : past;
-
-  /** Orders delivered in the current calendar month — the unit the books use. */
-  const monthCount = useMemo(() => {
-    const prefix = todayKey.slice(0, 7);
-    return live.filter((r) => dayKey(r.deliveryDate).startsWith(prefix)).length;
-  }, [live, todayKey]);
-
-  const currentMonthLabel = useMemo(() => {
-    const d = new Date();
-    return `${BN_MONTHS[d.getMonth()]} ${bn(d.getFullYear())}`;
-  }, []);
-
-  const revenue = useMemo(
-    () => visible.filter((r) => r.status === 'delivered').reduce((sum, r) => sum + r.totalAmount, 0),
-    [visible]
-  );
-
-  // Upcoming days start open (that is the day's cooking list); past days start
-  // closed so the history does not bury what matters.
-  const isOpen = (key: string) => openDays[key] ?? key >= todayKey;
-
-  const updateStatus = async (row: Row, status: string) => {
+  const advance = async (targets: Row[], to: Step, busyKey: string) => {
+    if (targets.length === 0) return;
     try {
-      setUpdating(row._id);
-      const res =
-        row.source === 'manual'
-          ? await manualOrderAPI.updateOrderStatus(row._id, status)
-          : await orderAPI.updateOrderStatus(row._id, status);
-
-      if (res.success) {
-        toast.success('স্ট্যাটাস আপডেট হয়েছে');
-        setRows((prev) => prev.map((r) => (r._id === row._id ? { ...r, status } : r)));
-        setDetail((d) => (d && d._id === row._id ? { ...d, status } : d));
-      } else {
+      setUpdating(busyKey);
+      const res = await orderAPI.batchStatus(
+        targets.filter((r) => r.source !== 'manual').map((r) => r._id),
+        targets.filter((r) => r.source === 'manual').map((r) => r._id),
+        to
+      );
+      if (!res.success) {
         toast.error(res.message || 'আপডেট করা যায়নি');
+        return;
       }
+      const n = res.data?.updated ?? 0;
+      toast.success(to === 'confirmed' ? `${bn(n)}টি অর্ডার কনফার্ম হয়েছে` : `${bn(n)}টি অর্ডার ডেলিভারি সম্পন্ন`);
+      // Reload rather than patch: the server skips anything that changed since
+      // this page loaded, so only a fresh read shows what really moved.
+      await load();
+      setDetail(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'আপডেট করা যায়নি');
     } finally {
       setUpdating(null);
     }
+  };
+
+  const advanceMeal = async (meal: string, to: Step) => {
+    const targets = slotRows(meal, to);
+    const ok = await confirm({
+      title:
+        to === 'confirmed'
+          ? `${MEALS[meal]?.label}ের সব অর্ডার কনফার্ম করবেন?`
+          : `${MEALS[meal]?.label}ের সব অর্ডার ডেলিভারি সম্পন্ন?`,
+      message: `${bengaliWeekday(keyToDate(day))}, ${bengaliDate(day)} — ${bn(targets.length)}টি অর্ডার ${
+        to === 'confirmed' ? 'কনফার্ম' : 'ডেলিভারি সম্পন্ন'
+      } হবে।`,
+      confirmLabel: to === 'confirmed' ? 'হ্যাঁ, কনফার্ম করুন' : 'হ্যাঁ, ডেলিভারি সম্পন্ন',
+    });
+    if (ok) await advance(targets, to, `meal|${meal}|${to}`);
   };
 
   /** Permanently removes a cancelled order. The API refuses any other status. */
@@ -357,9 +400,7 @@ function OrdersView() {
     try {
       setUpdating(row._id);
       const res =
-        row.source === 'manual'
-          ? await manualOrderAPI.deleteOrder(row._id)
-          : await orderAPI.deleteOrder(row._id);
+        row.source === 'manual' ? await manualOrderAPI.deleteOrder(row._id) : await orderAPI.deleteOrder(row._id);
 
       if (res.success) {
         toast.success('অর্ডার মুছে ফেলা হয়েছে');
@@ -375,20 +416,13 @@ function OrdersView() {
     }
   };
 
-  const TABS: { key: TabKey; label: string; count: number }[] = [
-    { key: 'all', label: 'মোট অর্ডার', count: counts.all },
-    { key: 'subscription', label: 'সাবস্ক্রিপশন', count: counts.subscription },
-    { key: 'cod', label: 'ক্যাশ অন ডেলিভারি', count: counts.cod },
-    { key: 'manual', label: 'ম্যানুয়াল', count: counts.manual },
-    { key: 'cancelled', label: 'বাতিল', count: counts.cancelled },
-  ];
-
   if (loading) {
     return (
       <div className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-2xl bg-ink-100" />
+        <div className="h-24 animate-pulse rounded-2xl bg-ink-100" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-48 animate-pulse rounded-2xl bg-ink-100" />
           ))}
         </div>
         <LoadingBlock rows={4} />
@@ -396,337 +430,365 @@ function OrdersView() {
     );
   }
 
+  const live = dayRows.filter((r) => r.status !== 'cancelled');
+  const dayTotal = live.reduce((sum, r) => sum + r.totalAmount, 0);
+  const cancelledCount = dayRows.length - live.length;
+
   return (
     <div className="space-y-5">
-      {/* Totals across every source */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <StatsCard
-          title="মোট অর্ডার"
-          value={bn(counts.all)}
-          icon={ShoppingBag}
-          tone="brand"
-          hint="সাবস্ক্রিপশন + COD + ম্যানুয়াল"
-        />
-        {/* The month is the unit the books use — profit, loss and the cook's pay. */}
-        <StatsCard
-          title="এই মাসের অর্ডার"
-          value={bn(monthCount)}
-          icon={CalendarDays}
-          tone="brand"
-          hint={currentMonthLabel}
-        />
-        <StatsCard title="সাবস্ক্রিপশন" value={bn(counts.subscription)} icon={Wallet} tone="sky" />
-        <StatsCard title="ক্যাশ অন ডেলিভারি" value={bn(counts.cod)} icon={Truck} tone="leaf" />
-        <StatsCard title="ম্যানুয়াল" value={bn(counts.manual)} icon={ClipboardList} tone="amber" />
-      </div>
-
-      {/* Source tabs */}
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        {TABS.map((t) => {
-          const active = tab === t.key;
-          return (
+      {/* ── Date ─────────────────────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-ink-200 bg-white p-4 shadow-card sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
             <button
-              key={t.key}
               type="button"
-              onClick={() => setTab(t.key)}
-              aria-pressed={active}
-              className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                active
-                  ? 'border-brand-600 bg-brand-600 text-white'
-                  : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300'
-              }`}
+              onClick={() => setDay((d) => shiftKey(d, -1))}
+              aria-label="আগের দিন"
+              className="grid size-10 place-items-center rounded-xl border border-ink-200 text-ink-600 hover:bg-ink-50"
             >
-              {t.label}
-              <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${active ? 'bg-white/25' : 'bg-ink-100 text-ink-600'}`}>
-                {bn(t.count)}
-              </span>
+              <ChevronLeft size={18} />
             </button>
-          );
-        })}
-      </div>
+            <div className="min-w-0 px-1">
+              <p className="text-xs font-medium text-ink-500">
+                {day === todayKey ? 'আজ' : day === shiftKey(todayKey, 1) ? 'আগামীকাল' : bengaliWeekday(keyToDate(day))}
+              </p>
+              <h1 className="text-lg font-bold text-ink-900 sm:text-xl">
+                {day === todayKey || day === shiftKey(todayKey, 1) ? `${bengaliWeekday(keyToDate(day))}, ` : ''}
+                {bengaliDate(day)}
+              </h1>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDay((d) => shiftKey(d, 1))}
+              aria-label="পরের দিন"
+              className="grid size-10 place-items-center rounded-xl border border-ink-200 text-ink-600 hover:bg-ink-50"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
 
-      {/* Filters */}
-      <div className="grid gap-3 rounded-2xl border border-ink-200 bg-white p-4 shadow-card sm:grid-cols-[1fr_auto_auto]">
-        <div className="relative">
-          <Search size={17} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="অর্ডার আইডি, নাম, ফোন বা খাবার..."
-            aria-label="অর্ডার খুঁজুন"
-            className="w-full rounded-xl border border-ink-200 py-2.5 pr-4 pl-11 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/25 focus:outline-none"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {day !== todayKey && (
+              <button
+                type="button"
+                onClick={() => setDay(todayKey)}
+                className="rounded-xl border border-ink-200 px-3.5 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
+              >
+                আজকে যান
+              </button>
+            )}
+            <label className="relative flex cursor-pointer items-center gap-2 rounded-xl border border-ink-200 px-3.5 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50">
+              <CalendarDays size={16} className="text-brand-600" />
+              তারিখ বাছুন
+              <input
+                type="date"
+                value={day}
+                onChange={(e) => e.target.value && setDay(e.target.value)}
+                aria-label="তারিখ বাছুন"
+                className="absolute inset-0 cursor-pointer opacity-0"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setRefreshing(true);
+                void load();
+              }}
+              aria-label="রিফ্রেশ"
+              className="grid size-10 place-items-center rounded-xl border border-ink-200 text-ink-600 hover:bg-ink-50"
+            >
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+            <Button icon={<Plus size={16} />} onClick={() => setShowManualForm(true)}>
+              ম্যানুয়াল অর্ডার
+            </Button>
+          </div>
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          aria-label="স্ট্যাটাস ফিল্টার"
-          className="rounded-xl border border-ink-200 px-4 py-2.5 text-sm text-ink-900 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/25 focus:outline-none"
-        >
-          <option value="all">সব স্ট্যাটাস</option>
-          {STATUS_FLOW.map((s) => (
-            <option key={s} value={s}>
-              {statusOf(s).label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => {
-            setRefreshing(true);
-            void load();
-          }}
-          className="flex items-center justify-center gap-2 rounded-xl border border-ink-200 px-4 py-2.5 text-sm font-medium text-ink-700 hover:bg-ink-50"
-        >
-          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-          রিফ্রেশ
-        </button>
-      </div>
 
-      {/* Taking an order belongs with the order list, not with Finance. */}
-      <Button
-        fullWidth
-        size="lg"
-        icon={<Plus size={18} />}
-        onClick={() => setShowManualForm(true)}
-        className="sm:w-auto"
-      >
-        ম্যানুয়াল অর্ডার নিন
-      </Button>
-
-      {/*
-        Upcoming and past are separate lists, not one stream, because they are
-        read for different reasons and in opposite directions.
-      */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-full border border-ink-200 bg-white p-1">
-          {(
-            [
-              { key: 'upcoming', label: 'আজ ও আসন্ন', count: upcoming.length },
-              { key: 'past', label: 'পূর্বের অর্ডার', count: past.length },
-            ] as const
-          ).map((option) => {
-            const active = period === option.key;
+        {/* A week at a glance, with how many orders each day holds. */}
+        <div className="no-scrollbar mt-4 -mx-1 flex gap-2 overflow-x-auto px-1">
+          {strip.map((k) => {
+            const active = k === day;
+            const count = perDay.get(k) ?? 0;
             return (
               <button
-                key={option.key}
+                key={k}
                 type="button"
+                onClick={() => setDay(k)}
                 aria-pressed={active}
-                onClick={() => setPeriod(option.key)}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                  active ? 'bg-brand-600 text-white' : 'text-ink-600 hover:text-ink-900'
+                className={`flex min-w-[4.5rem] shrink-0 flex-col items-center rounded-xl border px-3 py-2 transition-colors ${
+                  active
+                    ? 'border-brand-600 bg-brand-600 text-white'
+                    : 'border-ink-200 text-ink-700 hover:border-brand-300 hover:bg-brand-50'
                 }`}
               >
-                {option.label}
-                <span className={`ml-1.5 text-xs ${active ? 'text-white/75' : 'text-ink-400'}`}>
-                  {bn(option.count)}
+                <span className={`text-[11px] ${active ? 'text-white/80' : 'text-ink-500'}`}>
+                  {k === todayKey ? 'আজ' : bengaliWeekday(keyToDate(k))}
+                </span>
+                <span className="text-base font-bold">{bn(keyToDate(k).getDate())}</span>
+                <span className={`text-[11px] ${active ? 'text-white/90' : count ? 'text-brand-700' : 'text-ink-400'}`}>
+                  {count ? `${bn(count)}টি` : '—'}
                 </span>
               </button>
             );
           })}
         </div>
 
-        {visible.length > 0 && (
-          <p className="text-sm text-ink-600">
-            ডেলিভারি হওয়া থেকে আয় <span className="font-semibold text-ink-900">{taka(revenue)}</span>
-          </p>
-        )}
+        <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-ink-100 pt-3 text-sm text-ink-600">
+          <span>
+            মোট অর্ডার <b className="text-ink-900">{bn(live.length)}টি</b>
+          </span>
+          <span>
+            মোট মূল্য <b className="text-ink-900">{taka(dayTotal)}</b>
+          </span>
+          {cancelledCount > 0 && (
+            <span>
+              বাতিল <b className="text-red-600">{bn(cancelledCount)}টি</b>
+            </span>
+          )}
+        </p>
+      </section>
+
+      {/* ── One card per meal: counts, kitchen breakdown, one action ──────── */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {Object.entries(MEALS).map(([mealKey, meal]) => {
+          const mealRows = live.filter((r) => r.deliveryTime === mealKey);
+          const pending = slotRows(mealKey, 'confirmed').length;
+          const confirmed = slotRows(mealKey, 'delivered').length;
+          const delivered = mealRows.filter((r) => r.status === 'delivered').length;
+          const total = mealRows.length;
+          const MealIcon = meal.icon;
+
+          const byPackage = new Map<string, number>();
+          for (const r of mealRows) byPackage.set(packageOf(r), (byPackage.get(packageOf(r)) ?? 0) + 1);
+          const packages = [...byPackage.entries()].sort((a, b) => b[1] - a[1]);
+
+          return (
+            <section
+              key={mealKey}
+              className="flex flex-col rounded-2xl border border-ink-200 bg-white p-5 shadow-card"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid size-10 place-items-center rounded-xl bg-ink-50">
+                    <MealIcon size={20} className={meal.tint} />
+                  </span>
+                  <div>
+                    <h2 className="font-bold text-ink-900">{meal.label}</h2>
+                    <p className="text-xs text-ink-500">{bn(total)}টি অর্ডার</p>
+                  </div>
+                </div>
+                <span className="text-3xl font-bold text-ink-900">{bn(total)}</span>
+              </div>
+
+              {/* Progress: pending / confirmed / delivered */}
+              {total > 0 && (
+                <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-ink-100">
+                  <div className="bg-leaf-500" style={{ width: `${(delivered / total) * 100}%` }} />
+                  <div className="bg-sky-500" style={{ width: `${(confirmed / total) * 100}%` }} />
+                  <div className="bg-amber-400" style={{ width: `${(pending / total) * 100}%` }} />
+                </div>
+              )}
+              <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-amber-50 py-1.5">
+                  <dt className="text-[11px] text-amber-800">পেন্ডিং</dt>
+                  <dd className="font-bold text-amber-900">{bn(pending)}</dd>
+                </div>
+                <div className="rounded-lg bg-sky-50 py-1.5">
+                  <dt className="text-[11px] text-sky-800">কনফার্মড</dt>
+                  <dd className="font-bold text-sky-900">{bn(confirmed)}</dd>
+                </div>
+                <div className="rounded-lg bg-leaf-50 py-1.5">
+                  <dt className="text-[11px] text-leaf-700">ডেলিভারি</dt>
+                  <dd className="font-bold text-leaf-700">{bn(delivered)}</dd>
+                </div>
+              </dl>
+
+              {packages.length > 0 && (
+                <ul className="mt-3 flex flex-wrap gap-1.5">
+                  {packages.map(([pkg, n]) => (
+                    <li key={pkg} className="rounded-full bg-ink-100 px-2.5 py-0.5 text-xs text-ink-700">
+                      {pkg} <b className="text-ink-900">{bn(n)}</b>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="mt-auto pt-4">
+                {pending > 0 ? (
+                  <button
+                    type="button"
+                    disabled={updating !== null}
+                    onClick={() => void advanceMeal(mealKey, 'confirmed')}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-60"
+                  >
+                    <CheckCircle2 size={17} />
+                    {updating === `meal|${mealKey}|confirmed`
+                      ? 'কনফার্ম হচ্ছে…'
+                      : `${meal.label}ের ${bn(pending)}টি অর্ডার কনফার্ম করুন`}
+                  </button>
+                ) : confirmed > 0 ? (
+                  <button
+                    type="button"
+                    disabled={updating !== null}
+                    onClick={() => void advanceMeal(mealKey, 'delivered')}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-leaf-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-leaf-700 disabled:opacity-60"
+                  >
+                    <Truck size={17} />
+                    {updating === `meal|${mealKey}|delivered`
+                      ? 'আপডেট হচ্ছে…'
+                      : `${bn(confirmed)}টি অর্ডার ডেলিভারি সম্পন্ন`}
+                  </button>
+                ) : (
+                  <p className="flex items-center justify-center gap-1.5 rounded-xl bg-ink-50 px-4 py-2.5 text-sm text-ink-500">
+                    {total > 0 ? (
+                      <>
+                        <CheckCircle2 size={16} className="text-leaf-600" />
+                        সব ডেলিভারি হয়ে গেছে
+                      </>
+                    ) : (
+                      'এই বেলায় কোনো অর্ডার নেই'
+                    )}
+                  </p>
+                )}
+              </div>
+            </section>
+          );
+        })}
       </div>
 
-      {/* Grouped list */}
-      {grouped.length === 0 ? (
-        <EmptyState
-          icon={ShoppingBag}
-          title="কোনো অর্ডার নেই"
-          hint={
-            period === 'past'
-              ? 'আগের কোনো অর্ডার নেই।'
-              : tab === 'all'
-                ? 'আজ বা আগামী দিনের কোনো অর্ডার নেই।'
-                : 'এই ফিল্টারে কিছু পাওয়া যায়নি।'
-          }
-        />
-      ) : (
-        <div className="space-y-4">
-          {grouped.map(([key, dayRows]) => {
-            const open = isOpen(key);
-            return (
-              <section key={key} className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-card">
-                <button
-                  type="button"
-                  onClick={() => setOpenDays((p) => ({ ...p, [key]: !open }))}
-                  aria-expanded={open}
-                  className="flex w-full items-center justify-between gap-3 bg-ink-50 px-4 py-3.5 text-left transition-colors hover:bg-ink-100"
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <CalendarDays size={18} className="shrink-0 text-brand-600" />
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-ink-900">
-                        {key === 'unknown' ? 'তারিখ নেই' : bengaliDate(key)}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-ink-500">
-                        মোট {bn(dayRows.length)}টি অর্ডার
-                      </span>
-                    </span>
-                  </span>
-                  <ChevronDown
-                    size={18}
-                    className={`shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`}
-                  />
-                </button>
+      {/* ── Order list ───────────────────────────────────────────────────── */}
+      <section className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-card">
+        <div className="space-y-3 border-b border-ink-100 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented
+              label="বেলা"
+              value={mealFilter}
+              onChange={setMealFilter}
+              options={[
+                { key: 'all' as const, label: 'সব বেলা', count: live.length },
+                ...Object.entries(MEALS).map(([k, m]) => ({
+                  key: k as keyof typeof MEALS,
+                  label: m.label,
+                  count: live.filter((r) => r.deliveryTime === k).length,
+                })),
+              ]}
+            />
+            <Segmented label="স্ট্যাটাস" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTERS} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="অর্ডার আইডি, নাম, ফোন বা খাবার..."
+                aria-label="অর্ডার খুঁজুন"
+                className="w-full rounded-xl border border-ink-200 py-2.5 pr-4 pl-10 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/25 focus:outline-none"
+              />
+            </div>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value as 'all' | Source)}
+              aria-label="অর্ডারের ধরন"
+              className="rounded-xl border border-ink-200 px-4 py-2.5 text-sm text-ink-900 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/25 focus:outline-none"
+            >
+              {SOURCE_FILTERS.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-                {/*
-                  Per-meal counts for the day, so the cook can see how many of
-                  each sitting to prepare without opening every order. Tapping
-                  one breaks it down by package, which is the thing that was
-                  impossible to find anywhere before.
-                */}
-                <div className="grid grid-cols-3 divide-x divide-ink-100 border-t border-ink-100">
-                  {Object.entries(MEALS).map(([mealKey, meal]) => {
-                    const mealRows = dayRows.filter((r) => r.deliveryTime === mealKey);
-                    const breakdownKey = `${key}|${mealKey}`;
-                    const showing = openBreakdown === breakdownKey;
-                    const MealIcon = meal.icon;
+        {visible.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              icon={ShoppingBag}
+              title="কোনো অর্ডার নেই"
+              hint={dayRows.length === 0 ? 'এই দিনে কোনো অর্ডার আসেনি।' : 'এই ফিল্টারে কিছু পাওয়া যায়নি।'}
+            />
+          </div>
+        ) : (
+          <ul className="divide-y divide-ink-100">
+            {visible.map((row) => {
+              const st = statusOf(row.status);
+              const StIcon = st.icon;
+              const meal = MEALS[row.deliveryTime];
+              const MealIcon = meal?.icon ?? Package;
+              const src = SOURCE_META[row.source];
+              const next = NEXT_STEP[row.status];
 
-                    return (
+              return (
+                <li key={`${row.source}-${row._id}`} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 hover:bg-ink-50/60">
+                  <button type="button" onClick={() => setDetail(row)} className="min-w-0 flex-1 text-left">
+                    <p className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-ink-900">{row.customerName}</span>
+                      <span className="font-mono text-[11px] text-ink-400">#{row.orderId?.slice(-8) || '—'}</span>
+                    </p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-600">
+                      <span className="inline-flex items-center gap-1">
+                        <MealIcon size={13} className={meal?.tint ?? 'text-ink-400'} />
+                        {meal?.label ?? row.deliveryTime}
+                      </span>
+                      {row.phoneNumber && (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone size={12} className="text-ink-400" />
+                          {row.phoneNumber}
+                        </span>
+                      )}
+                      <span className="truncate">{row.items.map((i) => i.name).join(', ') || '—'}</span>
+                    </p>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <Pill tone={src.tone}>{src.label}</Pill>
+                    <Pill tone={st.tone}>
+                      <StIcon size={12} />
+                      {st.label}
+                    </Pill>
+                  </div>
+
+                  <span className="w-20 text-right font-bold text-ink-900">{taka(row.totalAmount)}</span>
+
+                  <div className="flex w-36 justify-end">
+                    {next ? (
                       <button
-                        key={mealKey}
                         type="button"
-                        disabled={mealRows.length === 0}
-                        aria-expanded={showing}
-                        onClick={() => setOpenBreakdown(showing ? null : breakdownKey)}
-                        className={`px-3 py-2.5 text-center transition-colors disabled:cursor-default disabled:opacity-45 ${
-                          showing ? 'bg-brand-50' : 'enabled:hover:bg-ink-50'
+                        disabled={updating !== null}
+                        onClick={() => void advance([row], next.to, row._id)}
+                        className={`w-full rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+                          next.to === 'confirmed' ? 'bg-brand-600 hover:bg-brand-700' : 'bg-leaf-600 hover:bg-leaf-700'
                         }`}
                       >
-                        <span className="flex items-center justify-center gap-1.5 text-xs text-ink-600">
-                          <MealIcon size={13} className={meal.tint} />
-                          {meal.label}
-                        </span>
-                        <span className="mt-0.5 block text-lg font-bold text-ink-900">
-                          {bn(mealRows.length)}
-                        </span>
+                        {updating === row._id ? '…' : next.label}
                       </button>
-                    );
-                  })}
-                </div>
-
-                {openBreakdown?.startsWith(`${key}|`) && (
-                  <div className="border-t border-ink-100 bg-brand-50/60 px-4 py-3">
-                    {(() => {
-                      const mealKey = openBreakdown.split('|')[1];
-                      const mealRows = dayRows.filter((r) => r.deliveryTime === mealKey);
-                      const byPackage = new Map<string, number>();
-                      for (const r of mealRows) {
-                        byPackage.set(packageOf(r), (byPackage.get(packageOf(r)) ?? 0) + 1);
-                      }
-                      const entries = [...byPackage.entries()].sort((a, b) => b[1] - a[1]);
-
-                      return (
-                        <>
-                          <p className="text-xs font-semibold text-ink-700">
-                            {MEALS[mealKey]?.label} — প্যাকেজ অনুযায়ী
-                          </p>
-                          <ul className="mt-2 flex flex-wrap gap-2">
-                            {entries.map(([pkg, n]) => (
-                              <li
-                                key={pkg}
-                                className="rounded-full border border-brand-200 bg-white px-3 py-1 text-xs"
-                              >
-                                <span className="text-ink-700">{pkg}</span>{' '}
-                                <span className="font-bold text-ink-900">{bn(n)}টি</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()}
+                    ) : row.status === 'cancelled' ? (
+                      <button
+                        type="button"
+                        disabled={updating !== null}
+                        onClick={() => void deleteOrder(row)}
+                        className="flex items-center gap-1 text-sm font-semibold text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        <Trash2 size={14} />
+                        মুছে ফেলুন
+                      </button>
+                    ) : null}
                   </div>
-                )}
-
-                {open && (
-                  <ul className="divide-y divide-ink-100">
-                    {dayRows.map((row) => {
-                      const st = statusOf(row.status);
-                      const StIcon = st.icon;
-                      const meal = MEALS[row.deliveryTime];
-                      const MealIcon = meal?.icon ?? Package;
-                      const src = SOURCE_META[row.source];
-
-                      return (
-                        <li key={`${row.source}-${row._id}`} className="flex flex-wrap gap-4 p-4 hover:bg-ink-50/60">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-600">
-                                #{row.orderId?.slice(-8) || '—'}
-                              </span>
-                              <Pill tone={src.tone}>{src.label}</Pill>
-                              <Pill tone={st.tone}>
-                                <StIcon size={12} />
-                                {st.label}
-                              </Pill>
-                            </div>
-
-                            <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-900">
-                              <User size={14} className="shrink-0 text-ink-400" />
-                              {row.customerName}
-                              {row.phoneNumber && (
-                                <a
-                                  href={`tel:${row.phoneNumber}`}
-                                  className="inline-flex items-center gap-1 text-xs font-normal text-ink-500 hover:text-brand-700"
-                                >
-                                  <Phone size={11} />
-                                  {row.phoneNumber}
-                                </a>
-                              )}
-                            </p>
-
-                            <p className="mt-1.5 flex items-center gap-1.5 text-sm text-ink-600">
-                              <MealIcon size={14} className={`shrink-0 ${meal?.tint ?? 'text-ink-400'}`} />
-                              {meal?.label ?? row.deliveryTime} · {row.items.map((i) => i.name).join(', ') || '—'}
-                            </p>
-                          </div>
-
-                          <div className="flex shrink-0 flex-col items-end gap-2">
-                            <span className="text-lg font-bold text-ink-900">{taka(row.totalAmount)}</span>
-                            <button
-                              type="button"
-                              onClick={() => setDetail(row)}
-                              className="text-xs font-semibold text-brand-700 hover:underline"
-                            >
-                              বিস্তারিত
-                            </button>
-                            {/* Deleting is offered only once an order is cancelled. */}
-                            {row.status === 'cancelled' && (
-                              <button
-                                type="button"
-                                disabled={updating === row._id}
-                                onClick={() => deleteOrder(row)}
-                                className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
-                              >
-                                <Trash2 size={12} />
-                                মুছে ফেলুন
-                              </button>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
-            );
-          })}
-        </div>
-      )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       {showManualForm && (
         <ManualOrderForm
           onClose={() => setShowManualForm(false)}
           onCreated={() => {
-            // The new row belongs to the Manual tab, so land the admin there.
-            setTab('manual');
+            setSourceFilter('manual');
             void load();
           }}
         />
@@ -749,7 +811,8 @@ function OrdersView() {
               <div>
                 <h2 className="text-lg font-bold text-ink-900">অর্ডার #{detail.orderId?.slice(-8) || '—'}</h2>
                 <p className="mt-1 text-sm text-ink-500">
-                  {SOURCE_META[detail.source].label} · {bengaliDateNumeric(detail.deliveryDate)}
+                  {SOURCE_META[detail.source].label} · {bengaliDateNumeric(detail.deliveryDate)} ·{' '}
+                  {MEALS[detail.deliveryTime]?.label ?? detail.deliveryTime}
                 </p>
               </div>
               <button
@@ -764,8 +827,11 @@ function OrdersView() {
 
             <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
               <div>
-                <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">গ্রাহক</p>
-                <p className="mt-1.5 font-semibold text-ink-900">{detail.customerName}</p>
+                <p className="text-xs font-semibold tracking-wide text-ink-500">গ্রাহক</p>
+                <p className="mt-1.5 flex items-center gap-1.5 font-semibold text-ink-900">
+                  <User size={14} className="text-ink-400" />
+                  {detail.customerName}
+                </p>
                 {detail.phoneNumber && (
                   <a href={`tel:${detail.phoneNumber}`} className="text-sm text-brand-700 hover:underline">
                     {detail.phoneNumber}
@@ -775,7 +841,7 @@ function OrdersView() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">খাবার</p>
+                <p className="text-xs font-semibold tracking-wide text-ink-500">খাবার</p>
                 <ul className="mt-2 divide-y divide-ink-100 rounded-xl border border-ink-200">
                   {detail.items.map((item, i) => (
                     <li key={i} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
@@ -803,37 +869,26 @@ function OrdersView() {
 
               {detail.specialInstructions && (
                 <div>
-                  <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">নোট</p>
-                  <p className="mt-1.5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-                    {detail.specialInstructions}
-                  </p>
+                  <p className="text-xs font-semibold tracking-wide text-ink-500">নোট</p>
+                  <p className="mt-1.5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{detail.specialInstructions}</p>
                 </div>
               )}
+            </div>
 
-              <div>
-                <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">স্ট্যাটাস বদলান</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {STATUS_FLOW.map((s) => {
-                    const meta = statusOf(s);
-                    const active = detail.status === s;
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        disabled={active || updating === detail._id}
-                        onClick={() => updateStatus(detail, s)}
-                        className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition disabled:opacity-60 ${
-                          active
-                            ? 'border-brand-600 bg-brand-600 text-white'
-                            : 'border-ink-200 text-ink-700 hover:border-brand-400 hover:text-brand-700'
-                        }`}
-                      >
-                        {meta.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="flex items-center justify-between gap-3 border-t border-ink-100 px-6 py-4">
+              <Pill tone={statusOf(detail.status).tone}>{statusOf(detail.status).label}</Pill>
+              {NEXT_STEP[detail.status] && (
+                <button
+                  type="button"
+                  disabled={updating !== null}
+                  onClick={() => void advance([detail], NEXT_STEP[detail.status].to, detail._id)}
+                  className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+                    detail.status === 'pending' ? 'bg-brand-600 hover:bg-brand-700' : 'bg-leaf-600 hover:bg-leaf-700'
+                  }`}
+                >
+                  {NEXT_STEP[detail.status].label}
+                </button>
+              )}
             </div>
           </div>
         </div>
