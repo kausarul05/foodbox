@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, ShoppingBag, User, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { authAPI } from '@/lib/api';
+import { authAPI, subscriptionAPI } from '@/lib/api';
 import { clearSession, displayName, useSession } from '@/lib/useSession';
+
+interface MySubscription {
+  package?: string;
+  packageName?: string;
+  status: string;
+}
 
 const NAV_ITEMS = [
   { name: 'প্রোফাইল', href: '/dashboard/profile', icon: User },
@@ -18,6 +24,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, hydrated } = useSession();
+  /** null while loading, '' once we know there is no active subscription. */
+  const [packageName, setPackageName] = useState<string | null>(null);
 
   /**
    * UX-only guard. The real boundary is the `requireUser` check inside every
@@ -30,6 +38,38 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       router.replace('/login');
     }
   }, [hydrated, user, router]);
+
+  /**
+   * The subscriber's package, read from the subscriptions API.
+   *
+   * This used to read `user.package` out of the localStorage session — a field
+   * nothing ever writes, so the sidebar said "কোনো প্যাকেজ নেই" even to a
+   * customer with an active package. (It also mapped the value through a
+   * hard-coded golden/diamond pair, two package names this kitchen does not
+   * sell.) The subscription is the only place the real package name lives.
+   */
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await subscriptionAPI.getMySubscriptions();
+        if (cancelled) return;
+        const active = res.success
+          ? (res.data ?? []).find((s: MySubscription) => s.status === 'active')
+          : null;
+        setPackageName(active?.packageName || active?.package || '');
+      } catch {
+        // Leave the label blank rather than claiming there is no package.
+        if (!cancelled) setPackageName('');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleLogout = () => {
     authAPI.logout();
@@ -46,11 +86,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const packageLabel = user.package
-    ? user.package === 'golden'
-      ? 'গোল্ডেন প্যাকেজ'
-      : 'ডায়মন্ড প্যাকেজ'
-    : 'কোনো প্যাকেজ নেই';
+  const packageLabel =
+    packageName === null ? '' : packageName || 'কোনো প্যাকেজ নেই';
 
   return (
     <div className="bg-ink-50/60">
@@ -66,7 +103,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   </span>
                   <div className="min-w-0">
                     <p className="truncate font-bold text-ink-900">{displayName(user)}</p>
-                    <p className="mt-0.5 truncate text-xs text-ink-600">{packageLabel}</p>
+                    {packageLabel && (
+                      <p className="mt-0.5 truncate text-xs text-ink-600">{packageLabel}</p>
+                    )}
                   </div>
                 </div>
 

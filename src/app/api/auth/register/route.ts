@@ -5,11 +5,46 @@ import Zone from '@/server/models/Zone';
 
 // POST /api/auth/register
 export const POST = handler(async (req: Request) => {
-  const { fullName, phoneNumber, email, password, zone, zoneName, address } = await body(req);
+  const {
+    fullName,
+    phoneNumber,
+    whatsappNumber,
+    email,
+    password,
+    zone,
+    zoneName,
+    address,
+  } = await body(req);
 
-  const userExists = await User.findOne({ $or: [{ phoneNumber }, { email }] });
+  /**
+   * Email is optional; WhatsApp is not.
+   *
+   * Most customers have no email, and the WhatsApp number is what gets them
+   * into the subscriber group — so that is the one we insist on. An empty
+   * string has to become `undefined`: the unique index on email is sparse, and
+   * a sparse index still stores '' , so two blank emails would collide.
+   */
+  const cleanEmail = typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : undefined;
+  const cleanWhatsapp = typeof whatsappNumber === 'string' ? whatsappNumber.trim() : '';
+
+  if (!cleanWhatsapp) {
+    return fail('হোয়াটসঅ্যাপ নাম্বার দিতে হবে', 400);
+  }
+
+  // Built up conditionally: `{ email: undefined }` is stripped by mongoose, which
+  // would leave `$or: [{ phoneNumber }, {}]` — and `{}` matches every document,
+  // so every signup without an email would be rejected as already existing.
+  const clashes: Record<string, unknown>[] = [{ phoneNumber }];
+  if (cleanEmail) clashes.push({ email: cleanEmail });
+
+  const userExists = await User.findOne({ $or: clashes });
   if (userExists) {
-    return fail('User already exists with this phone number or email', 400);
+    return fail(
+      userExists.phoneNumber === phoneNumber
+        ? 'এই ফোন নাম্বার দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে'
+        : 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে',
+      400
+    );
   }
 
   let finalZoneId = zone;
@@ -37,7 +72,8 @@ export const POST = handler(async (req: Request) => {
   const user = await User.create({
     fullName,
     phoneNumber,
-    email,
+    whatsappNumber: cleanWhatsapp,
+    email: cleanEmail,
     password,
     zone: finalZoneId,
     address,
@@ -54,6 +90,7 @@ export const POST = handler(async (req: Request) => {
         fullName: user.fullName,
         email: user.email,
         phoneNumber: user.phoneNumber,
+        whatsappNumber: user.whatsappNumber,
         zone: user.zone,
         address: user.address,
         walletBalance: user.walletBalance,

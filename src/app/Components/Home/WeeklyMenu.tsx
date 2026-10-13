@@ -113,7 +113,15 @@ function Skeleton() {
   );
 }
 
-export default function WeeklyMenu() {
+/**
+ * `compact` is for the order page, where this sits directly above the form.
+ *
+ * There it is a reference panel, not a landing-page section: no full-bleed
+ * white band, no "scroll down to order" call to action, and the heading points
+ * at the form below instead of inviting a click. The default keeps the home
+ * page exactly as it was.
+ */
+export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [activeId, setActiveId] = useState('');
   const [menus, setMenus] = useState<Record<string, MenuDay[]>>({});
@@ -184,12 +192,23 @@ export default function WeeklyMenu() {
   const mobileRow = rows.find((r) => r.day === mobileDay);
 
   return (
-    <section id="weekly-menu" className="scroll-mt-32 border-y border-ink-200/70 bg-white py-16 md:py-24">
+    <section
+      id={compact ? undefined : 'weekly-menu'}
+      className={
+        compact
+          ? 'pt-10 pb-2'
+          : 'scroll-mt-32 border-y border-ink-200/70 bg-white py-16 md:py-24'
+      }
+    >
       <div className="container-page">
         <SectionHeading
           eyebrow="সাপ্তাহিক মেনু"
-          title="এই সপ্তাহে কী কী থাকছে"
-          subtitle="প্যাকেজ বেছে নিয়ে পুরো সপ্তাহের মেনু আর দাম দেখে নিন।"
+          title={compact ? 'আগে মেনুটা দেখে নিন' : 'এই সপ্তাহে কী কী থাকছে'}
+          subtitle={
+            compact
+              ? 'প্যাকেজ বেছে নিয়ে সপ্তাহের খাবার আর দাম দেখুন, তারপর নিচের ফর্মে দিন ও বেলা ঠিক করুন।'
+              : 'প্যাকেজ বেছে নিয়ে পুরো সপ্তাহের মেনু আর দাম দেখে নিন।'
+          }
         />
 
         {loading ? (
@@ -344,7 +363,7 @@ export default function WeeklyMenu() {
               </div>
             )}
 
-            <div className="mt-10 text-center">
+            <div className={`mt-10 text-center ${compact ? 'hidden' : ''}`}>
               <Link
                 href="/order"
                 className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700"

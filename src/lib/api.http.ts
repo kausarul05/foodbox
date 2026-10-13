@@ -91,7 +91,14 @@ export const orderAPI = {
 
   cancelOrder: (orderId: string, reason: string) => put(`/orders/${orderId}/cancel`, { reason }),
 
+  /** Only works on a cancelled order — the API refuses anything else. */
+  deleteOrder: (orderId: string) => apiCall(`/orders/${orderId}`, { method: 'DELETE' }),
+
   getMyOrders: () => apiCall('/orders/myorders'),
+
+  /** Guest meals left this month. `month` is YYYY-MM; omitted means now. */
+  getGuestQuota: (month?: string) =>
+    apiCall(month ? `/orders/guest-quota?month=${month}` : '/orders/guest-quota'),
 
   checkDeadline: (deliveryDate: string, deliveryTime: string) =>
     post('/orders/check-deadline', { deliveryDate, deliveryTime }),

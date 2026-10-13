@@ -22,11 +22,13 @@ export interface SessionUser {
   fullName?: string;
   name?: string;
   phoneNumber?: string;
+  whatsappNumber?: string;
   email?: string;
   zone?: string;
   zoneDisplay?: string;
   address?: string;
   walletBalance?: number;
+  /** Never written by anything — the real package lives on the subscription. */
   package?: string;
   [key: string]: unknown;
 }

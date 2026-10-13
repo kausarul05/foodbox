@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Home, Lock, Mail, Phone, User, UserPlus } from 'lucide-react';
+import { Home, Lock, Mail, MessageCircle, Phone, User, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authAPI } from '@/lib/api';
 import Button from '@/components/ui/Button';
@@ -13,6 +13,7 @@ export default function SignupPage() {
   const [formData, setFormData] = useState({
     fullName: '',
     phoneNumber: '',
+    whatsappNumber: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -22,10 +23,15 @@ export default function SignupPage() {
   });
   const [loading, setLoading] = useState(false);
   const [selectedZone, setSelectedZone] = useState('');
+  /** Most people use one number for both, so this starts on. */
+  const [sameWhatsapp, setSameWhatsapp] = useState(true);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
+
+  /** The number actually submitted — the phone number while the toggle is on. */
+  const whatsapp = sameWhatsapp ? formData.phoneNumber : formData.whatsappNumber;
 
   const handleZoneChange = (zoneId: string, customZoneName?: string) => {
     setSelectedZone(zoneId);
@@ -36,8 +42,10 @@ export default function SignupPage() {
     if (!formData.fullName) return 'দয়া করে আপনার নাম দিন';
     if (!formData.phoneNumber) return 'দয়া করে ফোন নাম্বার দিন';
     if (formData.phoneNumber.length < 11) return 'ফোন নাম্বার কমপক্ষে ১১ ডিজিটের হতে হবে';
-    if (!formData.email) return 'দয়া করে ইমেইল দিন';
-    if (!formData.email.includes('@')) return 'সঠিক ইমেইল ঠিকানা দিন';
+    if (!whatsapp) return 'দয়া করে হোয়াটসঅ্যাপ নাম্বার দিন';
+    if (whatsapp.length < 11) return 'হোয়াটসঅ্যাপ নাম্বার কমপক্ষে ১১ ডিজিটের হতে হবে';
+    // Email is optional now — only checked when something was typed.
+    if (formData.email && !formData.email.includes('@')) return 'সঠিক ইমেইল ঠিকানা দিন';
     if (!formData.password) return 'দয়া করে পাসওয়ার্ড দিন';
     if (formData.password.length < 6) return 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে';
     if (formData.password !== formData.confirmPassword) return 'পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না';
@@ -60,7 +68,8 @@ export default function SignupPage() {
       const response = await authAPI.userRegister({
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
-        email: formData.email,
+        whatsappNumber: whatsapp,
+        email: formData.email.trim(),
         password: formData.password,
         zone: selectedZone,
         zoneName: formData.zoneName,
@@ -138,20 +147,54 @@ export default function SignupPage() {
                   />
                 </Field>
 
-                <Field label="ইমেইল" htmlFor="email" required>
+                <Field
+                  label="হোয়াটসঅ্যাপ নাম্বার"
+                  htmlFor="whatsappNumber"
+                  required
+                  hint="সাবস্ক্রাইবারদের হোয়াটসঅ্যাপ গ্রুপে যোগ করতে এই নাম্বারটি লাগবে।"
+                >
                   <Input
-                    id="email"
-                    name="email"
-                    icon={Mail}
-                    type="email"
-                    autoComplete="email"
-                    value={formData.email}
+                    id="whatsappNumber"
+                    name="whatsappNumber"
+                    icon={MessageCircle}
+                    type="tel"
+                    inputMode="tel"
+                    value={whatsapp}
                     onChange={handleChange}
-                    placeholder="you@example.com"
+                    placeholder="01XXXXXXXXX"
+                    disabled={sameWhatsapp}
                     required
                   />
+                  <label className="mt-2 flex items-center gap-2 text-xs text-ink-600">
+                    <input
+                      type="checkbox"
+                      checked={sameWhatsapp}
+                      onChange={(e) => setSameWhatsapp(e.target.checked)}
+                      className="size-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+                    />
+                    ফোন নাম্বারটাই হোয়াটসঅ্যাপে চালু
+                  </label>
                 </Field>
               </div>
+
+              {/*
+                Email is optional. It used to be required, which turned away
+                customers who simply do not have one — the phone number is the
+                login and the WhatsApp number is how the kitchen reaches them,
+                so an email adds nothing either flow depends on.
+              */}
+              <Field label="ইমেইল" htmlFor="email" hint="ঐচ্ছিক — না থাকলে খালি রাখুন।">
+                <Input
+                  id="email"
+                  name="email"
+                  icon={Mail}
+                  type="email"
+                  autoComplete="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="you@example.com"
+                />
+              </Field>
             </fieldset>
 
             <fieldset className="mt-8 space-y-5 border-t border-ink-100 pt-8">

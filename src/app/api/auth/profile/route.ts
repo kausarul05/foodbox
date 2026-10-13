@@ -29,6 +29,7 @@ export const PUT = handler(async (req: Request) => {
 
   if (updates.fullName) user.fullName = updates.fullName;
   if (updates.phoneNumber) user.phoneNumber = updates.phoneNumber;
+  if (updates.whatsappNumber) user.whatsappNumber = updates.whatsappNumber;
   if (updates.zone) user.zone = updates.zone;
   if (updates.address) user.address = updates.address;
   if (updates.password) user.password = updates.password;
@@ -41,6 +42,7 @@ export const PUT = handler(async (req: Request) => {
       fullName: updated.fullName,
       email: updated.email,
       phoneNumber: updated.phoneNumber,
+      whatsappNumber: updated.whatsappNumber,
       zone: await Zone.findById(updated.zone).select('name nameBn deliveryCharge'),
       address: updated.address,
       walletBalance: updated.walletBalance,

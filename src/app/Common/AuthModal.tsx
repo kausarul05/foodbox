@@ -74,8 +74,9 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             toast.error('দয়া করে ফোন নাম্বার দিন');
             return;
         }
-        if (!registerData.email) {
-            toast.error('দয়া করে ইমেইল দিন');
+        // Email is optional since the phone number became the login.
+        if (registerData.email && !registerData.email.includes('@')) {
+            toast.error('সঠিক ইমেইল ঠিকানা দিন');
             return;
         }
         if (!registerData.password) {
@@ -104,6 +105,10 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             const response = await authAPI.userRegister({
                 fullName: registerData.fullName,
                 phoneNumber: registerData.phoneNumber,
+                // This modal is not rendered anywhere (see "Known gaps" in
+                // CLAUDE.md); it has no WhatsApp field of its own, so it reuses
+                // the phone number to satisfy the now-required field.
+                whatsappNumber: registerData.phoneNumber,
                 email: registerData.email,
                 password: registerData.password,
                 zone: registerData.zone,

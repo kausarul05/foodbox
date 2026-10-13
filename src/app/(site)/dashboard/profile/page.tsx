@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { CalendarCheck, Home, Package, Pencil, Phone, Save, User, Wallet, X } from 'lucide-react';
+import { CalendarCheck, Home, MessageCircle, Package, Pencil, Phone, Save, User, Wallet, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
@@ -51,7 +51,13 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [editForm, setEditForm] = useState({ fullName: '', phoneNumber: '', zone: '', address: '' });
+  const [editForm, setEditForm] = useState({
+    fullName: '',
+    phoneNumber: '',
+    whatsappNumber: '',
+    zone: '',
+    address: '',
+  });
 
   const userZone = user?.zone ?? '';
 
@@ -99,6 +105,8 @@ export default function ProfilePage() {
     setEditForm({
       fullName: user?.fullName ?? '',
       phoneNumber: user?.phoneNumber ?? '',
+      // Older accounts have none stored; the phone number is the safe default.
+      whatsappNumber: user?.whatsappNumber || user?.phoneNumber || '',
       zone: userZone,
       address: user?.address ?? '',
     });
@@ -112,6 +120,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!editForm.fullName) return toast.error('দয়া করে আপনার নাম দিন');
     if (!editForm.phoneNumber) return toast.error('দয়া করে ফোন নাম্বার দিন');
+    if (!editForm.whatsappNumber) return toast.error('দয়া করে হোয়াটসঅ্যাপ নাম্বার দিন');
     if (!editForm.zone) return toast.error('দয়া করে জোন সিলেক্ট করুন');
     if (!editForm.address) return toast.error('দয়া করে ঠিকানা দিন');
 
@@ -211,6 +220,23 @@ export default function ProfilePage() {
                   placeholder="01XXXXXXXXX"
                 />
               </Field>
+              <Field
+                label="হোয়াটসঅ্যাপ নাম্বার"
+                htmlFor="whatsappNumber"
+                required
+                hint="সাবস্ক্রাইবার গ্রুপে যোগ করতে এই নাম্বারটি ব্যবহার করা হয়।"
+              >
+                <Input
+                  id="whatsappNumber"
+                  name="whatsappNumber"
+                  icon={MessageCircle}
+                  type="tel"
+                  inputMode="tel"
+                  value={editForm.whatsappNumber}
+                  onChange={handleChange}
+                  placeholder="01XXXXXXXXX"
+                />
+              </Field>
               <Field label="ডেলিভারি ঠিকানা" htmlFor="address" required>
                 <Textarea
                   id="address"
@@ -226,6 +252,7 @@ export default function ProfilePage() {
           ) : (
             <dl>
               <Row label="ফোন নাম্বার" value={user?.phoneNumber ?? ''} />
+              <Row label="হোয়াটসঅ্যাপ নাম্বার" value={user?.whatsappNumber || user?.phoneNumber || ''} />
               <Row label="ডেলিভারি ঠিকানা" value={user?.address ?? ''} />
             </dl>
           )}

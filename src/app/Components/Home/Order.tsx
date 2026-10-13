@@ -117,6 +117,10 @@ export default function Order() {
   const [guestOverrides, setGuestOverrides] = useState<Record<string, MealSelection>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [enableGuestMeal, setEnableGuestMeal] = useState(false);
+  /** Guest meals left this month, from the server. null until it answers. */
+  const [guestQuota, setGuestQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
+  /** Bumped after orders are placed so the quota is re-read. */
+  const [guestQuotaKey, setGuestQuotaKey] = useState(0);
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [shortfall, setShortfall] = useState<number | null>(null);
@@ -173,6 +177,32 @@ export default function Order() {
       cancelled = true;
     };
   }, [hydrated, user]);
+
+  /**
+   * Guest meals are capped at 30 per account per calendar month.
+   *
+   * The quota is asked for per month, keyed off the start of the selected
+   * range, so a range that reaches into next month is measured against the
+   * month the customer is actually looking at. `guestQuotaKey` re-runs it after
+   * orders are placed.
+   */
+  const guestMonth = range.start.slice(0, 7);
+
+  useEffect(() => {
+    if (!hydrated || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await orderAPI.getGuestQuota(guestMonth);
+        if (!cancelled && res.success) setGuestQuota(res.data);
+      } catch {
+        // Non-fatal: the server enforces the cap on every order anyway.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, user, guestMonth, guestQuotaKey]);
 
   // Blocked dates are public and independent of the session, so they load on
   // their own — the day list needs them before anything can be ticked.
@@ -257,6 +287,8 @@ export default function Order() {
     let guestMealPrice = 0;
     let selfDays = 0;
     let guestDays = 0;
+    /** Guest *meals*, not days — one order per meal, and the cap counts orders. */
+    let guestMeals = 0;
 
     for (const { date, dayName } of days) {
       const self = selfMealsFor(date);
@@ -273,6 +305,7 @@ export default function Order() {
         }
         if (enableGuestMeal && guest[meal.key]) {
           guestMealPrice += priceOf(dayName, meal.key);
+          guestMeals++;
           hasGuest = true;
         }
       }
@@ -292,6 +325,7 @@ export default function Order() {
       guestDelivery,
       selfDays,
       guestDays,
+      guestMeals,
       selfTotal: selfMealPrice + selfDelivery,
       guestTotal: guestMealPrice + guestDelivery,
       total: selfMealPrice + selfDelivery + guestMealPrice + guestDelivery,
@@ -333,6 +367,16 @@ export default function Order() {
     }
     if (!address.trim()) {
       toast.error('দয়া করে ডেলিভারি ঠিকানা দিন');
+      return;
+    }
+    // Checked here as well as on the server so the customer is told before the
+    // loop below places the ones that do fit and fails on the rest.
+    if (enableGuestMeal && guestQuota && totals.guestMeals > guestQuota.remaining) {
+      toast.error(
+        guestQuota.remaining === 0
+          ? `এই মাসে ${bn(guestQuota.limit)}টি গেস্ট মিলের সীমা শেষ হয়ে গেছে`
+          : `এই মাসে আর ${bn(guestQuota.remaining)}টি গেস্ট মিল নিতে পারবেন, আপনি ${bn(totals.guestMeals)}টি বেছেছেন`
+      );
       return;
     }
     // Only the subscriber's own meals come out of the wallet; guest meals are cash.
@@ -420,6 +464,7 @@ export default function Order() {
       setSelfOverrides({});
       setGuestOverrides({});
       setEnableGuestMeal(false);
+      setGuestQuotaKey((k) => k + 1);
       router.push('/dashboard/orders');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'অর্ডার করতে ব্যর্থ হয়েছে');
@@ -540,7 +585,11 @@ export default function Order() {
                   <Users size={19} className="shrink-0 text-leaf-600" />
                   <span>
                     <span className="block text-sm font-semibold text-ink-900">গেস্ট মিল</span>
-                    <span className="mt-0.5 block text-xs text-ink-500">অন্য কারো জন্যও খাবার নিতে চান?</span>
+                    <span className="mt-0.5 block text-xs text-ink-500">
+                      {guestQuota
+                        ? `এই মাসে আর ${bn(guestQuota.remaining)}টি নিতে পারবেন (মাসে সর্বোচ্চ ${bn(guestQuota.limit)}টি)`
+                        : 'অন্য কারো জন্যও খাবার নিতে চান?'}
+                    </span>
                   </span>
                 </span>
                 <span className="relative shrink-0">

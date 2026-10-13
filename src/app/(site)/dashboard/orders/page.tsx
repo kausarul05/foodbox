@@ -24,6 +24,7 @@ import { orderAPI, zoneAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
 import { Select, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
+import { useDialog } from '@/components/ui/DialogProvider';
 import { bengaliDate, bn, taka, zoneLabel } from '@/lib/format';
 
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
@@ -51,10 +52,15 @@ const STATUS = {
 } as const;
 
 const MEALS = {
-  morning: { label: 'সকালের খাবার', icon: Coffee, tint: 'text-amber-600' },
-  lunch: { label: 'দুপুরের খাবার', icon: Sun, tint: 'text-brand-600' },
-  dinner: { label: 'রাতের খাবার', icon: Moon, tint: 'text-indigo-600' },
+  morning: { label: 'সকালের খাবার', short: 'সকাল', icon: Coffee, tint: 'text-amber-600' },
+  lunch: { label: 'দুপুরের খাবার', short: 'দুপুর', icon: Sun, tint: 'text-brand-600' },
+  dinner: { label: 'রাতের খাবার', short: 'রাত', icon: Moon, tint: 'text-indigo-600' },
 } as const;
+
+type MealKey = keyof typeof MEALS;
+
+/** Serving order, not alphabetical — a day reads সকাল → দুপুর → রাত. */
+const MEAL_ORDER = ['morning', 'lunch', 'dinner'] as const;
 
 const STATUS_OPTIONS = [{ value: 'all', label: 'সব স্ট্যাটাস' }].concat(
   Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label }))
@@ -69,6 +75,18 @@ function statusOf(status: string) {
 }
 function mealOf(time: string) {
   return MEALS[time as keyof typeof MEALS] ?? MEALS.lunch;
+}
+
+/**
+ * YYYY-MM-DD in local time.
+ *
+ * `toISOString().slice(0, 10)` converts to UTC first, which in Dhaka (UTC+6)
+ * rolls any delivery stored at local midnight back to the previous day — so a
+ * meal ordered for the 14th would file itself under the 13th.
+ */
+function dayKey(value: string) {
+  const d = new Date(value);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function startOfToday() {
@@ -123,11 +141,13 @@ function cancellability(order: Order): { canCancel: boolean; message: string } {
 }
 
 export default function OrdersPage() {
+  const { confirm } = useDialog();
   const [orders, setOrders] = useState<Order[]>([]);
   /** Zone id -> Bengali label. Orders store the zone as a raw id. */
   const [zoneNames, setZoneNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Order | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -191,26 +211,53 @@ export default function OrdersPage() {
     });
   }, [orders, statusFilter, mealFilter, search]);
 
-  /** [isoDate, orders] pairs, newest first — the sort above already ordered them. */
+  /**
+   * [isoDate, { byMeal, count }] pairs, newest first — the sort above already
+   * ordered them.
+   *
+   * Each date is split into সকাল / দুপুর / রাত rather than one flat list. A day
+   * with all three meals used to be three near-identical rows you had to read
+   * the small meal line on to tell apart; now the day's shape is visible from
+   * the header and each meal is its own block.
+   */
   const grouped = useMemo(() => {
-    const map = new Map<string, Order[]>();
+    const map = new Map<string, Record<MealKey, Order[]>>();
     for (const order of filtered) {
-      const key = new Date(order.deliveryDate).toISOString().slice(0, 10);
-      const bucket = map.get(key);
-      if (bucket) bucket.push(order);
-      else map.set(key, [order]);
+      const key = dayKey(order.deliveryDate);
+      let bucket = map.get(key);
+      if (!bucket) {
+        bucket = { morning: [], lunch: [], dinner: [] };
+        map.set(key, bucket);
+      }
+      // Anything with an unrecognised slot is counted as lunch, matching mealOf.
+      const meal: MealKey = order.deliveryTime in MEALS ? (order.deliveryTime as MealKey) : 'lunch';
+      bucket[meal].push(order);
     }
-    return [...map.entries()];
+
+    return [...map.entries()].map(([isoDate, byMeal]) => ({
+      isoDate,
+      byMeal,
+      all: MEAL_ORDER.flatMap((meal) => byMeal[meal]),
+    }));
   }, [filtered]);
 
+  /**
+   * "মোট অর্ডার" counts live orders only.
+   *
+   * It used to be `orders.length`, so cancelling both of two orders still read
+   * "২" — the figure meant "rows ever created", which is not how anyone reads
+   * it. Cancelled ones get their own count instead.
+   */
   const stats = useMemo(() => {
     const today = startOfToday();
+    const cancelled = orders.filter((o) => o.status === 'cancelled').length;
     return {
-      total: orders.length,
+      total: orders.length - cancelled,
       upcoming: orders.filter(
         (o) => new Date(o.deliveryDate) >= today && o.status !== 'cancelled' && o.status !== 'delivered'
       ).length,
       delivered: orders.filter((o) => o.status === 'delivered').length,
+      cancelled,
     };
   }, [orders]);
 
@@ -246,6 +293,37 @@ export default function OrdersPage() {
     }
   };
 
+  /**
+   * Removes a cancelled order from the customer's own history.
+   *
+   * The API only allows this on a cancelled order — a pending or delivered one
+   * is a record of real food and money, so it cannot be deleted from here.
+   */
+  const removeOrder = async (order: Order) => {
+    const ok = await confirm({
+      title: 'অর্ডারটি মুছে ফেলবেন?',
+      message: `${mealOf(order.deliveryTime).label} · ${bengaliDate(order.deliveryDate)} — বাতিল হওয়া এই অর্ডারটি আপনার তালিকা থেকে একেবারে মুছে যাবে।`,
+      confirmLabel: 'মুছে ফেলুন',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      setDeletingId(order._id);
+      const res = await orderAPI.deleteOrder(order._id);
+      if (res.success) {
+        toast.success('অর্ডার মুছে ফেলা হয়েছে');
+        setOrders((prev) => prev.filter((o) => o._id !== order._id));
+      } else {
+        toast.error(res.message || 'মুছে ফেলা যায়নি');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'মুছে ফেলা যায়নি');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-5">
@@ -263,11 +341,12 @@ export default function OrdersPage() {
         <h1 className="text-2xl font-bold tracking-tight text-ink-900">আমার অর্ডার</h1>
         <p className="mt-1 text-sm text-ink-500">আপনার সব অর্ডারের ইতিহাস</p>
 
-        <dl className="mt-5 grid grid-cols-3 gap-3">
+        <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { label: 'মোট অর্ডার', value: stats.total },
             { label: 'আসন্ন', value: stats.upcoming },
             { label: 'ডেলিভারি হয়েছে', value: stats.delivered },
+            { label: 'বাতিল', value: stats.cancelled },
           ].map((stat) => (
             <div key={stat.label} className="rounded-2xl bg-ink-50 px-4 py-3 text-center">
               <dt className="text-[11px] text-ink-500">{stat.label}</dt>
@@ -336,7 +415,7 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {grouped.map(([isoDate, dateOrders]) => {
+              {grouped.map(({ isoDate, byMeal, all: dateOrders }) => {
                 const open = isOpen(isoDate);
                 const cancellable = dateOrders.filter((o) => cancellability(o).canCancel).length;
 
@@ -364,71 +443,112 @@ export default function OrdersPage() {
                       />
                     </button>
 
-                    {open && (
-                      <ul className="divide-y divide-ink-100">
-                        {dateOrders.map((order) => {
-                          const status = statusOf(order.status);
-                          const StatusIcon = status.icon;
-                          const meal = mealOf(order.deliveryTime);
-                          const MealIcon = meal.icon;
-                          const { canCancel } = cancellability(order);
+                    {/*
+                      The day's three meals at a glance, so you can see what is
+                      coming without expanding anything. A meal with nothing
+                      ordered is greyed rather than hidden — the gap is the
+                      information.
+                    */}
+                    <dl className="grid grid-cols-3 divide-x divide-ink-100 border-t border-ink-100 bg-white">
+                      {MEAL_ORDER.map((meal) => {
+                        const count = byMeal[meal].length;
+                        const { short, icon: MealIcon, tint } = MEALS[meal];
+                        return (
+                          <div key={meal} className="px-3 py-2.5 text-center">
+                            <dt className="flex items-center justify-center gap-1.5 text-[11px] text-ink-500">
+                              <MealIcon size={13} className={count ? tint : 'text-ink-300'} />
+                              {short}
+                            </dt>
+                            <dd className={`mt-0.5 font-bold ${count ? 'text-ink-900' : 'text-ink-300'}`}>
+                              {bn(count)}
+                            </dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
 
-                          return (
-                            <li key={order._id} className="flex flex-wrap gap-4 p-5 transition-colors hover:bg-ink-50/60">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-600">
-                                    #{order.orderId?.slice(-8)}
-                                  </span>
-                                  <span
-                                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}
-                                  >
-                                    <StatusIcon size={12} />
-                                    {status.label}
-                                  </span>
-                                </div>
+                    {open &&
+                      MEAL_ORDER.filter((meal) => byMeal[meal].length > 0).map((meal) => (
+                        <div key={meal} className="border-t border-ink-100">
+                          <p className="flex items-center gap-2 bg-ink-50/50 px-5 py-2 text-xs font-semibold text-ink-700">
+                            {(() => {
+                              const MealIcon = MEALS[meal].icon;
+                              return <MealIcon size={14} className={MEALS[meal].tint} />;
+                            })()}
+                            {MEALS[meal].label}
+                            <span className="text-ink-400">· {bn(byMeal[meal].length)}টি</span>
+                          </p>
+                          <ul className="divide-y divide-ink-100">
+                            {byMeal[meal].map((order) => {
+                              const status = statusOf(order.status);
+                              const StatusIcon = status.icon;
+                              const { canCancel } = cancellability(order);
 
-                                <p className="mt-2.5 flex items-center gap-2 text-sm font-medium text-ink-800">
-                                  <MealIcon size={16} className={meal.tint} />
-                                  {meal.label}
-                                </p>
+                              return (
+                                <li key={order._id} className="flex flex-wrap gap-4 p-5 transition-colors hover:bg-ink-50/60">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="rounded bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-600">
+                                        #{order.orderId?.slice(-8)}
+                                      </span>
+                                      <span
+                                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}
+                                      >
+                                        <StatusIcon size={12} />
+                                        {status.label}
+                                      </span>
+                                    </div>
 
-                                <p className="mt-1.5 text-sm text-ink-600">
-                                  {order.items?.map((i) => i.name).join(', ') || '—'}
-                                </p>
+                                    {/* The meal is the group heading above, not repeated here. */}
+                                    <p className="mt-2 text-sm text-ink-600">
+                                      {order.items?.map((i) => i.name).join(', ') || '—'}
+                                    </p>
 
-                                <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
-                                  <MapPin size={12} className="shrink-0" />
-                                  <span className="truncate">
-                                    {[zoneOf(order.zone), order.address].filter(Boolean).join(' · ') || '—'}
-                                  </span>
-                                </p>
-                              </div>
+                                    <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
+                                      <MapPin size={12} className="shrink-0" />
+                                      <span className="truncate">
+                                        {[zoneOf(order.zone), order.address].filter(Boolean).join(' · ') || '—'}
+                                      </span>
+                                    </p>
+                                  </div>
 
-                              <div className="shrink-0 text-right">
-                                <p className="text-lg font-bold text-ink-900">
-                                  {order.totalAmount === 0 ? 'ফ্রি' : taka(order.totalAmount)}
-                                </p>
-                                {canCancel ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => openCancel(order)}
-                                    className="mt-2 ml-auto flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
-                                  >
-                                    <Trash2 size={12} />
-                                    বাতিল করুন
-                                  </button>
-                                ) : (
-                                  order.status === 'cancelled' && (
-                                    <span className="mt-2 block text-xs text-red-600">বাতিল করা হয়েছে</span>
-                                  )
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                                  <div className="shrink-0 text-right">
+                                    <p className="text-lg font-bold text-ink-900">
+                                      {order.totalAmount === 0 ? 'ফ্রি' : taka(order.totalAmount)}
+                                    </p>
+                                    {canCancel ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => openCancel(order)}
+                                        className="mt-2 ml-auto flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
+                                      >
+                                        <Trash2 size={12} />
+                                        বাতিল করুন
+                                      </button>
+                                    ) : (
+                                      order.status === 'cancelled' && (
+                                        <>
+                                          <span className="mt-2 block text-xs text-red-600">বাতিল করা হয়েছে</span>
+                                          {/* Only a cancelled order can be removed from the history. */}
+                                          <button
+                                            type="button"
+                                            disabled={deletingId === order._id}
+                                            onClick={() => removeOrder(order)}
+                                            className="mt-1.5 ml-auto flex items-center gap-1 text-xs font-medium text-ink-500 hover:text-red-600 hover:underline disabled:opacity-50"
+                                          >
+                                            <Trash2 size={12} />
+                                            মুছে ফেলুন
+                                          </button>
+                                        </>
+                                      )
+                                    )}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ))}
                   </section>
                 );
               })}

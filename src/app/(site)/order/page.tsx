@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Order from '@/app/Components/Home/Order';
+import WeeklyMenu from '@/app/Components/Home/WeeklyMenu';
 import PageHeader from '@/components/ui/PageHeader';
 
 export const metadata: Metadata = {
@@ -15,6 +16,12 @@ export default function OrderPage() {
         title="এই সপ্তাহের খাবার ঠিক করে ফেলুন"
         subtitle="কোন দিন কোন বেলা খাবেন বেছে নিন। যেকোনো দিন বাদ দিতে পারবেন, সময়ের আগে জানালেই হলো।"
       />
+      {/*
+        The menu comes before the form on purpose. The form asks which meals you
+        want without ever saying what they are, so anyone who had not already
+        read the home page was ticking সকাল/দুপুর/রাত blind.
+      */}
+      <WeeklyMenu compact />
       <Order />
     </>
   );

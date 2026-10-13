@@ -6,7 +6,8 @@ export interface ISubscription {
   userId: Types.ObjectId;
   userName: string;
   phoneNumber: string;
-  email: string;
+  /** Optional — a customer can sign up without an email. */
+  email?: string;
   package: string;
   packageName: string;
   amount: number;
@@ -34,7 +35,7 @@ const subscriptionSchema = new Schema<ISubscription>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     userName: { type: String, required: true },
     phoneNumber: { type: String, required: true },
-    email: { type: String, required: true },
+    email: { type: String },
     package: { type: String, required: true },
     packageName: { type: String, required: true },
     amount: { type: Number, required: true },

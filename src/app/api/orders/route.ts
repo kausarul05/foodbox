@@ -1,6 +1,7 @@
 import { requireAdmin, requireUser } from '@/server/auth';
 import { checkDeliveryDeadline, isClosedFriday } from '@/server/deadlines';
 import { body, fail, handler, ok } from '@/server/http';
+import { GUEST_MEAL_MONTHLY_LIMIT, countGuestMeals } from '@/server/limits';
 import BlockedDate from '@/server/models/BlockedDate';
 import Order from '@/server/models/Order';
 import Subscription from '@/server/models/Subscription';
@@ -20,7 +21,15 @@ export const POST = handler(async (req: Request) => {
     zone,
     specialInstructions,
     package: packageName,
+    orderType,
   } = await body(req);
+
+  /**
+   * The order form has always sent this, and this handler has always dropped
+   * it — every guest meal in the database is stored as `self` (the schema
+   * default), which is why nothing could count them.
+   */
+  const isGuest = orderType === 'guest';
 
   const user = await User.findById(authUser._id);
   if (!user) return fail('User not found', 404);
@@ -48,7 +57,19 @@ export const POST = handler(async (req: Request) => {
   const deadline = checkDeliveryDeadline(orderDate, deliveryTime);
   if (!deadline.isWithinDeadline) return fail(deadline.message, 400);
 
-  // 4. Wallet payments require an active subscription and sufficient balance
+  // 4. Guest meals are capped per account per delivery month
+  if (isGuest) {
+    const used = await countGuestMeals(authUser._id, orderDate);
+    if (used >= GUEST_MEAL_MONTHLY_LIMIT) {
+      return fail(
+        `এক মাসে সর্বোচ্চ ${GUEST_MEAL_MONTHLY_LIMIT}টি গেস্ট মিল অর্ডার করা যায়। এই মাসের সীমা শেষ হয়ে গেছে।`,
+        400,
+        { guestLimitReached: true, used, limit: GUEST_MEAL_MONTHLY_LIMIT }
+      );
+    }
+  }
+
+  // 5. Wallet payments require an active subscription and sufficient balance
   if (paymentMethod === 'wallet') {
     const activeSubscription = await Subscription.findOne({
       userId: authUser._id,
@@ -84,6 +105,7 @@ export const POST = handler(async (req: Request) => {
     address: address || user.address,
     zone: zone || user.zone,
     specialInstructions,
+    orderType: isGuest ? 'guest' : 'self',
   });
 
   return ok({ data: order, walletBalance: user.walletBalance }, 201);
