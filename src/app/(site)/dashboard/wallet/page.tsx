@@ -108,6 +108,11 @@ export default function WalletPage() {
     .filter((t) => t.status === 'pending')
     .reduce((sum, t) => sum + t.amount, 0);
 
+  /** Everything an admin has approved — what the customer has actually put in. */
+  const rechargedTotal = transactions
+    .filter((t) => t.status === 'approved')
+    .reduce((sum, t) => sum + t.amount, 0);
+
   return (
     <div className="space-y-5">
       {/* Balance */}
@@ -131,6 +136,22 @@ export default function WalletPage() {
             রিচার্জ করুন
           </Button>
         </div>
+
+        {/*
+          How much went in versus how much is left. The page only ever showed
+          the balance, so there was no way to tell a ৳৫০০ balance that came
+          from a ৳৫০০ top-up from one left over after ৳২,০০০ of orders.
+        */}
+        <dl className="relative mt-6 grid grid-cols-2 gap-3 border-t border-white/10 pt-5 sm:max-w-sm">
+          <div>
+            <dt className="text-xs text-ink-400">মোট রিচার্জ</dt>
+            <dd className="mt-0.5 text-lg font-bold">{taka(rechargedTotal)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-ink-400">খরচ হয়েছে</dt>
+            <dd className="mt-0.5 text-lg font-bold">{taka(Math.max(rechargedTotal - walletBalance, 0))}</dd>
+          </div>
+        </dl>
       </section>
 
       {/* History */}

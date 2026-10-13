@@ -2,6 +2,7 @@ import Hero from '@/app/Components/Home/Hero';
 import HowItWorks from '@/app/Components/Home/HowItWorks';
 import WeeklyMenu from '@/app/Components/Home/WeeklyMenu';
 import Packages from '@/app/Components/Home/Packages';
+import OrderWithoutPackage from '@/app/Components/Home/OrderWithoutPackage';
 import Features from '@/app/Components/Home/Features';
 import DeliveryInfo from '@/app/Components/Home/DeliveryInfo';
 
@@ -32,6 +33,7 @@ export default function HomePage() {
       <WeeklyMenu />
       <HowItWorks />
       <Packages />
+      <OrderWithoutPackage />
       <Features />
       <DeliveryInfo />
 

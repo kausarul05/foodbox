@@ -1,6 +1,6 @@
 'use client';
 
-import { bengaliDateNumeric, bengaliDateTime } from '@/lib/format';
+import { bengaliDateNumeric, bengaliDateTime, bn, taka } from '@/lib/format';
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
@@ -22,7 +22,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { packageAPI, subscriptionAPI } from '@/app/admin/lib/api';
+import { packageAPI, subscriptionAPI, userAPI } from '@/app/admin/lib/api';
 
 interface Subscriber {
   _id: string;
@@ -55,6 +55,13 @@ export default function SubscribersPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   /** Real packages, so the filter matches what subscriptions actually store. */
   const [packages, setPackages] = useState<{ name: string; title: string }[]>([]);
+  /** userId -> order count, total top-ups and current wallet balance. */
+  const [userStats, setUserStats] = useState<
+    Record<string, { orders: number; spent: number; recharged: number; walletBalance: number }>
+  >({});
+
+  const EMPTY_STATS = { orders: 0, spent: 0, recharged: 0, walletBalance: 0 };
+  const statsFor = (userId: string) => userStats[String(userId)] ?? EMPTY_STATS;
 
   useEffect(() => {
     fetchSubscribers();
@@ -68,6 +75,21 @@ export default function SubscribersPage() {
         if (!cancelled && res.success) setPackages(res.data ?? []);
       } catch {
         // Filter falls back to "all packages" only; the list itself still loads.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await userAPI.getStats();
+        if (!cancelled && res.success) setUserStats(res.data ?? {});
+      } catch {
+        // The cards fall back to zeroes; the subscriber list still works.
       }
     })();
     return () => {
@@ -260,7 +282,9 @@ export default function SubscribersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSubscribers.map((sub) => (
             <div key={sub._id} className="bg-white rounded-2xl border border-ink-200 shadow-card overflow-hidden hover:shadow-xl transition-shadow">
-              <div className={`p-4 text-white ${sub.package === 'golden' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-blue-500 to-purple-600'}`}>
+              {/* Was a golden/diamond colour test — no package is named either,
+                  so every card fell through to the same blue-purple gradient. */}
+              <div className="bg-brand-600 p-4 text-white">
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-bold text-lg">{sub.userName}</h3>
@@ -296,8 +320,34 @@ export default function SubscribersPage() {
 
                 <div className="flex items-center gap-2 text-sm">
                   <DollarSign size={14} className="text-ink-400" />
-                  <span className="text-ink-900 font-semibold">৳ {sub.totalAmount}</span>
+                  <span className="text-ink-900 font-semibold">{taka(sub.totalAmount)}</span>
                 </div>
+
+                {/*
+                  Order count, top-ups and what is left — the three numbers an
+                  admin actually needs about a subscriber, and none of which
+                  this screen used to show.
+                */}
+                <dl className="grid grid-cols-3 gap-2 border-t border-ink-100 pt-3">
+                  <div className="rounded-xl bg-ink-50 px-2 py-2 text-center">
+                    <dt className="text-[10px] text-ink-500">অর্ডার</dt>
+                    <dd className="mt-0.5 text-base font-bold text-ink-900">
+                      {bn(statsFor(sub.userId).orders)}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl bg-ink-50 px-2 py-2 text-center">
+                    <dt className="text-[10px] text-ink-500">রিচার্জ</dt>
+                    <dd className="mt-0.5 text-sm font-bold text-ink-900">
+                      {taka(statsFor(sub.userId).recharged)}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl bg-leaf-50 px-2 py-2 text-center">
+                    <dt className="text-[10px] text-leaf-700">অবশিষ্ট</dt>
+                    <dd className="mt-0.5 text-sm font-bold text-leaf-700">
+                      {taka(statsFor(sub.userId).walletBalance)}
+                    </dd>
+                  </div>
+                </dl>
 
                 <div className="flex items-center gap-2 text-sm">
                   <Mail size={14} className="text-ink-400" />

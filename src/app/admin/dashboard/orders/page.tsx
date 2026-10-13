@@ -11,10 +11,12 @@ import {
   Moon,
   Package,
   Phone,
+  Plus,
   RefreshCw,
   Search,
   ShoppingBag,
   Sun,
+  Trash2,
   Truck,
   User,
   Wallet,
@@ -25,6 +27,9 @@ import toast from 'react-hot-toast';
 import { manualOrderAPI, orderAPI } from '@/app/admin/lib/api';
 import StatsCard from '@/app/admin/components/admin/StatsCard';
 import { EmptyState, LoadingBlock, Pill, type Tone } from '@/app/admin/components/ui/Shell';
+import ManualOrderForm from '@/app/admin/components/admin/ManualOrderForm';
+import Button from '@/components/ui/Button';
+import { useDialog } from '@/components/ui/DialogProvider';
 import { bengaliDate, bengaliDateNumeric, bn, taka } from '@/lib/format';
 
 /* -------------------------------------------------------------------------- */
@@ -38,6 +43,9 @@ import { bengaliDate, bengaliDateNumeric, bn, taka } from '@/lib/format';
  */
 type Source = 'subscription' | 'cod' | 'manual';
 
+/** Tabs are the three sources plus an "all" view and a cancelled bin. */
+type TabKey = 'all' | Source | 'cancelled';
+
 interface Row {
   _id: string;
   source: Source;
@@ -49,6 +57,8 @@ interface Row {
   deliveryCharge: number;
   status: string;
   paymentMethod: string;
+  /** Package title for a subscriber, "Regular" otherwise, absent for manual. */
+  package?: string;
   deliveryDate: string;
   deliveryTime: string;
   address: string;
@@ -73,6 +83,11 @@ const STATUS: Record<string, { label: string; tone: Tone; icon: typeof Package }
 
 const STATUS_FLOW = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
 
+const BN_MONTHS = [
+  'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+  'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর',
+];
+
 const MEALS: Record<string, { label: string; icon: typeof Coffee; tint: string }> = {
   morning: { label: 'সকাল', icon: Coffee, tint: 'text-amber-600' },
   lunch: { label: 'দুপুর', icon: Sun, tint: 'text-brand-600' },
@@ -81,6 +96,22 @@ const MEALS: Record<string, { label: string; icon: typeof Coffee; tint: string }
 
 function statusOf(s: string) {
   return STATUS[s] ?? { label: s, tone: 'neutral' as Tone, icon: Package };
+}
+
+/**
+ * Which package an order was placed against.
+ *
+ * `Order.package` stores the package *title* ("বেসিক প্যাকেজ") for a
+ * subscriber, and the literal "Regular" for anyone ordering without one — 108
+ * of the 122 customer orders in the live database are "Regular". Manual orders
+ * carry no package field at all. Rather than silently folding those two into a
+ * package name, they get their own buckets so the kitchen sees the truth.
+ */
+function packageOf(row: Row): string {
+  if (row.source === 'manual') return 'ম্যানুয়াল';
+  const name = row.package?.trim();
+  if (!name || name === 'Regular') return 'সাবস্ক্রিপশন ছাড়া';
+  return name;
 }
 
 /**
@@ -103,6 +134,7 @@ interface ApiOrder {
   deliveryCharge?: unknown;
   status?: unknown;
   paymentMethod?: unknown;
+  package?: unknown;
   deliveryDate?: unknown;
   deliveryTime?: unknown;
   address?: unknown;
@@ -123,6 +155,7 @@ function toRow(o: ApiOrder, source: Source): Row {
     deliveryCharge: Number(o.deliveryCharge ?? 0),
     status: String(o.status ?? 'pending'),
     paymentMethod: String(o.paymentMethod ?? ''),
+    package: o.package ? String(o.package) : undefined,
     deliveryDate: String(o.deliveryDate ?? ''),
     deliveryTime: String(o.deliveryTime ?? ''),
     address: String(o.address ?? ''),
@@ -134,6 +167,7 @@ function toRow(o: ApiOrder, source: Source): Row {
 /* -------------------------------------------------------------------------- */
 
 function OrdersView() {
+  const { confirm } = useDialog();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<Row[]>([]);
@@ -141,9 +175,11 @@ function OrdersView() {
   const [refreshing, setRefreshing] = useState(false);
   // Tab lives in the URL so /orders?tab=cod is linkable and survives a reload.
   const tabParam = searchParams.get('tab');
-  const tab: 'all' | Source =
-    tabParam === 'subscription' || tabParam === 'cod' || tabParam === 'manual' ? tabParam : 'all';
-  const setTab = (next: 'all' | Source) =>
+  const tab: TabKey =
+    tabParam === 'subscription' || tabParam === 'cod' || tabParam === 'manual' || tabParam === 'cancelled'
+      ? tabParam
+      : 'all';
+  const setTab = (next: TabKey) =>
     router.replace(next === 'all' ? '/admin/dashboard/orders' : `/admin/dashboard/orders?tab=${next}`, {
       scroll: false,
     });
@@ -152,6 +188,11 @@ function OrdersView() {
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
   const [detail, setDetail] = useState<Row | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  /** Which half of the calendar to show — upcoming by default. */
+  const [period, setPeriod] = useState<'upcoming' | 'past'>('upcoming');
+  /** `${isoDate}|${meal}` of the breakdown currently expanded, if any. */
+  const [openBreakdown, setOpenBreakdown] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     // Three independent sources. allSettled so one failing endpoint does not
@@ -186,20 +227,37 @@ function OrdersView() {
     void load();
   }, [load]);
 
+  /**
+   * Counts ignore cancelled orders.
+   *
+   * They used to include them, so cancelling both of two orders still read
+   * "২ অর্ডার" — the number meant "rows ever created", which is not what anyone
+   * reads it as. Cancelled rows live in their own tab instead of inflating
+   * every other figure.
+   */
+  const live = useMemo(() => rows.filter((r) => r.status !== 'cancelled'), [rows]);
+
   const counts = useMemo(
     () => ({
-      all: rows.length,
-      subscription: rows.filter((r) => r.source === 'subscription').length,
-      cod: rows.filter((r) => r.source === 'cod').length,
-      manual: rows.filter((r) => r.source === 'manual').length,
+      all: live.length,
+      subscription: live.filter((r) => r.source === 'subscription').length,
+      cod: live.filter((r) => r.source === 'cod').length,
+      manual: live.filter((r) => r.source === 'manual').length,
+      cancelled: rows.length - live.length,
     }),
-    [rows]
+    [rows, live]
   );
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rows.filter((r) => {
-      if (tab !== 'all' && r.source !== tab) return false;
+      // The cancelled tab is the only place cancelled rows appear.
+      if (tab === 'cancelled') {
+        if (r.status !== 'cancelled') return false;
+      } else {
+        if (r.status === 'cancelled') return false;
+        if (tab !== 'all' && r.source !== tab) return false;
+      }
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
       if (!term) return true;
       return (
@@ -211,7 +269,23 @@ function OrdersView() {
     });
   }, [rows, tab, statusFilter, search]);
 
-  const grouped = useMemo(() => {
+  /**
+   * Today, in local time. `toISOString()` converts to UTC first, so between
+   * midnight and 6am in Dhaka it returns yesterday — which would file today's
+   * orders under "past".
+   */
+  const todayKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  /**
+   * Upcoming days run forwards (today, tomorrow, the day after) because that is
+   * the order the kitchen cooks in. Past days run backwards, newest first,
+   * because that is the order you look things up in. They used to share one
+   * newest-first list, which put next week above tomorrow.
+   */
+  const { upcoming, past } = useMemo(() => {
     const map = new Map<string, Row[]>();
     for (const row of visible) {
       const key = dayKey(row.deliveryDate);
@@ -219,15 +293,33 @@ function OrdersView() {
       if (bucket) bucket.push(row);
       else map.set(key, [row]);
     }
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [visible]);
+    const entries = [...map.entries()];
+    return {
+      upcoming: entries.filter(([k]) => k >= todayKey).sort((a, b) => a[0].localeCompare(b[0])),
+      past: entries.filter(([k]) => k < todayKey).sort((a, b) => b[0].localeCompare(a[0])),
+    };
+  }, [visible, todayKey]);
+
+  const grouped = period === 'upcoming' ? upcoming : past;
+
+  /** Orders delivered in the current calendar month — the unit the books use. */
+  const monthCount = useMemo(() => {
+    const prefix = todayKey.slice(0, 7);
+    return live.filter((r) => dayKey(r.deliveryDate).startsWith(prefix)).length;
+  }, [live, todayKey]);
+
+  const currentMonthLabel = useMemo(() => {
+    const d = new Date();
+    return `${BN_MONTHS[d.getMonth()]} ${bn(d.getFullYear())}`;
+  }, []);
 
   const revenue = useMemo(
     () => visible.filter((r) => r.status === 'delivered').reduce((sum, r) => sum + r.totalAmount, 0),
     [visible]
   );
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  // Upcoming days start open (that is the day's cooking list); past days start
+  // closed so the history does not bury what matters.
   const isOpen = (key: string) => openDays[key] ?? key >= todayKey;
 
   const updateStatus = async (row: Row, status: string) => {
@@ -252,11 +344,43 @@ function OrdersView() {
     }
   };
 
-  const TABS: { key: 'all' | Source; label: string; count: number }[] = [
+  /** Permanently removes a cancelled order. The API refuses any other status. */
+  const deleteOrder = async (row: Row) => {
+    const ok = await confirm({
+      title: 'বাতিল অর্ডার মুছে ফেলবেন?',
+      message: `#${row.orderId?.slice(-8) || ''} — ${row.customerName}। এটি একেবারে মুছে যাবে, ফেরানো যাবে না।`,
+      confirmLabel: 'মুছে ফেলুন',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      setUpdating(row._id);
+      const res =
+        row.source === 'manual'
+          ? await manualOrderAPI.deleteOrder(row._id)
+          : await orderAPI.deleteOrder(row._id);
+
+      if (res.success) {
+        toast.success('অর্ডার মুছে ফেলা হয়েছে');
+        setRows((prev) => prev.filter((r) => !(r._id === row._id && r.source === row.source)));
+        setDetail((d) => (d && d._id === row._id ? null : d));
+      } else {
+        toast.error(res.message || 'মুছে ফেলা যায়নি');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'মুছে ফেলা যায়নি');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const TABS: { key: TabKey; label: string; count: number }[] = [
     { key: 'all', label: 'মোট অর্ডার', count: counts.all },
     { key: 'subscription', label: 'সাবস্ক্রিপশন', count: counts.subscription },
     { key: 'cod', label: 'ক্যাশ অন ডেলিভারি', count: counts.cod },
     { key: 'manual', label: 'ম্যানুয়াল', count: counts.manual },
+    { key: 'cancelled', label: 'বাতিল', count: counts.cancelled },
   ];
 
   if (loading) {
@@ -275,13 +399,21 @@ function OrdersView() {
   return (
     <div className="space-y-5">
       {/* Totals across every source */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatsCard
           title="মোট অর্ডার"
           value={bn(counts.all)}
           icon={ShoppingBag}
           tone="brand"
           hint="সাবস্ক্রিপশন + COD + ম্যানুয়াল"
+        />
+        {/* The month is the unit the books use — profit, loss and the cook's pay. */}
+        <StatsCard
+          title="এই মাসের অর্ডার"
+          value={bn(monthCount)}
+          icon={CalendarDays}
+          tone="brand"
+          hint={currentMonthLabel}
         />
         <StatsCard title="সাবস্ক্রিপশন" value={bn(counts.subscription)} icon={Wallet} tone="sky" />
         <StatsCard title="ক্যাশ অন ডেলিভারি" value={bn(counts.cod)} icon={Truck} tone="leaf" />
@@ -352,19 +484,68 @@ function OrdersView() {
         </button>
       </div>
 
-      {visible.length > 0 && (
-        <p className="text-sm text-ink-600">
-          {bn(visible.length)}টি অর্ডার · ডেলিভারি হওয়া থেকে আয়{' '}
-          <span className="font-semibold text-ink-900">{taka(revenue)}</span>
-        </p>
-      )}
+      {/* Taking an order belongs with the order list, not with Finance. */}
+      <Button
+        fullWidth
+        size="lg"
+        icon={<Plus size={18} />}
+        onClick={() => setShowManualForm(true)}
+        className="sm:w-auto"
+      >
+        ম্যানুয়াল অর্ডার নিন
+      </Button>
+
+      {/*
+        Upcoming and past are separate lists, not one stream, because they are
+        read for different reasons and in opposite directions.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-full border border-ink-200 bg-white p-1">
+          {(
+            [
+              { key: 'upcoming', label: 'আজ ও আসন্ন', count: upcoming.length },
+              { key: 'past', label: 'পূর্বের অর্ডার', count: past.length },
+            ] as const
+          ).map((option) => {
+            const active = period === option.key;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setPeriod(option.key)}
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                  active ? 'bg-brand-600 text-white' : 'text-ink-600 hover:text-ink-900'
+                }`}
+              >
+                {option.label}
+                <span className={`ml-1.5 text-xs ${active ? 'text-white/75' : 'text-ink-400'}`}>
+                  {bn(option.count)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {visible.length > 0 && (
+          <p className="text-sm text-ink-600">
+            ডেলিভারি হওয়া থেকে আয় <span className="font-semibold text-ink-900">{taka(revenue)}</span>
+          </p>
+        )}
+      </div>
 
       {/* Grouped list */}
       {grouped.length === 0 ? (
         <EmptyState
           icon={ShoppingBag}
           title="কোনো অর্ডার নেই"
-          hint={tab === 'all' ? 'নতুন অর্ডার এলে এখানে দেখা যাবে।' : 'এই ফিল্টারে কিছু পাওয়া যায়নি।'}
+          hint={
+            period === 'past'
+              ? 'আগের কোনো অর্ডার নেই।'
+              : tab === 'all'
+                ? 'আজ বা আগামী দিনের কোনো অর্ডার নেই।'
+                : 'এই ফিল্টারে কিছু পাওয়া যায়নি।'
+          }
         />
       ) : (
         <div className="space-y-4">
@@ -384,7 +565,9 @@ function OrdersView() {
                       <span className="block truncate font-semibold text-ink-900">
                         {key === 'unknown' ? 'তারিখ নেই' : bengaliDate(key)}
                       </span>
-                      <span className="mt-0.5 block text-xs text-ink-500">{bn(dayRows.length)}টি অর্ডার</span>
+                      <span className="mt-0.5 block text-xs text-ink-500">
+                        মোট {bn(dayRows.length)}টি অর্ডার
+                      </span>
                     </span>
                   </span>
                   <ChevronDown
@@ -392,6 +575,75 @@ function OrdersView() {
                     className={`shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`}
                   />
                 </button>
+
+                {/*
+                  Per-meal counts for the day, so the cook can see how many of
+                  each sitting to prepare without opening every order. Tapping
+                  one breaks it down by package, which is the thing that was
+                  impossible to find anywhere before.
+                */}
+                <div className="grid grid-cols-3 divide-x divide-ink-100 border-t border-ink-100">
+                  {Object.entries(MEALS).map(([mealKey, meal]) => {
+                    const mealRows = dayRows.filter((r) => r.deliveryTime === mealKey);
+                    const breakdownKey = `${key}|${mealKey}`;
+                    const showing = openBreakdown === breakdownKey;
+                    const MealIcon = meal.icon;
+
+                    return (
+                      <button
+                        key={mealKey}
+                        type="button"
+                        disabled={mealRows.length === 0}
+                        aria-expanded={showing}
+                        onClick={() => setOpenBreakdown(showing ? null : breakdownKey)}
+                        className={`px-3 py-2.5 text-center transition-colors disabled:cursor-default disabled:opacity-45 ${
+                          showing ? 'bg-brand-50' : 'enabled:hover:bg-ink-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5 text-xs text-ink-600">
+                          <MealIcon size={13} className={meal.tint} />
+                          {meal.label}
+                        </span>
+                        <span className="mt-0.5 block text-lg font-bold text-ink-900">
+                          {bn(mealRows.length)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {openBreakdown?.startsWith(`${key}|`) && (
+                  <div className="border-t border-ink-100 bg-brand-50/60 px-4 py-3">
+                    {(() => {
+                      const mealKey = openBreakdown.split('|')[1];
+                      const mealRows = dayRows.filter((r) => r.deliveryTime === mealKey);
+                      const byPackage = new Map<string, number>();
+                      for (const r of mealRows) {
+                        byPackage.set(packageOf(r), (byPackage.get(packageOf(r)) ?? 0) + 1);
+                      }
+                      const entries = [...byPackage.entries()].sort((a, b) => b[1] - a[1]);
+
+                      return (
+                        <>
+                          <p className="text-xs font-semibold text-ink-700">
+                            {MEALS[mealKey]?.label} — প্যাকেজ অনুযায়ী
+                          </p>
+                          <ul className="mt-2 flex flex-wrap gap-2">
+                            {entries.map(([pkg, n]) => (
+                              <li
+                                key={pkg}
+                                className="rounded-full border border-brand-200 bg-white px-3 py-1 text-xs"
+                              >
+                                <span className="text-ink-700">{pkg}</span>{' '}
+                                <span className="font-bold text-ink-900">{bn(n)}টি</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {open && (
                   <ul className="divide-y divide-ink-100">
@@ -445,6 +697,18 @@ function OrdersView() {
                             >
                               বিস্তারিত
                             </button>
+                            {/* Deleting is offered only once an order is cancelled. */}
+                            {row.status === 'cancelled' && (
+                              <button
+                                type="button"
+                                disabled={updating === row._id}
+                                onClick={() => deleteOrder(row)}
+                                className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                              >
+                                <Trash2 size={12} />
+                                মুছে ফেলুন
+                              </button>
+                            )}
                           </div>
                         </li>
                       );
@@ -455,6 +719,17 @@ function OrdersView() {
             );
           })}
         </div>
+      )}
+
+      {showManualForm && (
+        <ManualOrderForm
+          onClose={() => setShowManualForm(false)}
+          onCreated={() => {
+            // The new row belongs to the Manual tab, so land the admin there.
+            setTab('manual');
+            void load();
+          }}
+        />
       )}
 
       {/* Detail sheet */}

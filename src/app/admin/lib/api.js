@@ -332,6 +332,11 @@ export const orderAPI = {
     });
   },
 
+  // Delete a cancelled order. The API refuses anything that is not cancelled.
+  deleteOrder: id => {
+    return apiCall(`/orders/${id}`, { method: 'DELETE' });
+  },
+
   checkDateBlocked: (date) => {
     return apiCall('/blocked-dates/check', {
       method: 'POST',
@@ -407,6 +412,12 @@ export const userAPI = {
   // Get user by ID
   getUserById: id => {
     return apiCall(`/admin/users/${id}`)
+  },
+
+  // Per-customer order count, top-ups and wallet balance, keyed by user id.
+  // One aggregate call rather than three per row.
+  getStats: () => {
+    return apiCall('/admin/users/stats')
   },
 
   // Update user (Admin)
