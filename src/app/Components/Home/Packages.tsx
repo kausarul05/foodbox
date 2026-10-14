@@ -8,8 +8,10 @@ import { packageAPI, subscriptionAPI } from '@/lib/api';
 import SectionHeading from '@/components/ui/SectionHeading';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import { useDialog } from '@/components/ui/DialogProvider';
 import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bn, taka } from '@/lib/format';
+import { useMySubscription } from '@/lib/useMySubscription';
 
 interface PackageType {
   _id: string;
@@ -27,11 +29,18 @@ const EMPTY_PAYMENT: PaymentDetails = { paymentMethod: 'bkash', transactionId: '
 
 export default function Packages() {
   const router = useRouter();
+  const { confirm } = useDialog();
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selected, setSelected] = useState<PackageType | null>(null);
   const [payment, setPayment] = useState<PaymentDetails>(EMPTY_PAYMENT);
+
+  // A customer with a live or waiting subscription cannot request another — the
+  // server refuses it — so the cards say so instead of offering a button that
+  // can only fail.
+  const { subscription: mine } = useMySubscription();
+  const locked = mine?.status === 'active' || mine?.status === 'pending';
 
   useEffect(() => {
     let cancelled = false;
@@ -50,12 +59,21 @@ export default function Packages() {
     };
   }, []);
 
-  const startSubscribe = (pkg: PackageType) => {
+  const startSubscribe = async (pkg: PackageType) => {
+    if (locked) return;
     if (!localStorage.getItem('userToken')) {
       toast.error('সাবস্ক্রাইব করতে আগে লগইন করুন');
       router.push('/login');
       return;
     }
+    // Asked before the payment form, so nobody sends money without seeing it.
+    const agreed = await confirm({
+      title: 'এই টাকা ফেরতযোগ্য নয়',
+      message: `${pkg.title} প্যাকেজের সাবস্ক্রিপশন ফি ${taka(pkg.price)}। অনুমোদনের পর এই টাকা কোনো অবস্থাতেই ফেরত দেওয়া হবে না — সাবস্ক্রিপশন বাতিল করলেও না।`,
+      confirmLabel: 'বুঝেছি, এগিয়ে যান',
+      tone: 'warning',
+    });
+    if (!agreed) return;
     setPayment(EMPTY_PAYMENT);
     setSelected(pkg);
   };
@@ -121,19 +139,28 @@ export default function Packages() {
               // The middle card is the one we push; with two packages it is the
               // second, with one it is simply not highlighted.
               const featured = packages.length > 1 && i === Math.floor((packages.length - 1) / 2);
+              const own = locked && mine?.package === pkg.name;
               return (
                 <article
                   key={pkg._id}
                   className={`relative flex h-full flex-col rounded-3xl border p-7 transition duration-300 ${
-                    featured
-                      ? 'border-brand-300 bg-white shadow-lift lg:-translate-y-3'
-                      : 'border-ink-200 bg-white shadow-card hover:-translate-y-1 hover:shadow-lift'
+                    own
+                      ? 'border-leaf-400 bg-white shadow-lift ring-1 ring-leaf-200'
+                      : featured
+                        ? 'border-brand-300 bg-white shadow-lift lg:-translate-y-3'
+                        : 'border-ink-200 bg-white shadow-card hover:-translate-y-1 hover:shadow-lift'
                   }`}
                 >
-                  {featured && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-4 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-md">
-                      সবচেয়ে জনপ্রিয়
+                  {own ? (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-leaf-600 px-4 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-md">
+                      {mine?.status === 'pending' ? 'আপনার রিকোয়েস্ট' : 'আপনার বর্তমান প্যাকেজ'}
                     </span>
+                  ) : (
+                    featured && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-4 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-md">
+                        সবচেয়ে জনপ্রিয়
+                      </span>
+                    )
                   )}
 
                   <h3 className="text-xl font-bold text-ink-900">{pkg.title}</h3>
@@ -145,6 +172,7 @@ export default function Packages() {
                       <span className="text-sm text-ink-400 line-through">{taka(pkg.originalPrice)}</span>
                     )}
                   </div>
+                  <p className="mt-1 text-xs text-ink-500">সাবস্ক্রিপশন ফি · ফেরতযোগ্য নয়</p>
                   {pkg.discount > 0 && (
                     <span className="mt-2 inline-flex w-fit rounded-full bg-leaf-100 px-2.5 py-1 text-xs font-semibold text-leaf-700">
                       {bn(pkg.discount)}% সাশ্রয়
@@ -161,15 +189,31 @@ export default function Packages() {
                   </ul>
 
                   <button
-                    onClick={() => startSubscribe(pkg)}
-                    className={`mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold transition ${
-                      featured
-                        ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700'
-                        : 'border border-ink-300 bg-white text-ink-900 hover:border-brand-400 hover:text-brand-700'
+                    onClick={() => void startSubscribe(pkg)}
+                    disabled={locked}
+                    className={`mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold transition disabled:cursor-not-allowed ${
+                      own
+                        ? 'bg-leaf-100 text-leaf-700'
+                        : locked
+                          ? 'bg-ink-100 text-ink-500'
+                          : featured
+                            ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700'
+                            : 'border border-ink-300 bg-white text-ink-900 hover:border-brand-400 hover:text-brand-700'
                     }`}
                   >
-                    <Sparkles size={16} />
-                    সাবস্ক্রাইব করুন
+                    {own ? (
+                      <>
+                        <Check size={16} />
+                        {mine?.status === 'pending' ? 'অনুমোদনের অপেক্ষায়' : 'এটি আপনার চালু প্যাকেজ'}
+                      </>
+                    ) : locked ? (
+                      'আপনার সাবস্ক্রিপশন চালু আছে'
+                    ) : (
+                      <>
+                        <Sparkles size={16} />
+                        সাবস্ক্রাইব করুন
+                      </>
+                    )}
                   </button>
                 </article>
               );
@@ -186,13 +230,7 @@ export default function Packages() {
           busy={submitting}
           onClose={() => setSelected(null)}
           footer={
-            <Button
-              fullWidth
-              size="lg"
-              loading={submitting}
-              icon={<Sparkles size={17} />}
-              onClick={confirmSubscribe}
-            >
+            <Button fullWidth size="lg" loading={submitting} icon={<Sparkles size={17} />} onClick={confirmSubscribe}>
               {submitting ? 'পাঠানো হচ্ছে...' : 'রিকোয়েস্ট পাঠান'}
             </Button>
           }
@@ -209,8 +247,8 @@ export default function Packages() {
           </div>
 
           <p className="mt-5 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
-            অ্যাডমিন ট্রানজেকশন আইডি মিলিয়ে দেখে অনুমোদন দিলে তবেই সাবস্ক্রিপশন চালু হবে। ভুল আইডি দিলে
-            রিকোয়েস্ট বাতিল হয়ে যাবে।
+            অ্যাডমিন ট্রানজেকশন আইডি মিলিয়ে দেখে অনুমোদন দিলে তবেই সাবস্ক্রিপশন চালু হবে। ভুল আইডি দিলে রিকোয়েস্ট
+            বাতিল হয়ে যাবে। <strong>সাবস্ক্রিপশন ফি ফেরতযোগ্য নয়।</strong>
           </p>
         </Modal>
       )}

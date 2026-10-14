@@ -1,10 +1,13 @@
 'use client';
 
-import { bengaliDateNumeric, taka } from '@/lib/format';
+import { bengaliDateNumeric, bn, taka } from '@/lib/format';
 import { DateInput } from '@/components/ui/Field';
 import { useDialog } from '@/components/ui/DialogProvider';
 import React, { useState, useEffect } from 'react';
 import {
+  Banknote,
+  CalendarCheck,
+  Wallet,
   DollarSign,
   TrendingUp,
   TrendingDown,
@@ -26,12 +29,28 @@ interface Expense {
   date: string;
 }
 
+/** GET /api/admin/profit-stats */
+interface ProfitStats {
+  /** Every delivered order (wallet, cash on delivery, manual): food plus delivery charge. */
+  totalRevenue: number;
+  /** Delivery charges of delivered cash orders — their food price is not in it. */
+  cashOnDelivery: number;
+  subscriptionFees: number;
+  customerRecharge: number;
+  totalExpense: number;
+  profit: number;
+  profitMargin: string | number;
+  expenseBreakdown: Record<string, number>;
+  counts?: { cashOnDelivery: number; subscriptions: number; recharges: number };
+  ordersCount?: { regular: number; manual: number; total: number };
+}
+
 export default function FinancePage() {
   const { confirm } = useDialog();
   // Manual orders moved to the order list; Finance is expenses and profit.
   const [activeTab, setActiveTab] = useState<'expenses' | 'profit'>('profit');
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [profitStats, setProfitStats] = useState<any>(null);
+  const [profitStats, setProfitStats] = useState<ProfitStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
@@ -95,8 +114,8 @@ export default function FinancePage() {
         });
         await fetchData();
       }
-    } catch (error: any) {
-      toast.error(error.message || 'খরচ যোগ করতে ব্যর্থ হয়েছে');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'খরচ যোগ করতে ব্যর্থ হয়েছে');
     } finally {
       setSubmitting(false);
     }
@@ -197,6 +216,7 @@ export default function FinancePage() {
                 <p className="text-sm text-ink-500">মোট রেভিনিউ</p>
               </div>
               <p className="text-3xl font-bold text-green-600">{taka(profitStats.totalRevenue ?? 0)}</p>
+              <p className="mt-1 text-xs text-ink-400">সব ডেলিভারড অর্ডার — খাবার + ডেলিভারি চার্জ</p>
             </div>
             <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
@@ -215,6 +235,7 @@ export default function FinancePage() {
                 <p className="text-sm text-ink-500">নিট মুনাফা</p>
               </div>
               <p className="text-3xl font-bold text-blue-600">{taka(profitStats.profit ?? 0)}</p>
+              <p className="mt-1 text-xs text-ink-400">মোট রেভিনিউ − মোট খরচ</p>
             </div>
             <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
@@ -224,6 +245,47 @@ export default function FinancePage() {
                 <p className="text-sm text-ink-500">মুনাফার হার</p>
               </div>
               <p className="text-3xl font-bold text-purple-600">{profitStats.profitMargin || 0}%</p>
+            </div>
+          </div>
+
+          {/* Money collected outside revenue — shown on its own, not added to revenue or profit. */}
+          <div>
+            <h3 className="mb-3 text-lg font-bold text-ink-900">আলাদা হিসাব</h3>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              {[
+                {
+                  label: 'ক্যাশ অন ডেলিভারি',
+                  value: profitStats.cashOnDelivery,
+                  note: `শুধু ডেলিভারি চার্জ · ${bn(profitStats.counts?.cashOnDelivery ?? 0)}টি ডেলিভারড অর্ডার`,
+                  icon: Banknote,
+                  tone: 'bg-brand-100 text-brand-700',
+                },
+                {
+                  label: 'সাবস্ক্রিপশন ফি',
+                  value: profitStats.subscriptionFees,
+                  note: `${bn(profitStats.counts?.subscriptions ?? 0)}টি অনুমোদিত সাবস্ক্রিপশন`,
+                  icon: CalendarCheck,
+                  tone: 'bg-leaf-100 text-leaf-700',
+                },
+                {
+                  label: 'কাস্টমার রিচার্জ',
+                  value: profitStats.customerRecharge,
+                  note: `${bn(profitStats.counts?.recharges ?? 0)}টি অনুমোদিত রিচার্জ`,
+                  icon: Wallet,
+                  tone: 'bg-ink-100 text-ink-700',
+                },
+              ].map((box) => (
+                <div key={box.label} className="rounded-2xl border border-ink-200 bg-white p-6 shadow-card">
+                  <div className="mb-2 flex items-center gap-3">
+                    <div className={`rounded-full p-3 ${box.tone}`}>
+                      <box.icon className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm text-ink-500">{box.label}</p>
+                  </div>
+                  <p className="text-3xl font-bold text-ink-900">{taka(box.value ?? 0)}</p>
+                  <p className="mt-1 text-xs text-ink-400">{box.note}</p>
+                </div>
+              ))}
             </div>
           </div>
 

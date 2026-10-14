@@ -7,7 +7,7 @@ import { body, fail, handler, ok, type RouteContext } from '@/server/http';
  *
  * { action: 'hold' }                       box handed over (an existing subscriber)
  * { action: 'refund', reason? }            box returned fine — hold released
- * { action: 'deduct', reason, amount? }    box lost/broken — money taken, default ৳200
+ * { action: 'deduct', reason, amount? }    box lost/broken — money taken, default BOX_DEPOSIT (৳100)
  *
  * All money rules live in src/server/deposit.ts.
  */

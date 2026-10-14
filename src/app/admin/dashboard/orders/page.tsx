@@ -87,11 +87,11 @@ type Step = 'confirmed' | 'delivered' | 'returned';
 /**
  * A cash meal the customer did not take. Only cash: a wallet or bKash order
  * was paid up front, and the server refuses it too. Allowed before confirming
- * (a meal can come back without anyone having pressed confirm) and after "delivered"
- * as well, because "all delivered" is often pressed before the rider is back.
+ * (a meal can come back without anyone having pressed confirm), but not once
+ * delivered — a delivered meal is final, and the server refuses that too.
  */
 function canReturn(r: { paymentMethod: string; status: string }) {
-  return r.paymentMethod === 'cash' && ['pending', 'confirmed', 'delivered'].includes(r.status);
+  return r.paymentMethod === 'cash' && ['pending', 'confirmed'].includes(r.status);
 }
 
 /** The one button an order shows next, if any. */
@@ -403,7 +403,7 @@ function OrdersView() {
         to === 'confirmed' ? 'কনফার্ম' : 'ডেলিভারি সম্পন্ন'
       } হবে।${
         cash > 0
-          ? ` এর মধ্যে ${bn(cash)}টি ক্যাশ অন ডেলিভারি — কোনোটি ফেরত এলে আগে তালিকায় সেই অর্ডারে “ফেরত” দিন।`
+          ? ` এর মধ্যে ${bn(cash)}টি ক্যাশ অন ডেলিভারি — কোনোটি ফেরত এলে আগে তালিকায় সেই অর্ডারে “ফেরত” দিন। ডেলিভারি সম্পন্ন করার পর আর ফেরত দেওয়া যাবে না।`
           : ''
       }`,
       confirmLabel: to === 'confirmed' ? 'হ্যাঁ, কনফার্ম করুন' : 'হ্যাঁ, ডেলিভারি সম্পন্ন',

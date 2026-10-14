@@ -7,11 +7,12 @@ import { depositAPI } from '@/app/admin/lib/api';
 import { EmptyState, LoadingBlock, Pill, type Tone } from '@/app/admin/components/ui/Shell';
 import { useDialog } from '@/components/ui/DialogProvider';
 import { bengaliDateTime, bn, taka } from '@/lib/format';
+import { BOX_DEPOSIT } from '@/lib/rules';
 
 /**
  * Food-box security deposits.
  *
- * Every subscriber's box holds ৳200 of their wallet. From here an admin sees
+ * Every subscriber's box holds BOX_DEPOSIT of their wallet. From here an admin sees
  * who holds what, who still owes part of it, and acts when a box comes back
  * (refund), goes missing or breaks (deduct), or was handed to someone who
  * subscribed before deposits existed (hold). Every action is in the history
@@ -128,8 +129,8 @@ export default function DepositsPage() {
     if (action === 'hold') {
       const ok = await confirm({
         title: 'বক্সের ডিপোজিট নেবেন?',
-        message: `${row.fullName}-এর ওয়ালেট থেকে ${taka(200)} আটকে রাখা হবে। টাকা ওয়ালেটেই থাকবে, কিন্তু অর্ডারে খরচ করা যাবে না।${
-          row.balance - row.reserved < 200 ? ' ওয়ালেটে যথেষ্ট টাকা নেই — বাকিটা পরের রিচার্জ থেকে পূরণ হবে।' : ''
+        message: `${row.fullName}-এর ওয়ালেট থেকে ${taka(BOX_DEPOSIT)} আটকে রাখা হবে। টাকা ওয়ালেটেই থাকবে, কিন্তু অর্ডারে খরচ করা যাবে না।${
+          row.balance - row.reserved < BOX_DEPOSIT ? ' ওয়ালেটে যথেষ্ট টাকা নেই — বাকিটা পরের রিচার্জ থেকে পূরণ হবে।' : ''
         }`,
         confirmLabel: 'ডিপোজিট নিন',
       });
@@ -216,7 +217,7 @@ export default function DepositsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-ink-900">বক্স ডিপোজিট</h1>
-          <p className="text-ink-500">প্রতি সাবস্ক্রাইবারের খাবারের বক্সের জন্য {taka(200)} সিকিউরিটি ডিপোজিট</p>
+          <p className="text-ink-500">প্রতি সাবস্ক্রাইবারের খাবারের বক্সের জন্য {taka(BOX_DEPOSIT)} সিকিউরিটি ডিপোজিট</p>
         </div>
         <button
           onClick={() => {
@@ -291,7 +292,7 @@ export default function DepositsPage() {
           <p>
             এখনো কারো ডিপোজিট নেওয়া হয়নি, তাই আটকানো ও বাকি দেখাচ্ছে না। নতুন সাবস্ক্রিপশন অনুমোদন করলে ডিপোজিট নিজে থেকে
             আটকে যায়। আগের সাবস্ক্রাইবারদের মধ্যে যার কাছে বক্স আছে, তার পাশে <b>“ডিপোজিট নিন”</b> চাপুন — তখন তার
-            ওয়ালেটের {taka(200)} আটকানো দেখাবে।
+            ওয়ালেটের {taka(BOX_DEPOSIT)} আটকানো দেখাবে।
           </p>
         </div>
       )}

@@ -11,14 +11,13 @@ const isIdList = (v: unknown): v is string[] =>
  * Every move an admin makes. `preparing` and `out_for_delivery` are no longer
  * offered, but older rows may still hold them, so they count as confirmed.
  *
- * `returned` is a cash order the customer did not take. It can follow a
- * delivery too — "all delivered" is often pressed before the rider is back —
- * and a mistaken return can be put back to delivered.
+ * `returned` is a cash order the customer did not take. A delivered order is
+ * final and cannot be returned; a mistaken return can be put back to delivered.
  */
 const FROM = {
   confirmed: ['pending'],
   delivered: ['confirmed', 'preparing', 'out_for_delivery', 'returned'],
-  returned: ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'],
+  returned: ['pending', 'confirmed', 'preparing', 'out_for_delivery'],
 } as const;
 
 type Step = keyof typeof FROM;

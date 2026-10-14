@@ -1,8 +1,15 @@
 import { requireAdmin } from '@/server/auth';
 import { handler, ok } from '@/server/http';
+import ManualOrder from '@/server/models/ManualOrder';
 import Order from '@/server/models/Order';
 import Subscription from '@/server/models/Subscription';
 import User from '@/server/models/User';
+
+/** Sum of delivered orders, delivery charges included. */
+const DELIVERED_TOTAL = [
+  { $match: { status: 'delivered' } },
+  { $group: { _id: null, total: { $sum: { $add: ['$totalAmount', { $ifNull: ['$deliveryCharge', 0] }] } } } },
+];
 
 // GET /api/admin/stats
 export const GET = handler(async (req: Request) => {
@@ -14,10 +21,10 @@ export const GET = handler(async (req: Request) => {
       User.countDocuments({ isActive: true }),
       Order.countDocuments(),
       Order.countDocuments({ status: 'pending' }),
-      Order.aggregate([
-        { $match: { status: 'delivered' } },
-        { $group: { _id: null, total: { $sum: '$totalAmount' } } },
-      ]),
+      // Everything delivered: wallet, cash on delivery and admin manual orders.
+      Promise.all([Order.aggregate(DELIVERED_TOTAL), ManualOrder.aggregate(DELIVERED_TOTAL)]).then(
+        ([orders, manual]) => [{ total: (orders[0]?.total ?? 0) + (manual[0]?.total ?? 0) }]
+      ),
       Subscription.countDocuments({ status: 'active' }),
       Subscription.countDocuments({ status: 'pending' }),
     ]);

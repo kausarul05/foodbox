@@ -18,6 +18,9 @@ export const PUT = handler(async (req: Request, ctx: RouteContext<{ id: string }
   if (!order) return fail('Order not found', 404);
 
   if (status === 'cancelled') return fail('Cancel the order through its cancel route', 400);
+  if (order.status === 'delivered' && status === 'returned') {
+    return fail('ডেলিভারি হয়ে যাওয়া অর্ডার ফেরত করা যায় না', 400);
+  }
 
   if (status === 'delivered') {
     await deliverOrders([id], ['pending', 'confirmed', 'preparing', 'out_for_delivery']);

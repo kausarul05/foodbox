@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CalendarCheck, CreditCard, Truck, Wallet } from 'lucide-react';
+import CurrentSubscription from '@/app/Components/Home/CurrentSubscription';
 import Packages from '@/app/Components/Home/Packages';
 import PageHeader from '@/components/ui/PageHeader';
 import SectionHeading from '@/components/ui/SectionHeading';
@@ -16,7 +17,7 @@ const PERKS = [
   {
     icon: Truck,
     title: 'ডেলিভারি ফ্রি',
-    body: 'সাবস্ক্রিপশন চালু থাকলে প্রতিদিনের ডেলিভারি চার্জ দিতে হবে না।',
+    body: 'সাবস্ক্রিপশন চালু থাকলে প্রতি বেলার ডেলিভারি চার্জ দিতে হবে না।',
   },
   {
     icon: Wallet,
@@ -49,6 +50,9 @@ export default function SubscriptionPage() {
           প্যাকেজ দেখুন
         </Link>
       </PageHeader>
+
+      {/* The customer's own subscription, when they have one. */}
+      <CurrentSubscription />
 
       {/* Why subscribe */}
       <section className="py-16 md:py-20">

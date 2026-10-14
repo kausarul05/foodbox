@@ -21,46 +21,53 @@ export const mymensinghZones = [
   { name: 'phulpur', nameBn: 'ফুলপুর', deliveryCharge: 75, isActive: true, isCustom: false },
 ];
 
+// Subscription fee for 30 days — non-refundable. Meals are paid from the wallet.
+const PACKAGE_COMMON = [
+  'খাবারের দাম ওয়ালেট থেকে — ডেলিভারির পরেই কাটা হয়',
+  'ফ্রি হোম ডেলিভারি',
+  'খাবারের বক্স (১০০ টাকা ফেরতযোগ্য ডিপোজিট)',
+];
+
 export const defaultPackages = [
   {
     name: 'basic',
     title: 'বেসিক প্যাকেজ',
-    price: 1500,
-    originalPrice: 2000,
-    features: ['সপ্তাহের ৫ দিন ডেলিভারি', 'প্রতিদিন ২ বেলা খাবার', 'স্ট্যান্ডার্ড ডেলিভারি'],
+    price: 70,
+    originalPrice: 70,
+    features: ['৩০ দিনের সাবস্ক্রিপশন', 'বেসিক মেনু থেকে প্রতিদিন অর্ডার', ...PACKAGE_COMMON],
     duration: 30,
-    discount: 25,
+    discount: 0,
     isActive: true,
   },
   {
     name: 'standard',
     title: 'স্ট্যান্ডার্ড প্যাকেজ',
-    price: 2500,
-    originalPrice: 3500,
+    price: 90,
+    originalPrice: 90,
     features: [
-      'সপ্তাহের ৭ দিন ডেলিভারি',
-      'প্রতিদিন ৩ বেলা খাবার',
-      'ফ্রি হোম ডেলিভারি',
-      'এক্সট্রা আইটেম ফ্রি',
+      '৩০ দিনের সাবস্ক্রিপশন',
+      'স্ট্যান্ডার্ড মেনু — আরও বেশি পদ',
+      ...PACKAGE_COMMON,
+      'সাবস্ক্রাইবার হোয়াটসঅ্যাপ গ্রুপে মেনুর আপডেট',
     ],
     duration: 30,
-    discount: 28,
+    discount: 0,
     isActive: true,
   },
   {
     name: 'premium',
     title: 'প্রিমিয়াম প্যাকেজ',
-    price: 3500,
-    originalPrice: 5000,
+    price: 120,
+    originalPrice: 120,
     features: [
-      'সপ্তাহের ৭ দিন ডেলিভারি',
-      'প্রতিদিন ৩ বেলা খাবার',
-      'ফ্রি হোম ডেলিভারি + হট ব্যাগ',
-      'এক্সট্রা ডেজার্ট আইটেম ফ্রি',
+      '৩০ দিনের সাবস্ক্রিপশন',
+      'প্রিমিয়াম মেনু — সবচেয়ে বেশি ও বিশেষ পদ',
+      ...PACKAGE_COMMON,
+      'সাবস্ক্রাইবার হোয়াটসঅ্যাপ গ্রুপে মেনুর আপডেট',
       'প্রায়োরিটি সাপোর্ট',
     ],
     duration: 30,
-    discount: 30,
+    discount: 0,
     isActive: true,
   },
 ];

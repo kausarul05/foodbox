@@ -57,11 +57,10 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               aria-current={isActive(link.href) ? 'page' : undefined}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                isActive(link.href)
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${isActive(link.href)
                   ? 'bg-brand-100 text-brand-800'
                   : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
-              }`}
+                }`}
             >
               {link.name}
             </Link>
@@ -95,6 +94,15 @@ export default function Navbar() {
             className="inline-flex shrink-0 rounded-full bg-brand-600 px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             অর্ডার করুন
+          </Link>
+
+          {/* Phones and tablets: icon only, so it fits beside the order button. */}
+          <Link
+            href={user ? '/dashboard/profile' : '/login'}
+            aria-label={user ? 'আমার প্রোফাইল' : 'লগইন'}
+            className="grid size-9 shrink-0 place-items-center rounded-full border border-ink-200 bg-white text-brand-700 transition-colors hover:border-brand-300 sm:size-10 lg:hidden"
+          >
+            {user ? <UserRound size={18} /> : <LogIn size={18} />}
           </Link>
         </div>
       </div>

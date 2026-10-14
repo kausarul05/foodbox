@@ -1,24 +1,25 @@
 import { Types } from 'mongoose';
+import { BOX_DEPOSIT } from '@/lib/rules';
 import DepositEvent from './models/DepositEvent';
 import User, { type DepositStatus } from './models/User';
 
 /**
  * Food-box security deposit.
  *
- * Every subscriber's meals come in a FoodBox box. While they have one, ৳200 of
+ * Every subscriber's meals come in a FoodBox box. While they have one, ৳100 (BOX_DEPOSIT) of
  * their wallet is *held* — it stays in `walletBalance` but cannot be spent on
  * orders (src/server/wallet.ts subtracts it from `available`).
  *
- *   hold    box handed over: status → active, ৳200 held. Done automatically
+ *   hold    box handed over: status → active, BOX_DEPOSIT held. Done automatically
  *           when a subscription is approved, or by an admin for subscribers
  *           who already had a box before this existed.
  *   refund  box came back fine: status → refunded, hold released. No money
  *           moves — it never left the wallet; it is simply spendable again.
- *   deduct  box lost or broken: status → deducted, the amount (৳200 unless
+ *   deduct  box lost or broken: status → deducted, the amount (BOX_DEPOSIT unless
  *           the admin says less) leaves the wallet; anything held beyond that
  *           is released.
  *
- * A wallet with less than ৳200 still gets the hold. `available` then goes
+ * A wallet with less than BOX_DEPOSIT still gets the hold. `available` then goes
  * negative, which is the "deposit due" state: the next top-up fills the
  * deposit before any of it can be spent on orders. A deduction from a wallet
  * that short can take the balance below zero, which reads as money owed.
@@ -28,7 +29,10 @@ import User, { type DepositStatus } from './models/User';
  * DepositEvent, which is the history the admin panel shows.
  */
 
-export const BOX_DEPOSIT = 200;
+// The amount lives in src/lib/rules.ts so the admin page shows the same figure.
+// A user's own hold is stored on them (`depositAmount`), so changing it only
+// affects holds started afterwards.
+export { BOX_DEPOSIT };
 
 export interface DepositSummary {
   status: DepositStatus;

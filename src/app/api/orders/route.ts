@@ -1,7 +1,8 @@
+import { bn } from '@/lib/format';
 import { requireAdmin, requireUser } from '@/server/auth';
 import { checkDeliveryDeadline, isClosedFriday } from '@/server/deadlines';
 import { body, fail, handler, ok } from '@/server/http';
-import { GUEST_MEAL_MONTHLY_LIMIT, countGuestMeals } from '@/server/limits';
+import { GUEST_DAYS_MONTHLY_LIMIT, GUEST_MEAL_MONTHLY_LIMIT, countGuestMeals } from '@/server/limits';
 import BlockedDate from '@/server/models/BlockedDate';
 import Order from '@/server/models/Order';
 import Subscription from '@/server/models/Subscription';
@@ -58,14 +59,22 @@ export const POST = handler(async (req: Request) => {
   const deadline = checkDeliveryDeadline(orderDate, deliveryTime);
   if (!deadline.isWithinDeadline) return fail(deadline.message, 400);
 
-  // 4. Guest meals are capped per account per delivery month
+  // 4. Guest meals are capped per account per delivery month: 21 meals, 7 days
   if (isGuest) {
-    const used = await countGuestMeals(authUser._id, orderDate);
-    if (used >= GUEST_MEAL_MONTHLY_LIMIT) {
+    const { meals, days } = await countGuestMeals(authUser._id, orderDate);
+    if (meals >= GUEST_MEAL_MONTHLY_LIMIT) {
       return fail(
-        `এক মাসে সর্বোচ্চ ${GUEST_MEAL_MONTHLY_LIMIT}টি গেস্ট মিল অর্ডার করা যায়। এই মাসের সীমা শেষ হয়ে গেছে।`,
+        `এক মাসে সর্বোচ্চ ${bn(GUEST_MEAL_MONTHLY_LIMIT)}টি গেস্ট মিল অর্ডার করা যায়। এই মাসের সীমা শেষ হয়ে গেছে।`,
         400,
-        { guestLimitReached: true, used, limit: GUEST_MEAL_MONTHLY_LIMIT }
+        { guestLimitReached: true, used: meals, limit: GUEST_MEAL_MONTHLY_LIMIT }
+      );
+    }
+    const day = orderDate.toISOString().slice(0, 10);
+    if (!days.includes(day) && days.length >= GUEST_DAYS_MONTHLY_LIMIT) {
+      return fail(
+        `এক মাসে সর্বোচ্চ ${bn(GUEST_DAYS_MONTHLY_LIMIT)} দিন গেস্ট মিল নেওয়া যায়। এই মাসের ${bn(GUEST_DAYS_MONTHLY_LIMIT)} দিন শেষ হয়ে গেছে।`,
+        400,
+        { guestLimitReached: true, usedDays: days.length, daysLimit: GUEST_DAYS_MONTHLY_LIMIT }
       );
     }
   }

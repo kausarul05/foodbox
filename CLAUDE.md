@@ -176,15 +176,26 @@ All of it lives in `src/server/wallet.ts` — never touch `walletBalance` for an
 order anywhere else.
 
 Food-box security deposit (`src/server/deposit.ts`, admin page
-`/admin/dashboard/deposits`): a subscriber with a box has ৳200 of their wallet
+`/admin/dashboard/deposits`): a subscriber with a box has ৳100 of their wallet
 *held* — `User.depositStatus: 'active'`, and `available` is also reduced by it.
 Approving a subscription starts the hold; subscribers from before this rule get it
 from the admin page. Box returned → `refund` releases the hold (no money moves);
-lost or broken → `deduct` takes up to ৳200 out of `walletBalance`. A wallet short
-of ৳200 still gets the hold, so `available` goes negative ("deposit due") and the
+lost or broken → `deduct` takes up to ৳100 out of `walletBalance`. A wallet short
+of ৳100 still gets the hold, so `available` goes negative ("deposit due") and the
 next top-up fills it first. Every hold/deduct/refund writes a `DepositEvent` — the
 history. Wallet top-ups are manual: the user submits a bKash/Nagad
 transaction id, an admin approves it, and only then is the balance credited.
+Only a customer with an active subscription can top up (the recharge route
+refuses everyone else).
+A customer's first top-up (none approved yet) must be at least ৳1,200, after that ৳50 —
+`src/lib/rules.ts`, enforced in `POST /api/wallet/recharge`.
+
+Subscription fees (৳70 / ৳90 / ৳120 for 30 days) are non-refundable; the customer
+confirms a popup before paying. Finance (`/api/admin/profit-stats`): revenue is
+every delivered order (food + delivery charge); separate boxes show the delivery
+charges taken on cash orders, subscription fees and approved top-ups; profit is
+revenue minus expenses. The main
+dashboard total counts every delivered order, manual ones included.
 
 Menu days are Bengali strings in a fixed order — see `MENU_DAYS` in
 `src/server/models/WeeklyMenu.ts`. UI copy throughout is Bengali.

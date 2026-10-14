@@ -1,15 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Clock, Plus, Wallet, XCircle } from 'lucide-react';
+import Link from 'next/link';
+import { CheckCircle2, Clock, Crown, Plus, Wallet, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { transactionAPI, walletAPI } from '@/lib/api';
-import Button from '@/components/ui/Button';
+import Button, { buttonClass } from '@/components/ui/Button';
+import { useMySubscription } from '@/lib/useMySubscription';
 import { Field, Input } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
 import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bengaliDate, bn, taka } from '@/lib/format';
 import { isHandCash } from '@/lib/payment';
+import { FIRST_RECHARGE_MIN, MIN_RECHARGE } from '@/lib/rules';
 
 interface Transaction {
   _id: string;
@@ -20,8 +23,9 @@ interface Transaction {
   createdAt: string;
 }
 
-const MIN_RECHARGE = 50;
 const QUICK_AMOUNTS = [200, 500, 1000, 2000];
+/** Shown instead while the customer has no approved top-up yet. */
+const FIRST_QUICK_AMOUNTS = [1200, 1500, 2000, 3000];
 
 const EMPTY_PAYMENT: PaymentDetails = { paymentMethod: 'bkash', transactionId: '', senderNumber: '' };
 
@@ -42,6 +46,9 @@ export default function WalletPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRecharge, setShowRecharge] = useState(false);
+  // Only subscribers can top up — the server refuses everyone else.
+  const { subscription: mySubscription, loading: subscriptionLoading } = useMySubscription();
+  const subscribed = mySubscription?.status === 'active';
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [payment, setPayment] = useState<PaymentDetails>(EMPTY_PAYMENT);
   const [submitting, setSubmitting] = useState(false);
@@ -73,10 +80,19 @@ export default function WalletPage() {
     setPayment(EMPTY_PAYMENT);
   };
 
+  /** No top-up approved yet, so this one must meet the first-top-up minimum (the server checks it too). */
+  const isFirstRecharge = !transactions.some((t) => t.status === 'approved');
+  const minRecharge = isFirstRecharge ? FIRST_RECHARGE_MIN : MIN_RECHARGE;
+  const quickAmounts = isFirstRecharge ? FIRST_QUICK_AMOUNTS : QUICK_AMOUNTS;
+
   const handleRecharge = async () => {
     const amount = Number(rechargeAmount);
-    if (!amount || amount < MIN_RECHARGE) {
-      toast.error(`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা রিচার্জ করতে হবে`);
+    if (!amount || amount < minRecharge) {
+      toast.error(
+        isFirstRecharge
+          ? `প্রথম রিচার্জ সর্বনিম্ন ${bn(FIRST_RECHARGE_MIN)} টাকা`
+          : `ন্যূনতম ${bn(MIN_RECHARGE)} টাকা রিচার্জ করতে হবে`
+      );
       return;
     }
     const problem = validatePayment(payment);
@@ -144,10 +160,29 @@ export default function WalletPage() {
               <p className="mt-2 text-sm text-brand-300">{taka(pendingTotal)} অনুমোদনের অপেক্ষায়</p>
             )}
           </div>
-          <Button size="lg" icon={<Plus size={18} />} onClick={() => setShowRecharge(true)}>
-            রিচার্জ করুন
-          </Button>
+          {subscribed || subscriptionLoading ? (
+            <Button
+              size="lg"
+              icon={<Plus size={18} />}
+              disabled={subscriptionLoading}
+              onClick={() => setShowRecharge(true)}
+            >
+              রিচার্জ করুন
+            </Button>
+          ) : (
+            <Link href="/subscription" className={buttonClass('primary', 'lg')}>
+              <Crown size={18} />
+              প্যাকেজ দেখুন
+            </Link>
+          )}
         </div>
+        {!subscribed && !subscriptionLoading && (
+          <p className="relative mt-4 rounded-xl bg-white/10 px-4 py-3 text-sm text-ink-200">
+            {mySubscription?.status === 'pending'
+              ? 'আপনার সাবস্ক্রিপশন অনুমোদনের অপেক্ষায় আছে। অনুমোদন হলে ওয়ালেটে টাকা যোগ করতে পারবেন।'
+              : 'ওয়ালেটে টাকা যোগ করতে আগে একটি প্যাকেজ নিন। প্যাকেজ ছাড়া ক্যাশ অন ডেলিভারিতে অর্ডার করতে পারবেন।'}
+          </p>
+        )}
 
         {/*
           How much went in versus how much is left. The page only ever showed
@@ -258,19 +293,28 @@ export default function WalletPage() {
             </Button>
           }
         >
-          <Field label="কত টাকা রিচার্জ করবেন?" htmlFor="amount" required hint={`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা`}>
+          <Field
+            label="কত টাকা রিচার্জ করবেন?"
+            htmlFor="amount"
+            required
+            hint={
+              isFirstRecharge
+                ? `প্রথম রিচার্জ সর্বনিম্ন ${bn(FIRST_RECHARGE_MIN)} টাকা। এরপর যত খুশি রিচার্জ করা যাবে।`
+                : `ন্যূনতম ${bn(MIN_RECHARGE)} টাকা`
+            }
+          >
             <Input
               id="amount"
               type="number"
               inputMode="numeric"
-              min={MIN_RECHARGE}
+              min={minRecharge}
               step={10}
               value={rechargeAmount}
               onChange={(e) => setRechargeAmount(e.target.value)}
-              placeholder="যেমন ৫০০"
+              placeholder={isFirstRecharge ? `যেমন ${bn(FIRST_RECHARGE_MIN)}` : 'যেমন ৫০০'}
             />
             <div className="mt-2.5 grid grid-cols-4 gap-2">
-              {QUICK_AMOUNTS.map((amount) => (
+              {quickAmounts.map((amount) => (
                 <button
                   key={amount}
                   type="button"

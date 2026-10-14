@@ -1,6 +1,9 @@
+import { bn } from '@/lib/format';
 import { cashReference, isHandCash } from '@/lib/payment';
+import { FIRST_RECHARGE_MIN, MIN_RECHARGE } from '@/lib/rules';
 import { requireUser } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
+import Subscription from '@/server/models/Subscription';
 import Transaction from '@/server/models/Transaction';
 import User from '@/server/models/User';
 
@@ -12,6 +15,22 @@ export const POST = handler(async (req: Request) => {
   const user = await User.findById(authUser._id);
   if (!user) return fail('User not found', 404);
 
+  // The wallet only pays for subscriber meals, so only subscribers can fill it.
+  const subscribed = await Subscription.exists({ userId: authUser._id, status: 'active' });
+  if (!subscribed) {
+    return fail('শুধু সাবস্ক্রাইবাররা ওয়ালেটে টাকা যোগ করতে পারেন। আগে একটি প্যাকেজ নিন।', 403);
+  }
+
+  const value = Number(amount);
+  if (!Number.isFinite(value) || value < MIN_RECHARGE) {
+    return fail(`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা রিচার্জ করতে হবে`, 400);
+  }
+  // Until one top-up has been approved, every request must meet the first-top-up minimum.
+  const hasApproved = await Transaction.exists({ userId: authUser._id, status: 'approved' });
+  if (!hasApproved && value < FIRST_RECHARGE_MIN) {
+    return fail(`প্রথম রিচার্জ সর্বনিম্ন ${bn(FIRST_RECHARGE_MIN)} টাকা`, 400);
+  }
+
   // Hand cash has no provider id, so it gets a reference of our own. The
   // admin approves it once the money is actually in hand.
   const transactionId = isHandCash(paymentMethod) ? cashReference() : given;
@@ -22,7 +41,7 @@ export const POST = handler(async (req: Request) => {
   const transaction = await Transaction.create({
     userId: authUser._id,
     userName: user.fullName,
-    amount,
+    amount: value,
     transactionId,
     paymentMethod,
     status: 'pending',

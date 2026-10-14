@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import { menuAPI, orderAPI, subscriptionAPI } from '@/lib/api';
+import { menuAPI, orderAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
 import { DateInput, Field, Input, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
@@ -42,6 +42,29 @@ interface MenuItem {
 }
 
 type MealKey = 'morning' | 'lunch' | 'dinner';
+
+/** One meal on one day, as the order summary lists it. */
+interface MealLine {
+  meal: MealKey;
+  name: string;
+  price: number;
+  guest: boolean;
+  /** cash: paid at the door; wallet: taken from the wallet once delivered. */
+  pay: 'cash' | 'wallet';
+}
+
+interface DayBill {
+  date: string;
+  lines: MealLine[];
+  /** Meals that day that pay a delivery charge. */
+  deliveries: number;
+  /** That day's delivery charge (deliveries × rate), always paid in cash. */
+  delivery: number;
+  /** Handed over at the door that day: cash meals plus delivery. */
+  cash: number;
+  /** Taken from the wallet as that day's meals are delivered. */
+  wallet: number;
+}
 type MealSelection = Record<MealKey, boolean>;
 
 const MEALS = [
@@ -53,7 +76,12 @@ const MEALS = [
 /** Used only when the menu row carries no price of its own. */
 const FALLBACK_PRICE: Record<MealKey, number> = { morning: 50, lunch: 80, dinner: 100 };
 
-const DELIVERY_CHARGE_PER_DAY = 15;
+/**
+ * Delivery is charged per meal (each bela is its own delivery), at the chosen zone's rate. This is
+ * only the fallback for a zone with no rate yet (a customer-proposed zone that
+ * is still waiting for admin approval).
+ */
+const DEFAULT_DELIVERY_CHARGE = 15;
 
 /** JS getDay() is Sunday-first. */
 const WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
@@ -100,6 +128,8 @@ export default function Order() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedZone, setSelectedZone] = useState('');
   const [address, setAddress] = useState('');
+  /** Zone id -> delivery charge per day, from /api/zones. */
+  const [zoneCharges, setZoneCharges] = useState<Map<string, number>>(new Map());
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -119,7 +149,14 @@ export default function Order() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [enableGuestMeal, setEnableGuestMeal] = useState(false);
   /** Guest meals left this month, from the server. null until it answers. */
-  const [guestQuota, setGuestQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
+  const [guestQuota, setGuestQuota] = useState<{
+    limit: number;
+    used: number;
+    remaining: number;
+    daysLimit: number;
+    usedDays: string[];
+    daysRemaining: number;
+  } | null>(null);
   /** Bumped after orders are placed so the quota is re-read. */
   const [guestQuotaKey, setGuestQuotaKey] = useState(0);
 
@@ -127,6 +164,28 @@ export default function Order() {
   const [shortfall, setShortfall] = useState<number | null>(null);
 
   const isLoggedIn = Boolean(user);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await zoneAPI.getAllZones();
+        if (!cancelled && res.success) {
+          setZoneCharges(
+            new Map((res.data ?? []).map((z: { _id: string; deliveryCharge?: number }) => [z._id, z.deliveryCharge ?? 0]))
+          );
+        }
+      } catch {
+        // Falls back to DEFAULT_DELIVERY_CHARGE; ZoneSelect reports the failure.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** What one delivery (one meal) costs in the chosen zone. */
+  const deliveryPerMeal = zoneCharges.get(selectedZone) ?? DEFAULT_DELIVERY_CHARGE;
 
   /* ---------------------------------------------------------------------- */
   /* Load subscription + menu                                               */
@@ -330,52 +389,79 @@ export default function Order() {
   const totals = useMemo(() => {
     let selfMealPrice = 0;
     let guestMealPrice = 0;
-    let selfDays = 0;
-    let guestDays = 0;
+    /** Self meals that pay delivery — none for a subscriber. */
+    let selfDeliveries = 0;
     /** Guest *meals*, not days — one order per meal, and the cap counts orders. */
     let guestMeals = 0;
+    /** Each delivery day, meal by meal, with its delivery charge kept apart. */
+    const daily: DayBill[] = [];
 
     for (const { date, dayName } of days) {
       const self = selfMealsFor(date);
       const guest = guestMealsFor(date);
       let hasSelf = false;
       let hasGuest = false;
+      const lines: MealLine[] = [];
 
       for (const meal of MEALS) {
         // A meal that is not on the menu for that day cannot be ordered.
         if (!nameOf(dayName, meal.key)) continue;
         if (self[meal.key]) {
           selfMealPrice += priceOf(dayName, meal.key);
+          lines.push({
+            meal: meal.key,
+            name: nameOf(dayName, meal.key),
+            price: priceOf(dayName, meal.key),
+            guest: false,
+            pay: hasActiveSubscription ? 'wallet' : 'cash',
+          });
           hasSelf = true;
         }
         if (enableGuestMeal && guest[meal.key]) {
           guestMealPrice += priceOf(dayName, meal.key);
+          lines.push({
+            meal: meal.key,
+            name: nameOf(dayName, meal.key),
+            price: priceOf(dayName, meal.key),
+            guest: true,
+            pay: 'cash',
+          });
           guestMeals++;
           hasGuest = true;
         }
       }
 
-      if (hasSelf) selfDays++;
-      if (hasGuest) guestDays++;
+      if (hasSelf || hasGuest) {
+        // One delivery charge per meal: every guest meal, and every self meal
+        // unless the customer is subscribed.
+        const deliveries = lines.filter((l) => l.guest || !hasActiveSubscription).length;
+        selfDeliveries += lines.filter((l) => !l.guest && !hasActiveSubscription).length;
+        const delivery = deliveries * deliveryPerMeal;
+        const cash = lines.filter((l) => l.pay === 'cash').reduce((sum, l) => sum + l.price, 0) + delivery;
+        const wallet = lines.filter((l) => l.pay === 'wallet').reduce((sum, l) => sum + l.price, 0);
+        daily.push({ date, lines, deliveries, delivery, cash, wallet });
+      }
     }
 
     // A subscription covers delivery for the subscriber, never for guests.
-    const selfDelivery = hasActiveSubscription ? 0 : selfDays * DELIVERY_CHARGE_PER_DAY;
-    const guestDelivery = guestDays * DELIVERY_CHARGE_PER_DAY;
+    const selfDelivery = selfDeliveries * deliveryPerMeal;
+    const guestDelivery = guestMeals * deliveryPerMeal;
 
     return {
       selfMealPrice,
       guestMealPrice,
       selfDelivery,
       guestDelivery,
-      selfDays,
-      guestDays,
+      selfDeliveries,
       guestMeals,
+      daily,
+      /** Paid in cash at the door, over all the days. */
+      cashTotal: daily.reduce((sum, d) => sum + d.cash, 0),
       selfTotal: selfMealPrice + selfDelivery,
       guestTotal: guestMealPrice + guestDelivery,
       total: selfMealPrice + selfDelivery + guestMealPrice + guestDelivery,
     };
-  }, [days, selfMealsFor, guestMealsFor, nameOf, priceOf, enableGuestMeal, hasActiveSubscription]);
+  }, [days, selfMealsFor, guestMealsFor, nameOf, priceOf, enableGuestMeal, hasActiveSubscription, deliveryPerMeal]);
 
   /* ---------------------------------------------------------------------- */
   /* Handlers                                                               */
@@ -424,6 +510,23 @@ export default function Order() {
       );
       return;
     }
+    if (enableGuestMeal && guestQuota) {
+      // Days in the quota's month that would get their first guest meal.
+      const newGuestDays = totals.daily.filter(
+        (d) =>
+          d.date.startsWith(guestMonth) &&
+          d.lines.some((l) => l.guest) &&
+          !(guestQuota.usedDays ?? []).includes(d.date)
+      ).length;
+      if (newGuestDays > (guestQuota.daysRemaining ?? Infinity)) {
+        toast.error(
+          guestQuota.daysRemaining === 0
+            ? `এই মাসে ${bn(guestQuota.daysLimit)} দিনের গেস্ট মিল নেওয়া হয়ে গেছে`
+            : `এই মাসে আর ${bn(guestQuota.daysRemaining)} দিন গেস্ট মিল নিতে পারবেন, আপনি ${bn(newGuestDays)} দিন বেছেছেন`
+        );
+        return;
+      }
+    }
     // Only the subscriber's own meals come out of the wallet; guest meals are cash.
     if (hasActiveSubscription && totals.selfMealPrice > walletAvailable) {
       setShortfall(totals.selfMealPrice - walletAvailable);
@@ -469,7 +572,7 @@ export default function Order() {
           if (self[meal.key]) {
             const res = await orderAPI.createOrder({
               ...base,
-              deliveryCharge: hasActiveSubscription ? 0 : DELIVERY_CHARGE_PER_DAY,
+              deliveryCharge: hasActiveSubscription ? 0 : deliveryPerMeal,
               paymentMethod: hasActiveSubscription ? 'wallet' : 'cash',
               specialInstructions: '',
               package: subscriptionData?.packageName || 'Regular',
@@ -484,7 +587,7 @@ export default function Order() {
           if (enableGuestMeal && guest[meal.key]) {
             const res = await orderAPI.createOrder({
               ...base,
-              deliveryCharge: DELIVERY_CHARGE_PER_DAY,
+              deliveryCharge: deliveryPerMeal,
               paymentMethod: 'cash',
               specialInstructions: 'Guest Meal Order',
               package: 'Guest',
@@ -579,17 +682,21 @@ export default function Order() {
         </div>
 
         {!hasActiveSubscription && (
-          <div className="mt-5 flex flex-wrap items-center gap-4 rounded-3xl border border-brand-200 bg-brand-50 p-5">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-600 text-white">
-              <Crown size={20} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-ink-900">সাবস্ক্রিপশন ছাড়াই অর্ডার করতে পারবেন</p>
-              <p className="mt-0.5 text-sm leading-relaxed text-ink-600">
-                তবে সাবস্ক্রাইব করলে ডেলিভারি ফ্রি আর পেমেন্ট ওয়ালেট থেকেই কেটে যাবে।
-              </p>
+          // Phones: icon and text side by side, full-width button underneath.
+          // From sm up: one row with the button on the right.
+          <div className="mt-5 flex flex-col gap-4 rounded-3xl border border-brand-200 bg-brand-50 p-4 sm:flex-row sm:items-center sm:p-5">
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center sm:gap-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-600 text-white sm:size-11">
+                <Crown size={20} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold text-ink-900 sm:text-base">সাবস্ক্রিপশন ছাড়াই অর্ডার করতে পারবেন</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-ink-600 sm:text-sm">
+                  তবে সাবস্ক্রাইব করলে ডেলিভারি ফ্রি আর পেমেন্ট ওয়ালেট থেকেই কেটে যাবে।
+                </p>
+              </div>
             </div>
-            <Link href="/subscription" className={buttonClass('primary', 'md')}>
+            <Link href="/subscription" className={buttonClass('primary', 'md', 'w-full shrink-0 sm:w-auto')}>
               প্যাকেজ দেখুন
             </Link>
           </div>
@@ -632,7 +739,7 @@ export default function Order() {
                     <span className="block text-sm font-semibold text-ink-900">গেস্ট মিল</span>
                     <span className="mt-0.5 block text-xs text-ink-500">
                       {guestQuota
-                        ? `এই মাসে আর ${bn(guestQuota.remaining)}টি নিতে পারবেন (মাসে সর্বোচ্চ ${bn(guestQuota.limit)}টি)`
+                        ? `এই মাসে আর ${bn(guestQuota.daysRemaining ?? 0)} দিন, ${bn(guestQuota.remaining)}টি মিল নিতে পারবেন (মাসে সর্বোচ্চ ${bn(guestQuota.daysLimit ?? 7)} দিন, ${bn(guestQuota.limit)}টি মিল)। গেস্টের ডেলিভারি চার্জ সবার জন্য প্রযোজ্য।`
                         : 'অন্য কারো জন্যও খাবার নিতে চান?'}
                     </span>
                   </span>
@@ -839,7 +946,7 @@ export default function Order() {
                   label={
                     hasActiveSubscription
                       ? 'ডেলিভারি চার্জ (সাবস্ক্রিপশন)'
-                      : `ডেলিভারি (${bn(totals.selfDays)} দিন × ${taka(DELIVERY_CHARGE_PER_DAY)})`
+                      : `ডেলিভারি (${bn(totals.selfDeliveries)} বেলা × ${taka(deliveryPerMeal)})`
                   }
                   value={hasActiveSubscription ? 'ফ্রি' : taka(totals.selfDelivery)}
                   muted={hasActiveSubscription}
@@ -848,25 +955,24 @@ export default function Order() {
                 {enableGuestMeal && totals.guestMealPrice > 0 && (
                   <>
                     <Line label="গেস্ট খাবার" value={taka(totals.guestMealPrice)} />
-                    <Line label="গেস্ট ডেলিভারি" value={taka(totals.guestDelivery)} />
+                    <Line
+                      label={`গেস্ট ডেলিভারি (${bn(totals.guestMeals)} বেলা × ${taka(deliveryPerMeal)})`}
+                      value={taka(totals.guestDelivery)}
+                    />
                   </>
                 )}
 
                 <div className="flex items-baseline justify-between border-t border-ink-200 pt-3">
-                  <dt className="font-semibold text-ink-900">সর্বমোট</dt>
+                  <dt className="font-semibold text-ink-900">
+                    {totals.daily.length > 1 ? `${bn(totals.daily.length)} দিনে মোট` : 'সর্বমোট'}
+                  </dt>
                   <dd className="text-2xl font-bold text-ink-900">{taka(totals.total)}</dd>
                 </div>
               </dl>
 
+              <PaymentExplainer daily={totals.daily} cashTotal={totals.cashTotal} subscribed={hasActiveSubscription} />
               {hasActiveSubscription && (
-                <p className="mt-4 rounded-xl bg-brand-50 p-3 text-xs leading-relaxed text-brand-900">
-                  মোট {taka(totals.selfMealPrice)} — প্রতিটি খাবার ডেলিভারি হলে তখন ওয়ালেট থেকে কাটা হবে। বাতিল করলে কাটা হবে না। অর্ডারের জন্য আছে {taka(walletAvailable)}।
-                </p>
-              )}
-              {enableGuestMeal && totals.guestTotal > 0 && (
-                <p className="mt-2 rounded-xl bg-leaf-50 p-3 text-xs leading-relaxed text-leaf-700">
-                  গেস্ট খাবারের {taka(totals.guestTotal)} ডেলিভারির সময় দিতে হবে।
-                </p>
+                <p className="mt-2 text-xs text-ink-500">ওয়ালেটে অর্ডারের জন্য আছে {taka(walletAvailable)}।</p>
               )}
 
               <Button
@@ -962,7 +1068,12 @@ export default function Order() {
               value={hasActiveSubscription ? 'ফ্রি' : taka(totals.selfDelivery)}
               muted={hasActiveSubscription}
             />
-            {enableGuestMeal && totals.guestTotal > 0 && <Line label="গেস্ট খাবার" value={taka(totals.guestTotal)} />}
+            {enableGuestMeal && totals.guestTotal > 0 && (
+              <>
+                <Line label="গেস্ট খাবার" value={taka(totals.guestMealPrice)} />
+                <Line label="গেস্ট ডেলিভারি চার্জ" value={taka(totals.guestDelivery)} />
+              </>
+            )}
             <div className="flex justify-between border-t border-ink-200 pt-2.5">
               <dt className="font-semibold text-ink-900">সর্বমোট</dt>
               <dd className="text-lg font-bold text-ink-900">{taka(totals.total)}</dd>
@@ -978,11 +1089,7 @@ export default function Order() {
             </p>
           </div>
 
-          <p className="mt-4 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
-            {hasActiveSubscription
-              ? 'আমার খাবারের টাকা ওয়ালেট থেকে কেটে নেওয়া হবে।'
-              : 'ডেলিভারির সময় ক্যাশে পেমেন্ট করবেন।'}
-          </p>
+          <PaymentExplainer daily={totals.daily} cashTotal={totals.cashTotal} subscribed={hasActiveSubscription} />
         </Modal>
       )}
     </section>
@@ -992,6 +1099,86 @@ export default function Order() {
 /* -------------------------------------------------------------------------- */
 /* Small pieces                                                               */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Says plainly that nothing is paid now: cash is handed over day by day as each
+ * delivery arrives, and wallet meals are taken only once delivered. Without it a
+ * week's order reads as one big bill due today.
+ */
+function PaymentExplainer({
+  daily,
+  cashTotal,
+  subscribed,
+}: {
+  daily: DayBill[];
+  cashTotal: number;
+  subscribed: boolean;
+}) {
+  if (daily.length === 0) return null;
+  const walletTotal = daily.reduce((sum, d) => sum + d.wallet, 0);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-leaf-200 bg-leaf-50 p-4 text-xs leading-relaxed text-leaf-900">
+      <p className="text-sm font-bold">এখন কোনো টাকা দিতে হবে না</p>
+      <ul className="mt-1.5 list-disc space-y-1 pl-4">
+        {cashTotal > 0 && (
+          <li>
+            প্রতিদিন খাবার হাতে পেলে <strong>শুধু সেই দিনের</strong> খাবার ও ডেলিভারি চার্জ ডেলিভারি ম্যানকে ক্যাশে দেবেন।
+          </li>
+        )}
+        {subscribed && walletTotal > 0 && (
+          <li>
+            আপনার খাবারের টাকা ওয়ালেটে আটকে থাকবে, কাটা হবে না। প্রতিটি খাবার ডেলিভারি হলে তখন শুধু সেই খাবারের টাকা কাটা
+            হবে।
+          </li>
+        )}
+        <li>কোনো দিনের অর্ডার বাতিল করলে বা খাবার না নিলে সেই দিনের টাকা দিতে হবে না।</li>
+      </ul>
+
+      <p className="mt-3 font-semibold">প্রতি বেলার হিসাব</p>
+      <ul className="mt-1.5 max-h-72 space-y-2 overflow-y-auto pr-1">
+        {daily.map((d) => (
+          <li key={d.date} className="rounded-xl bg-white/70 p-2.5 text-ink-700">
+            <p className="font-semibold text-ink-900">{bengaliDate(d.date)}</p>
+            <dl className="mt-1 space-y-0.5">
+              {d.lines.map((l) => (
+                <div key={`${l.meal}-${l.guest}`} className="flex items-baseline justify-between gap-3">
+                  <dt className="min-w-0 truncate">
+                    {l.guest ? 'গেস্ট · ' : ''}
+                    {MEALS.find((m) => m.key === l.meal)?.label}
+                    <span className="text-ink-400"> · {l.name}</span>
+                  </dt>
+                  <dd className="shrink-0">
+                    {taka(l.price)}
+                    {l.pay === 'wallet' && <span className="text-ink-400"> ওয়ালেট</span>}
+                  </dd>
+                </div>
+              ))}
+              {d.delivery > 0 && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt>
+                    ডেলিভারি চার্জ{' '}
+                    <span className="text-ink-400">
+                      ({bn(d.deliveries)} বেলা × {taka(d.delivery / d.deliveries)})
+                    </span>
+                  </dt>
+                  <dd className="shrink-0">{taka(d.delivery)}</dd>
+                </div>
+              )}
+              <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-leaf-200 pt-1 font-semibold text-leaf-900">
+                <dt>সেদিন দেবেন</dt>
+                <dd className="shrink-0 text-right">
+                  {d.cash > 0 && <span className="block">{taka(d.cash)} ক্যাশে</span>}
+                  {d.wallet > 0 && <span className="block">{taka(d.wallet)} ওয়ালেট থেকে</span>}
+                </dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function Line({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
   return (
