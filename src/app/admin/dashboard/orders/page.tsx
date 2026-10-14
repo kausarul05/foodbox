@@ -86,11 +86,12 @@ type Step = 'confirmed' | 'delivered' | 'returned';
 
 /**
  * A cash meal the customer did not take. Only cash: a wallet or bKash order
- * was paid up front, and the server refuses it too. Allowed after "delivered"
+ * was paid up front, and the server refuses it too. Allowed before confirming
+ * (a meal can come back without anyone having pressed confirm) and after "delivered"
  * as well, because "all delivered" is often pressed before the rider is back.
  */
 function canReturn(r: { paymentMethod: string; status: string }) {
-  return r.paymentMethod === 'cash' && (r.status === 'confirmed' || r.status === 'delivered');
+  return r.paymentMethod === 'cash' && ['pending', 'confirmed', 'delivered'].includes(r.status);
 }
 
 /** The one button an order shows next, if any. */

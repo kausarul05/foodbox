@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, Coffee, Moon, RefreshCw, Sun, UtensilsCrossed } from 'lucide-react';
-import { menuAPI, packageAPI } from '@/lib/api';
+import { menuAPI, packageAPI, subscriptionAPI } from '@/lib/api';
+import { useSession } from '@/lib/useSession';
 import SectionHeading from '@/components/ui/SectionHeading';
 import { sortByMenuDay, taka, todayAndTomorrow } from '@/lib/format';
 
@@ -120,8 +121,14 @@ function Skeleton() {
  * white band, no "scroll down to order" call to action, and the heading points
  * at the form below instead of inviting a click. The default keeps the home
  * page exactly as it was.
+ *
+ * A subscriber is tied to the package they bought, so on the order page (where
+ * `compact` is set) they see only that package's menu — no tabs, and no way to
+ * browse, and so order from, another package. Everyone else, and the home
+ * page, still sees every package.
  */
 export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
+  const { user, hydrated } = useSession();
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [activeId, setActiveId] = useState('');
   const [menus, setMenus] = useState<Record<string, MenuDay[]>>({});
@@ -154,13 +161,39 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
     }
   }, []);
 
+  /** The subscriber's package name, once known — null for everyone else. */
+  const [ownPackage, setOwnPackage] = useState<{ name: string; title?: string } | null>(null);
+
   useEffect(() => {
+    // The session is unknown until hydration; deciding early would show a
+    // subscriber the full list for a moment.
+    if (!hydrated) return;
     let cancelled = false;
     (async () => {
       try {
+        let mine: { name: string; title?: string } | null = null;
+        if (compact && user) {
+          try {
+            const subs = await subscriptionAPI.getMySubscriptions();
+            const active = (subs.data ?? []).find((x: { status: string }) => x.status === 'active');
+            if (active?.package) mine = { name: active.package, title: active.packageName };
+          } catch {
+            // Not fatal: without it they simply see every package, as before.
+          }
+        }
+
         const res = await packageAPI.getAllPackages();
-        const active: PackageType[] = (res.data ?? []).filter((p: PackageType) => p.isActive);
+        let active: PackageType[] = (res.data ?? []).filter((p: PackageType) => p.isActive);
+        if (mine) {
+          const own = active.filter((p) => p.name === mine!.name);
+          // Their package may have been switched off since they subscribed; it
+          // still has to be the only one shown, so stand one in by name.
+          active = own.length
+            ? own
+            : [{ _id: mine.name, name: mine.name, title: mine.title || mine.name, isActive: true }];
+        }
         if (cancelled) return;
+        setOwnPackage(mine);
         setPackages(active);
         if (active.length) {
           setActiveId(active[0]._id);
@@ -175,7 +208,7 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [loadMenu]);
+  }, [loadMenu, compact, user, hydrated]);
 
   const selectPackage = (pkg: PackageType) => {
     setActiveId(pkg._id);
@@ -206,7 +239,9 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
           title={compact ? 'আগে মেনুটা দেখে নিন' : 'এই সপ্তাহে কী কী থাকছে'}
           subtitle={
             compact
-              ? 'প্যাকেজ বেছে নিয়ে সপ্তাহের খাবার আর দাম দেখুন, তারপর নিচের ফর্মে দিন ও বেলা ঠিক করুন।'
+              ? ownPackage
+                ? 'আপনার সাবস্ক্রাইব করা প্যাকেজের খাবার আর দাম দেখুন, তারপর নিচের ফর্মে দিন ও বেলা ঠিক করুন।'
+                : 'প্যাকেজ বেছে নিয়ে সপ্তাহের খাবার আর দাম দেখুন, তারপর নিচের ফর্মে দিন ও বেলা ঠিক করুন।'
               : 'প্যাকেজ বেছে নিয়ে পুরো সপ্তাহের মেনু আর দাম দেখে নিন।'
           }
         />
@@ -221,8 +256,18 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
           </div>
         ) : (
           <>
+            {/* A subscriber has one package: name it instead of offering tabs. */}
+            {ownPackage && (
+              <p className="mt-10 text-center">
+                <span className="inline-flex items-center gap-2 rounded-full bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md">
+                  আপনার প্যাকেজ: {activePackage?.title ?? ownPackage.title ?? ownPackage.name}
+                </span>
+              </p>
+            )}
+
             {/* Package tabs */}
             <div
+              hidden={Boolean(ownPackage)}
               role="tablist"
               aria-label="প্যাকেজ"
               className="mt-10 flex gap-2.5 overflow-x-auto pb-2 no-scrollbar md:justify-center"

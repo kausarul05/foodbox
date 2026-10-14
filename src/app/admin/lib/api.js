@@ -597,3 +597,16 @@ const API = {
 }
 
 export default API
+
+// Food-box security deposits — see src/server/deposit.ts
+export const depositAPI = {
+  // Every subscriber's deposit, plus the full history
+  getAll: () => apiCall('/admin/deposits'),
+
+  // action: 'hold' | 'refund' | 'deduct' (deduct needs a reason; amount optional, default ৳200)
+  act: (userId, action, { reason, amount } = {}) =>
+    apiCall(`/admin/deposits/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ action, reason, amount }),
+    }),
+}

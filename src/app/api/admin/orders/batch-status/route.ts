@@ -18,7 +18,7 @@ const isIdList = (v: unknown): v is string[] =>
 const FROM = {
   confirmed: ['pending'],
   delivered: ['confirmed', 'preparing', 'out_for_delivery', 'returned'],
-  returned: ['confirmed', 'preparing', 'out_for_delivery', 'delivered'],
+  returned: ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'],
 } as const;
 
 type Step = keyof typeof FROM;

@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import Order, { type OrderStatus } from './models/Order';
 import User from './models/User';
+import { depositOf, summariseDeposit, type DepositSummary } from './deposit';
 
 /**
  * Wallet orders are paid on delivery, not when they are placed.
@@ -33,10 +34,12 @@ export interface WalletSummary {
   balance: number;
   /** Held by orders that are placed but not yet delivered. */
   reserved: number;
-  /** What a new order can use: balance − reserved. */
+  /** What a new order can use: balance − reserved − the box deposit. */
   available: number;
   /** How many orders are holding `reserved`. */
   reservedOrders: number;
+  /** Food-box security deposit — see src/server/deposit.ts. */
+  deposit: DepositSummary;
 }
 
 /** Reserved totals for many users at once, keyed by user id. */
@@ -57,14 +60,20 @@ export async function reservedByUser(userIds?: Types.ObjectId[]) {
 
 export async function walletSummary(userId: string | Types.ObjectId): Promise<WalletSummary> {
   const id = new Types.ObjectId(String(userId));
-  const [user, reserved] = await Promise.all([User.findById(id).select('walletBalance'), reservedByUser([id])]);
+  const [user, reserved] = await Promise.all([
+    User.findById(id).select('walletBalance depositStatus depositAmount'),
+    reservedByUser([id]),
+  ]);
   const balance = user?.walletBalance ?? 0;
   const held = reserved.get(String(id)) ?? { reserved: 0, count: 0 };
   return {
     balance,
     reserved: held.reserved,
-    available: balance - held.reserved,
+    // Negative while the deposit is not yet covered: nothing can be ordered
+    // from the wallet until a top-up fills it.
+    available: balance - held.reserved - depositOf(user).held,
     reservedOrders: held.count,
+    deposit: summariseDeposit(user, balance, held.reserved),
   };
 }
 

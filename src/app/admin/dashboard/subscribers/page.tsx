@@ -1,6 +1,6 @@
 'use client';
 
-import { bengaliDateNumeric, bengaliDateTime, bn, taka } from '@/lib/format';
+import { bengaliDateNumeric, bengaliDateTime, bn, taka, zoneLabel } from '@/lib/format';
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
@@ -22,7 +22,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { packageAPI, subscriptionAPI, userAPI } from '@/app/admin/lib/api';
+import { packageAPI, subscriptionAPI, userAPI, zoneAPI } from '@/app/admin/lib/api';
+import { isHandCash, paymentLabel } from '@/lib/payment';
 
 interface Subscriber {
   _id: string;
@@ -37,12 +38,15 @@ interface Subscriber {
   endDate: string;
   status: 'active' | 'expired' | 'cancelled' | 'pending';
   paymentStatus: 'paid' | 'pending' | 'failed';
-  totalAmount: number;
+  /** What the package cost — `Subscription.amount`. There is no `totalAmount` field. */
+  amount: number;
   address: string;
   zone: string;
   createdAt?: string;
   approvedAt?: string;
   paymentMethod?: string;
+  transactionId?: string;
+  senderNumber?: string;
 }
 
 export default function SubscribersPage() {
@@ -53,14 +57,40 @@ export default function SubscribersPage() {
   const [filterPackage, setFilterPackage] = useState('all');
   const [selectedSubscriber, setSelectedSubscriber] = useState<Subscriber | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  /** Zone id -> Bengali label. Subscription.zone stores the raw id. */
+  const [zoneNames, setZoneNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await zoneAPI.adminGetAllZones();
+        if (cancelled || !res.success) return;
+        const map: Record<string, string> = {};
+        for (const zone of res.data ?? []) map[zone._id] = zoneLabel(zone);
+        setZoneNames(map);
+      } catch {
+        // Falls back to hiding the id, below.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Older rows may hold a plain zone name instead of an id. */
+  const zoneOf = (value: string) => zoneNames[value] ?? (/^[0-9a-f]{24}$/i.test(value) ? '—' : value || '—');
   /** Real packages, so the filter matches what subscriptions actually store. */
   const [packages, setPackages] = useState<{ name: string; title: string }[]>([]);
   /** userId -> order count, total top-ups and current wallet balance. */
   const [userStats, setUserStats] = useState<
-    Record<string, { orders: number; spent: number; recharged: number; walletBalance: number; reserved: number }>
+    Record<
+      string,
+      { orders: number; spent: number; recharged: number; walletBalance: number; reserved: number; deposit: number }
+    >
   >({});
 
-  const EMPTY_STATS = { orders: 0, spent: 0, recharged: 0, walletBalance: 0, reserved: 0 };
+  const EMPTY_STATS = { orders: 0, spent: 0, recharged: 0, walletBalance: 0, reserved: 0, deposit: 0 };
   const statsFor = (userId: string) => userStats[String(userId)] ?? EMPTY_STATS;
 
   useEffect(() => {
@@ -320,7 +350,7 @@ export default function SubscribersPage() {
 
                 <div className="flex items-center gap-2 text-sm">
                   <DollarSign size={14} className="text-ink-400" />
-                  <span className="text-ink-900 font-semibold">{taka(sub.totalAmount)}</span>
+                  <span className="text-ink-900 font-semibold">{taka(sub.amount ?? 0)}</span>
                 </div>
 
                 {/*
@@ -349,12 +379,28 @@ export default function SubscribersPage() {
                   </div>
                 </dl>
                 {/* The same split the customer sees on their wallet page. */}
-                {statsFor(sub.userId).reserved > 0 && (
+                {(statsFor(sub.userId).reserved > 0 || statsFor(sub.userId).deposit > 0) && (
                   <p className="text-xs text-ink-600">
-                    অর্ডারে আটকানো <b className="text-ink-900">{taka(statsFor(sub.userId).reserved)}</b> · নতুন অর্ডারের
-                    জন্য আছে{' '}
+                    {statsFor(sub.userId).reserved > 0 && (
+                      <>
+                        অর্ডারে আটকানো <b className="text-ink-900">{taka(statsFor(sub.userId).reserved)}</b> ·{' '}
+                      </>
+                    )}
+                    {statsFor(sub.userId).deposit > 0 && (
+                      <>
+                        বক্স ডিপোজিট <b className="text-ink-900">{taka(statsFor(sub.userId).deposit)}</b> ·{' '}
+                      </>
+                    )}
+                    নতুন অর্ডারের জন্য আছে{' '}
                     <b className="text-ink-900">
-                      {taka(Math.max(statsFor(sub.userId).walletBalance - statsFor(sub.userId).reserved, 0))}
+                      {taka(
+                        Math.max(
+                          statsFor(sub.userId).walletBalance -
+                            statsFor(sub.userId).reserved -
+                            statsFor(sub.userId).deposit,
+                          0
+                        )
+                      )}
                     </b>
                   </p>
                 )}
@@ -421,7 +467,7 @@ export default function SubscribersPage() {
                   <p className="text-sm font-medium text-ink-600 mb-2">প্যাকেজ তথ্য</p>
                   <div className="space-y-1">
                     <p className="text-sm">প্যাকেজ: <span className="font-semibold">{selectedSubscriber.packageName}</span></p>
-                    <p className="text-2xl font-bold text-brand-600">৳ {selectedSubscriber.totalAmount}</p>
+                    <p className="text-2xl font-bold text-brand-600">{taka(selectedSubscriber.amount ?? 0)}</p>
                     <p className="text-sm text-ink-500">পেমেন্ট: {getPaymentText(selectedSubscriber.paymentStatus)}</p>
                   </div>
                 </div>
@@ -456,7 +502,7 @@ export default function SubscribersPage() {
                     <p className="text-xs text-ink-500">জোন</p>
                     <div className="flex items-center gap-1 mt-1">
                       <MapPin size={12} className="text-ink-400" />
-                      <p className="text-sm font-medium">{selectedSubscriber.zone}</p>
+                      <p className="text-sm font-medium">{zoneOf(selectedSubscriber.zone)}</p>
                     </div>
                   </div>
                   <div className="md:col-span-2">
@@ -524,13 +570,29 @@ export default function SubscribersPage() {
                   </div>
                   <div>
                     <p className="text-xs text-ink-500">পেমেন্ট মেথড</p>
-                    <p className="text-sm font-medium mt-1">{selectedSubscriber.paymentMethod || 'N/A'}</p>
+                    <p className="text-sm font-medium mt-1">
+                      {selectedSubscriber.paymentMethod ? paymentLabel(selectedSubscriber.paymentMethod) : '—'}
+                    </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-ink-500">ট্রানজেকশন আইডি</p>
+                    <p className="text-sm font-mono font-medium mt-1 break-all">
+                      {isHandCash(selectedSubscriber.paymentMethod)
+                        ? 'লাগবে না — হাতে টাকা'
+                        : selectedSubscriber.transactionId || '—'}
+                    </p>
+                  </div>
+                  {selectedSubscriber.senderNumber && (
+                    <div>
+                      <p className="text-xs text-ink-500">যে নাম্বার থেকে পাঠিয়েছেন</p>
+                      <p className="text-sm font-medium mt-1">{selectedSubscriber.senderNumber}</p>
+                    </div>
+                  )}
                   <div className="md:col-span-2">
                     <div className="border-t pt-3 mt-2">
                       <div className="flex flex-wrap justify-between items-center gap-3">
                         <p className="font-semibold text-ink-900">মোট প্রদান</p>
-                        <p className="text-2xl font-bold text-brand-600">৳ {selectedSubscriber.totalAmount}</p>
+                        <p className="text-2xl font-bold text-brand-600">{taka(selectedSubscriber.amount ?? 0)}</p>
                       </div>
                     </div>
                   </div>

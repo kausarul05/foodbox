@@ -35,6 +35,10 @@ export default function WalletPage() {
   const [walletBalance, setWalletBalance] = useState(0);
   /** Held by orders placed but not yet delivered — charged on delivery. */
   const [reserved, setReserved] = useState({ amount: 0, orders: 0 });
+  /** What a new order can spend — the server's figure, which also takes out the box deposit. */
+  const [available, setAvailable] = useState(0);
+  /** Food-box security deposit, held from the wallet while the customer has a box. */
+  const [deposit, setDeposit] = useState({ status: 'none', required: 0, frozen: 0, due: 0 });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRecharge, setShowRecharge] = useState(false);
@@ -48,6 +52,8 @@ export default function WalletPage() {
       if (wallet.success) {
         setWalletBalance(wallet.data.balance);
         setReserved({ amount: wallet.data.reserved ?? 0, orders: wallet.data.reservedOrders ?? 0 });
+        setAvailable(wallet.data.available ?? wallet.data.balance ?? 0);
+        if (wallet.data.deposit) setDeposit(wallet.data.deposit);
       }
       if (txns.success) setTransactions(txns.data);
     } catch {
@@ -158,7 +164,7 @@ export default function WalletPage() {
             <dd className="mt-0.5 text-lg font-bold">{taka(Math.max(rechargedTotal - walletBalance, 0))}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-400">অর্ডারে আটকানো</dt>
+            <dt className="text-xs text-ink-400">অর্ডার করে হয়েছে</dt>
             <dd className="mt-0.5 text-lg font-bold text-brand-300">{taka(reserved.amount)}</dd>
             {reserved.orders > 0 && (
               <dd className="text-[11px] text-ink-400">{bn(reserved.orders)}টি খাবার ডেলিভারি বাকি</dd>
@@ -167,10 +173,27 @@ export default function WalletPage() {
           <div>
             <dt className="text-xs text-ink-400">নতুন অর্ডারের জন্য আছে</dt>
             <dd className="mt-0.5 text-lg font-bold text-leaf-500">
-              {taka(Math.max(walletBalance - reserved.amount, 0))}
+              {taka(Math.max(available, 0))}
             </dd>
           </div>
         </dl>
+        {deposit.status === 'active' && (
+          <div className="relative mt-4 rounded-xl bg-white/10 px-4 py-3 text-sm">
+            <p className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-ink-300">খাবারের বক্সের সিকিউরিটি ডিপোজিট</span>
+              <span className="font-bold">{taka(deposit.frozen)} আটকানো</span>
+            </p>
+            {deposit.due > 0 ? (
+              <p className="mt-1 text-xs text-amber-300">
+                ডিপোজিটের {taka(deposit.due)} এখনো বাকি — পরের রিচার্জ থেকে আগে এটি পূরণ হবে, তারপর অর্ডার করা যাবে।
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-ink-400">
+                মাস শেষে বক্স ঠিকমতো ফেরত দিলে এই টাকা আবার খরচ করা যাবে। বক্স হারালে বা ভাঙলে এখান থেকে কাটা হবে।
+              </p>
+            )}
+          </div>
+        )}
         <p className="relative mt-4 text-xs leading-relaxed text-ink-400">
           অর্ডার করলে টাকা আটকে থাকে, কাটা হয় না। প্রতিটি খাবার ডেলিভারি হলে শুধু সেই খাবারের টাকা কাটা হয়। অর্ডার বাতিল
           করলে আটকানো টাকা আবার ব্যবহার করা যায়।

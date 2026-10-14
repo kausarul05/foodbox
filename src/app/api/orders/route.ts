@@ -102,8 +102,14 @@ export const POST = handler(async (req: Request) => {
       return fail('No active subscription found. Please subscribe first.', 400);
     }
 
-    const { available } = await walletSummary(authUser._id);
+    const { available, deposit } = await walletSummary(authUser._id);
     if (available < totalAmount) {
+      if (deposit.due > 0) {
+        return fail(
+          `খাবারের বক্সের সিকিউরিটি ডিপোজিট ৳${deposit.required} এখনো পুরো হয়নি (বাকি ৳${deposit.due})। আগে রিচার্জ করুন।`,
+          400
+        );
+      }
       return fail(
         `ওয়ালেটে যথেষ্ট টাকা নেই। দরকার ৳${totalAmount}, অর্ডারের জন্য আছে ৳${Math.max(available, 0)}`,
         400

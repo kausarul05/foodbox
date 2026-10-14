@@ -4,6 +4,7 @@ import Order from '@/server/models/Order';
 import Transaction from '@/server/models/Transaction';
 import User from '@/server/models/User';
 import { reservedByUser } from '@/server/wallet';
+import { depositOf } from '@/server/deposit';
 
 /**
  * GET /api/admin/users/stats
@@ -29,18 +30,18 @@ export const GET = handler(async (req: Request) => {
       { $match: { status: 'approved' } },
       { $group: { _id: '$userId', recharged: { $sum: '$amount' } } },
     ]),
-    User.find().select('_id walletBalance'),
+    User.find().select('_id walletBalance depositStatus depositAmount'),
     // Held by wallet orders not yet delivered — see src/server/wallet.ts.
     reservedByUser(),
   ]);
 
   const byUser: Record<
     string,
-    { orders: number; spent: number; recharged: number; walletBalance: number; reserved: number }
+    { orders: number; spent: number; recharged: number; walletBalance: number; reserved: number; deposit: number }
   > = {};
 
   const seed = (id: string) =>
-    (byUser[id] ??= { orders: 0, spent: 0, recharged: 0, walletBalance: 0, reserved: 0 });
+    (byUser[id] ??= { orders: 0, spent: 0, recharged: 0, walletBalance: 0, reserved: 0, deposit: 0 });
 
   for (const row of orderRows) {
     const entry = seed(String(row._id));
@@ -53,6 +54,8 @@ export const GET = handler(async (req: Request) => {
   for (const user of users) {
     seed(String(user._id)).walletBalance = user.walletBalance ?? 0;
     seed(String(user._id)).reserved = reserved.get(String(user._id))?.reserved ?? 0;
+    // Box deposit held from the wallet — see src/server/deposit.ts.
+    seed(String(user._id)).deposit = depositOf(user).held;
   }
 
   return ok({ data: byUser });

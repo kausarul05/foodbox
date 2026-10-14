@@ -173,7 +173,17 @@ just releases the reservation. `Order.walletCharged` is `false` while reserved,
 `true` once charged, and missing on orders from before this rule (those were
 charged up front, so they are never charged again and are refunded on cancel).
 All of it lives in `src/server/wallet.ts` — never touch `walletBalance` for an
-order anywhere else. Wallet top-ups are manual: the user submits a bKash/Nagad
+order anywhere else.
+
+Food-box security deposit (`src/server/deposit.ts`, admin page
+`/admin/dashboard/deposits`): a subscriber with a box has ৳200 of their wallet
+*held* — `User.depositStatus: 'active'`, and `available` is also reduced by it.
+Approving a subscription starts the hold; subscribers from before this rule get it
+from the admin page. Box returned → `refund` releases the hold (no money moves);
+lost or broken → `deduct` takes up to ৳200 out of `walletBalance`. A wallet short
+of ৳200 still gets the hold, so `available` goes negative ("deposit due") and the
+next top-up fills it first. Every hold/deduct/refund writes a `DepositEvent` — the
+history. Wallet top-ups are manual: the user submits a bKash/Nagad
 transaction id, an admin approves it, and only then is the balance credited.
 
 Menu days are Bengali strings in a fixed order — see `MENU_DAYS` in

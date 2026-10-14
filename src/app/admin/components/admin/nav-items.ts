@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   MapPin,
   Package,
+  PackageCheck,
   Settings,
   ShoppingBag,
   Users,
@@ -46,6 +47,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { name: 'সাবস্ক্রাইবার', href: '/admin/dashboard/subscribers', icon: Users },
       { name: 'পেন্ডিং সাবস্ক্রাইবার', href: '/admin/dashboard/pending-subscribers', icon: Clock },
       { name: 'পেন্ডিং ট্রানজেকশন', href: '/admin/dashboard/pending-transactions', icon: ClipboardList },
+      { name: 'বক্স ডিপোজিট', href: '/admin/dashboard/deposits', icon: PackageCheck },
     ],
   },
   {

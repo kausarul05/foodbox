@@ -1,6 +1,8 @@
 import mongoose, { Schema, Types, model, models } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+export type DepositStatus = 'none' | 'active' | 'deducted' | 'refunded';
+
 export interface IUser {
   _id: Types.ObjectId;
   fullName: string;
@@ -20,6 +22,13 @@ export interface IUser {
   resetCodeExpires?: Date;
   resetCodeSentAt?: Date;
   resetAttempts?: number;
+  /**
+   * Food-box security deposit — see src/server/deposit.ts. `active` holds
+   * `depositAmount` of the wallet; anything else holds nothing. Missing on
+   * accounts that never had a box, which reads as `none`.
+   */
+  depositStatus?: DepositStatus;
+  depositAmount?: number;
   createdAt: Date;
   updatedAt: Date;
   matchPassword(entered: string): Promise<boolean>;
@@ -52,6 +61,8 @@ const userSchema = new Schema<IUser>(
     resetCodeExpires: { type: Date, select: false },
     resetCodeSentAt: { type: Date, select: false },
     resetAttempts: { type: Number, select: false },
+    depositStatus: { type: String, enum: ['none', 'active', 'deducted', 'refunded'] },
+    depositAmount: { type: Number, min: 0 },
   },
   { timestamps: true }
 );
