@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import { mailConfigured } from '@/server/mail';
 
 /**
  * Deployment diagnostic: GET /api/health
@@ -38,6 +39,12 @@ export async function GET() {
     JWT_SECRET: Boolean(process.env.JWT_SECRET?.trim()),
     JWT_EXPIRE: process.env.JWT_EXPIRE ?? '(unset, defaults to 30d)',
     SETUP_SECRET: Boolean(process.env.SETUP_SECRET?.trim()),
+    // Optional — their absence does not make the deployment unhealthy, but
+    // without them the forgot-password code and the admin alerts go nowhere,
+    // and that failure is silent by design (a dead mailer must not fail a
+    // customer's top-up). This is the only place it shows.
+    EMAIL_SMTP: mailConfigured(),
+    ADMIN_NOTIFY_EMAIL: Boolean(process.env.ADMIN_NOTIFY_EMAIL?.trim()),
   };
 
   /**
@@ -46,7 +53,7 @@ export async function GET() {
    * space) and a variable that exists but is empty.
    */
   const relatedNames = Object.keys(process.env)
-    .filter((name) => /MONGO|JWT|SETUP_SECRET|ADMIN_(EMAIL|PASSWORD)/i.test(name))
+    .filter((name) => /MONGO|JWT|SETUP_SECRET|EMAIL|ADMIN_PASSWORD/i.test(name))
     .sort()
     .map((name) => (process.env[name]?.trim() ? name : `${name} (EMPTY)`));
 

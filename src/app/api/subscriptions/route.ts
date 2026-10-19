@@ -1,4 +1,5 @@
 import { isHandCash } from '@/lib/payment';
+import { baseUrlFrom, notifyAdminLater, subscriptionAlert } from '@/server/adminNotify';
 import { requireAdmin, requireUser } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
 import Package from '@/server/models/Package';
@@ -64,6 +65,25 @@ export const POST = handler(async (req: Request) => {
    */
   const existing = await Subscription.findOne({ userId: authUser._id });
 
+  // Built once for either branch below — the owner wants to hear about a
+  // returning customer just as much as a brand-new one.
+  const alert = (returning: boolean) =>
+    notifyAdminLater(
+      subscriptionAlert({
+        userName: details.userName,
+        phoneNumber: details.phoneNumber,
+        email: details.email,
+        packageName: details.packageName,
+        amount: details.amount,
+        paymentMethod,
+        transactionId: details.transactionId,
+        senderNumber: details.senderNumber,
+        address: details.address,
+        returning,
+        baseUrl: baseUrlFrom(req),
+      })
+    );
+
   if (existing) {
     if (existing.status === 'pending' || existing.status === 'active') {
       return fail('আপনার একটি সাবস্ক্রিপশন রিকোয়েস্ট ইতিমধ্যে চালু আছে', 400);
@@ -78,10 +98,12 @@ export const POST = handler(async (req: Request) => {
       cancelledBy: undefined,
     });
     const reopened = await existing.save();
+    alert(true);
     return ok({ data: reopened });
   }
 
   const subscription = await Subscription.create({ userId: authUser._id, ...details });
+  alert(false);
   return ok({ data: subscription }, 201);
 });
 

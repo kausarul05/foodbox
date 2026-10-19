@@ -1,6 +1,7 @@
 import { bn } from '@/lib/format';
 import { cashReference, isHandCash } from '@/lib/payment';
 import { FIRST_RECHARGE_MIN, MIN_RECHARGE } from '@/lib/rules';
+import { baseUrlFrom, notifyAdminLater, rechargeAlert } from '@/server/adminNotify';
 import { requireUser } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
 import Subscription from '@/server/models/Subscription';
@@ -46,6 +47,20 @@ export const POST = handler(async (req: Request) => {
     paymentMethod,
     status: 'pending',
   });
+
+  // The money is not credited until an admin approves, so tell them it is here.
+  // Never throws — a mail failure must not undo a request already written.
+  notifyAdminLater(
+    rechargeAlert({
+      userName: user.fullName,
+      phoneNumber: user.phoneNumber,
+      amount: value,
+      paymentMethod,
+      transactionId,
+      first: !hasApproved,
+      baseUrl: baseUrlFrom(req),
+    })
+  );
 
   return ok({ data: transaction }, 201);
 });

@@ -139,6 +139,45 @@ an admin issues a temporary password from Settings. Both cases answer
 `channel: 'admin'` for unknown numbers, so the endpoint does not reveal who is
 registered. `EMAIL_*` must be set on the host too.
 
+## Admin alerts
+
+`src/server/adminNotify.ts` mails the owner when a customer **requests a
+subscription** (`POST /api/subscriptions`, new or re-request) or **submits a
+wallet top-up** (`POST /api/wallet/recharge`). Both sit as `pending` until an
+admin approves, so the alert is what tells them to go look.
+
+Two rules, both load-bearing:
+
+- `ADMIN_NOTIFY_EMAIL` is the destination. Unset = alerts are simply off; the
+  routes behave exactly as before. It is separate from `ADMIN_EMAIL`, which is
+  the admin's *login*, not a real inbox.
+- **A mail failure must never fail or slow the request.** Routes call
+  `notifyAdminLater()`, which hands the send to Next's `after()` so it runs once
+  the response is already out. Gmail takes ~3.5s to accept a message; awaiting
+  it made subscribing a 4.6s request. An unawaited promise is not the
+  alternative — a serverless instance freezes the moment it responds, which
+  kills the send. Inside, `notifyAdmin()` swallows every error and logs it, with
+  an 8s SMTP timeout. Verified: subscribe and top-up both answer in ~320ms, the
+  mail still arrives, and with SMTP down the request still returns 201.
+
+The button in those emails is built by `baseUrlFrom(req)`, which follows the
+host the customer actually used — localhost locally, the real domain in
+production, with no code change. It reads `x-forwarded-host` / `x-forwarded-proto`
+first (behind a proxy `req.url` is the *internal* address, and its protocol is
+plain http even on an HTTPS site), then the Host header. `APP_URL` overrides it:
+set that when the host forwards neither header, or to keep links on the custom
+domain when someone arrives through a `*.vercel.app` preview URL.
+
+**`nodemailer` must stay in `serverExternalPackages`** (next.config.ts). Next
+bundles server dependencies by default and nodemailer resolves parts of itself
+from disk at runtime, so bundled it throws on every send — silently, because the
+error is swallowed. The tell is a subscription request returning in ~270ms when
+a real send takes ~3.5s, with `[adminNotify] could not send` in the log.
+
+Add new alerts by writing a builder next to `subscriptionAlert` /
+`rechargeAlert` and passing it to `notifyAdminLater`. Never call `sendMail`
+directly from a route — that loses both the error handling and the deferral.
+
 Admin roles: `super_admin`, `manager`, `support`. Gate with
 `authorize(await requireAdmin(req), 'super_admin')`.
 
@@ -192,10 +231,26 @@ A customer's first top-up (none approved yet) must be at least ৳1,200, after t
 
 Subscription fees (৳70 / ৳90 / ৳120 for 30 days) are non-refundable; the customer
 confirms a popup before paying. Finance (`/api/admin/profit-stats`): revenue is
-every delivered order (food + delivery charge); separate boxes show the delivery
-charges taken on cash orders, subscription fees and approved top-ups; profit is
-revenue minus expenses. The main
-dashboard total counts every delivered order, manual ones included.
+every delivered order (food + delivery charge, `orderRevenue`) **plus** the paid
+subscription fees — the fee buys no food and is never refunded, so it is earned
+on approval. Profit is that revenue minus expenses.
+
+Two figures sit in the "আলাদা হিসাব" box and are deliberately **not** revenue:
+
+- `customerRecharge` — approved wallet top-ups. That money is still the
+  customer's until a meal is delivered, and the delivered order already counts
+  its own price, so adding the top-up would count the same taka twice.
+- `totalOrderAmount` — every order placed except cancelled ones, customer and
+  admin manual alike, `returned` included (the food was cooked and sent). It is
+  order volume, not earnings; `totalOrderAmount − orderRevenue` is what is still
+  in the pipeline.
+
+The cash-on-delivery figure is a slice *inside* `orderRevenue` (just the delivery
+charges on cash orders), not an addition to it.
+
+`GET /api/admin/stats` — the main dashboard's মোট রেভিনিউ — uses the same
+definition over all time, so the two cards always agree. Change one and change
+the other.
 
 Menu days are Bengali strings in a fixed order — see `MENU_DAYS` in
 `src/server/models/WeeklyMenu.ts`. UI copy throughout is Bengali.
