@@ -283,7 +283,7 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                     className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                       selected
                         ? 'bg-ink-900 text-white shadow-md'
-                        : 'border border-ink-200 bg-white text-ink-600 hover:border-ink-300 hover:text-ink-900'
+                        : 'border border-brand-300 bg-white text-ink-600 hover:border-brand-300 hover:text-ink-900'
                     }`}
                   >
                     {pkg.title}
