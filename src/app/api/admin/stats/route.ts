@@ -11,6 +11,17 @@ const DELIVERED_TOTAL = [
   { $group: { _id: null, total: { $sum: { $add: ['$totalAmount', { $ifNull: ['$deliveryCharge', 0] }] } } } },
 ];
 
+/**
+ * Sum of subscription fees actually paid.
+ *
+ * Matched on paymentStatus, not status: the fee is non-refundable, so a
+ * subscription that was later cancelled or expired still earned it.
+ */
+const PAID_FEE_TOTAL = [
+  { $match: { paymentStatus: 'paid' } },
+  { $group: { _id: null, total: { $sum: { $ifNull: ['$amount', 0] } } } },
+];
+
 // GET /api/admin/stats
 export const GET = handler(async (req: Request) => {
   await requireAdmin(req);
@@ -21,10 +32,18 @@ export const GET = handler(async (req: Request) => {
       User.countDocuments({ isActive: true }),
       Order.countDocuments(),
       Order.countDocuments({ status: 'pending' }),
-      // Everything delivered: wallet, cash on delivery and admin manual orders.
-      Promise.all([Order.aggregate(DELIVERED_TOTAL), ManualOrder.aggregate(DELIVERED_TOTAL)]).then(
-        ([orders, manual]) => [{ total: (orders[0]?.total ?? 0) + (manual[0]?.total ?? 0) }]
-      ),
+      // Same definition as GET /api/admin/profit-stats, so the two "মোট রেভিনিউ"
+      // cards never disagree: everything delivered (wallet, cash on delivery and
+      // admin manual orders) plus the non-refundable subscription fees. Wallet
+      // top-ups are excluded there and here — the delivered order already counts
+      // that money.
+      Promise.all([
+        Order.aggregate(DELIVERED_TOTAL),
+        ManualOrder.aggregate(DELIVERED_TOTAL),
+        Subscription.aggregate(PAID_FEE_TOTAL),
+      ]).then(([orders, manual, fees]) => [
+        { total: (orders[0]?.total ?? 0) + (manual[0]?.total ?? 0) + (fees[0]?.total ?? 0) },
+      ]),
       Subscription.countDocuments({ status: 'active' }),
       Subscription.countDocuments({ status: 'pending' }),
     ]);

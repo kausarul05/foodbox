@@ -17,8 +17,8 @@ const EMPTY_BREAKDOWN: Record<ExpenseCategory, number> = {
   others: 0,
 };
 
-// GET /api/admin/profit-stats — revenue (every delivered order), the delivery
-// charges taken on cash orders, subscription fees, top-ups, expenses and profit
+// GET /api/admin/profit-stats — revenue (every delivered order + subscription
+// fees), the delivery charges taken on cash orders, top-ups, expenses and profit
 export const GET = handler(async (req: Request) => {
   await requireAdmin(req);
 
@@ -44,41 +44,78 @@ export const GET = handler(async (req: Request) => {
   // Subscription fees and top-ups count on the day an admin approved them.
   const approvedFilter = hasRange ? { approvedAt: dayRange('+06:00') } : {};
 
-  const [deliveredOrders, manualDeliveredOrders, expenses, paidSubscriptions, approvedRecharges] =
+  /**
+   * Everything the kitchen actually took on, cancelled orders aside.
+   *
+   * Fetched once and split in memory rather than queried twice: the delivered
+   * rows below are a subset of these, so a second round trip would only re-read
+   * what is already here. `returned` is kept — the food was cooked and sent, so
+   * it is part of the order volume even though it never becomes revenue.
+   */
+  // `as const` keeps TypeScript from widening the literal to `string`, which
+  // does not satisfy Mongoose's typed status filter.
+  const liveFilter = { status: { $ne: 'cancelled' as const }, ...orderFilter };
+
+  const [liveOrders, manualLiveOrders, expenses, paidSubscriptions, approvedRecharges] =
     await Promise.all([
-      Order.find({ status: 'delivered', ...orderFilter }),
-      ManualOrder.find({ status: 'delivered', ...orderFilter }),
+      Order.find(liveFilter),
+      ManualOrder.find(liveFilter),
       Expense.find(expenseFilter),
       // Fees are non-refundable, so a paid subscription counts even if it was cancelled later.
       Subscription.find({ paymentStatus: 'paid', ...approvedFilter }, { amount: 1 }),
       Transaction.find({ status: 'approved', ...approvedFilter }, { amount: 1 }),
     ]);
 
+  const deliveredOrders = liveOrders.filter((o) => o.status === 'delivered');
+  const manualDeliveredOrders = manualLiveOrders.filter((o) => o.status === 'delivered');
+
   const sumOrders = (orders: { totalAmount: number; deliveryCharge?: number }[]) =>
     orders.reduce((sum, o) => sum + o.totalAmount + (o.deliveryCharge || 0), 0);
 
-  // Revenue is every delivered order — wallet, cash on delivery and manual —
-  // food price plus delivery charge. The cash-on-delivery box is an extra view:
-  // just the delivery charges collected on cash orders.
+  // Order revenue is every delivered order — wallet, cash on delivery and
+  // manual — food price plus delivery charge. The cash-on-delivery figure is a
+  // view *inside* it: just the delivery charges collected on cash orders.
   const codOrders = deliveredOrders.filter((o) => COD_METHODS.has(o.paymentMethod));
   const cashOnDelivery = codOrders.reduce((sum, o) => sum + (o.deliveryCharge || 0), 0);
 
-  const totalRevenue = sumOrders(deliveredOrders) + sumOrders(manualDeliveredOrders);
+  const orderRevenue = sumOrders(deliveredOrders) + sumOrders(manualDeliveredOrders);
   const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
   const subscriptionFees = paidSubscriptions.reduce((sum, s) => sum + (s.amount || 0), 0);
   const customerRecharge = approvedRecharges.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  /**
+   * Revenue is delivered orders plus subscription fees.
+   *
+   * The fee is money the business keeps — it is non-refundable and buys no
+   * food, so unlike a wallet top-up it is earned the moment it is approved.
+   *
+   * Top-ups stay out on purpose. That money is still the customer's until a
+   * meal is delivered, and the delivered order already counts its own price
+   * here; adding the top-up as well would count the same taka twice.
+   */
+  const totalRevenue = orderRevenue + subscriptionFees;
+
+  /**
+   * Every order placed, delivered or not — customer and admin manual alike.
+   *
+   * Sits outside revenue on purpose: an order only earns money once it is
+   * delivered. The gap between this and `orderRevenue` is what is still in the
+   * pipeline (or was returned).
+   */
+  const totalOrderAmount = sumOrders(liveOrders) + sumOrders(manualLiveOrders);
 
   const expenseBreakdown = { ...EMPTY_BREAKDOWN };
   for (const expense of expenses) {
     if (expense.category in expenseBreakdown) expenseBreakdown[expense.category] += expense.amount;
   }
 
-  // Subscription fees and top-ups are not in revenue or profit.
   const profit = totalRevenue - totalExpense;
 
   return ok({
     data: {
       totalRevenue,
+      orderRevenue,
+      totalOrderAmount,
       cashOnDelivery,
       subscriptionFees,
       customerRecharge,
@@ -91,10 +128,17 @@ export const GET = handler(async (req: Request) => {
         subscriptions: paidSubscriptions.length,
         recharges: approvedRecharges.length,
       },
+      // `ordersCount` is the delivered rows behind the revenue figure;
+      // `allOrdersCount` is every non-cancelled one, behind totalOrderAmount.
       ordersCount: {
         regular: deliveredOrders.length,
         manual: manualDeliveredOrders.length,
         total: deliveredOrders.length + manualDeliveredOrders.length,
+      },
+      allOrdersCount: {
+        regular: liveOrders.length,
+        manual: manualLiveOrders.length,
+        total: liveOrders.length + manualLiveOrders.length,
       },
     },
   });

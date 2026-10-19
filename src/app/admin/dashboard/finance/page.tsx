@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Banknote,
   CalendarCheck,
+  ShoppingBag,
   Wallet,
   DollarSign,
   TrendingUp,
@@ -31,8 +32,12 @@ interface Expense {
 
 /** GET /api/admin/profit-stats */
 interface ProfitStats {
-  /** Every delivered order (wallet, cash on delivery, manual): food plus delivery charge. */
+  /** orderRevenue + subscriptionFees. */
   totalRevenue: number;
+  /** Every delivered order (wallet, cash on delivery, manual): food plus delivery charge. */
+  orderRevenue: number;
+  /** Every order placed except cancelled ones, delivered or not. Not revenue. */
+  totalOrderAmount: number;
   /** Delivery charges of delivered cash orders — their food price is not in it. */
   cashOnDelivery: number;
   subscriptionFees: number;
@@ -42,7 +47,10 @@ interface ProfitStats {
   profitMargin: string | number;
   expenseBreakdown: Record<string, number>;
   counts?: { cashOnDelivery: number; subscriptions: number; recharges: number };
+  /** Delivered orders only — the rows behind orderRevenue. */
   ordersCount?: { regular: number; manual: number; total: number };
+  /** Every non-cancelled order — the rows behind totalOrderAmount. */
+  allOrdersCount?: { regular: number; manual: number; total: number };
 }
 
 export default function FinancePage() {
@@ -216,7 +224,7 @@ export default function FinancePage() {
                 <p className="text-sm text-ink-500">মোট রেভিনিউ</p>
               </div>
               <p className="text-3xl font-bold text-green-600">{taka(profitStats.totalRevenue ?? 0)}</p>
-              <p className="mt-1 text-xs text-ink-400">সব ডেলিভারড অর্ডার — খাবার + ডেলিভারি চার্জ</p>
+              <p className="mt-1 text-xs text-ink-400">ডেলিভারড অর্ডার + সাবস্ক্রিপশন ফি</p>
             </div>
             <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
               <div className="flex items-center gap-3 mb-2">
@@ -244,34 +252,35 @@ export default function FinancePage() {
                 </div>
                 <p className="text-sm text-ink-500">মুনাফার হার</p>
               </div>
-              <p className="text-3xl font-bold text-purple-600">{profitStats.profitMargin || 0}%</p>
+              {/* bn() because the API hands back a plain "74.36" string. */}
+              <p className="text-3xl font-bold text-purple-600">{bn(profitStats.profitMargin || 0)}%</p>
             </div>
           </div>
 
-          {/* Money collected outside revenue — shown on its own, not added to revenue or profit. */}
+          {/* What the revenue figure above is made of, then what it leaves out. */}
           <div>
-            <h3 className="mb-3 text-lg font-bold text-ink-900">আলাদা হিসাব</h3>
+            <h3 className="mb-3 text-lg font-bold text-ink-900">রেভিনিউ কোথা থেকে</h3>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               {[
                 {
-                  label: 'ক্যাশ অন ডেলিভারি',
-                  value: profitStats.cashOnDelivery,
-                  note: `শুধু ডেলিভারি চার্জ · ${bn(profitStats.counts?.cashOnDelivery ?? 0)}টি ডেলিভারড অর্ডার`,
+                  label: 'অর্ডার থেকে',
+                  value: profitStats.orderRevenue,
+                  note: `খাবার + ডেলিভারি চার্জ · ${bn(profitStats.ordersCount?.total ?? 0)}টি ডেলিভারড অর্ডার`,
                   icon: Banknote,
                   tone: 'bg-brand-100 text-brand-700',
                 },
                 {
                   label: 'সাবস্ক্রিপশন ফি',
                   value: profitStats.subscriptionFees,
-                  note: `${bn(profitStats.counts?.subscriptions ?? 0)}টি অনুমোদিত সাবস্ক্রিপশন`,
+                  note: `${bn(profitStats.counts?.subscriptions ?? 0)}টি পেইড সাবস্ক্রিপশন · ফেরতযোগ্য নয়`,
                   icon: CalendarCheck,
                   tone: 'bg-leaf-100 text-leaf-700',
                 },
                 {
-                  label: 'কাস্টমার রিচার্জ',
-                  value: profitStats.customerRecharge,
-                  note: `${bn(profitStats.counts?.recharges ?? 0)}টি অনুমোদিত রিচার্জ`,
-                  icon: Wallet,
+                  label: 'ক্যাশ অন ডেলিভারি চার্জ',
+                  value: profitStats.cashOnDelivery,
+                  note: `${bn(profitStats.counts?.cashOnDelivery ?? 0)}টি ক্যাশ অর্ডারের ডেলিভারি চার্জ · উপরের অর্ডার রেভিনিউর ভেতরেই আছে`,
+                  icon: Banknote,
                   tone: 'bg-ink-100 text-ink-700',
                 },
               ].map((box) => (
@@ -286,6 +295,49 @@ export default function FinancePage() {
                   <p className="mt-1 text-xs text-ink-400">{box.note}</p>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Collected or committed, but not earned yet — deliberately outside revenue. */}
+          <div>
+            <h3 className="mb-3 text-lg font-bold text-ink-900">আলাদা হিসাব</h3>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="rounded-2xl border border-ink-200 bg-white p-6 shadow-card">
+                <div className="mb-2 flex items-center gap-3">
+                  <div className="rounded-full bg-brand-100 p-3 text-brand-700">
+                    <ShoppingBag className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm text-ink-500">মোট অর্ডারের পরিমাণ</p>
+                </div>
+                <p className="text-3xl font-bold text-ink-900">{taka(profitStats.totalOrderAmount ?? 0)}</p>
+                <p className="mt-1 text-xs text-ink-400">
+                  {bn(profitStats.allOrdersCount?.total ?? 0)}টি অর্ডার (বাতিল বাদে, ম্যানুয়াল সহ) · এর
+                  মধ্যে ডেলিভারড অংশটুকুই রেভিনিউতে গোনা হয়
+                </p>
+                {/* The gap is what is still in the kitchen, so it is worth naming. */}
+                {(profitStats.totalOrderAmount ?? 0) > (profitStats.orderRevenue ?? 0) && (
+                  <p className="mt-2 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-600">
+                    ডেলিভারির অপেক্ষায়{' '}
+                    <span className="font-semibold text-ink-900">
+                      {taka((profitStats.totalOrderAmount ?? 0) - (profitStats.orderRevenue ?? 0))}
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-ink-200 bg-white p-6 shadow-card">
+                <div className="mb-2 flex items-center gap-3">
+                  <div className="rounded-full bg-ink-100 p-3 text-ink-700">
+                    <Wallet className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm text-ink-500">কাস্টমার রিচার্জ</p>
+                </div>
+                <p className="text-3xl font-bold text-ink-900">{taka(profitStats.customerRecharge ?? 0)}</p>
+                <p className="mt-1 text-xs text-ink-400">
+                  {bn(profitStats.counts?.recharges ?? 0)}টি অনুমোদিত রিচার্জ · রেভিনিউতে ধরা হয় না, কারণ
+                  ওই টাকা খাবার ডেলিভারি হলে অর্ডার হিসেবেই গোনা হয়
+                </p>
+              </div>
             </div>
           </div>
 
