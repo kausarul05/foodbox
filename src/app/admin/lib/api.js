@@ -490,17 +490,58 @@ export const settingsAPI = {
     }
   },
 
-  // Backup database
-  backupDatabase: async () => {
-    try {
-      const response = await apiCall('/admin/backup', {
-        method: 'POST'
-      })
-      return response
-    } catch (error) {
-      console.error('Error backing up database:', error)
-      throw error
+  // Is the live Google Sheet mirror configured, and where is the sheet.
+  sheetsStatus: () => {
+    return apiCall('/admin/sheets/sync')
+  },
+
+  // Rewrite the sheet from the database right now. Normally unnecessary —
+  // every write syncs itself — but needed after first setup, or when something
+  // was changed straight in the database.
+  syncSheets: () => {
+    return apiCall('/admin/sheets/sync', { method: 'POST' })
+  },
+
+  /**
+   * Downloads the whole database as one .xlsx file.
+   *
+   * This cannot go through `apiCall`: that parses every response as JSON,
+   * which would destroy the file. The token has to be attached by hand too —
+   * it lives in localStorage, so a plain <a href> or window.open sends no
+   * Authorization header and the route answers 401.
+   *
+   * Returns the file name so the caller can report what was saved.
+   */
+  downloadExcelBackup: async () => {
+    const token = getToken()
+    const response = await fetch(`${API_BASE_URL}/admin/backup/excel`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+
+    if (!response.ok) {
+      // Errors still come back as the usual JSON envelope.
+      const message = await response
+        .json()
+        .then(data => data.message)
+        .catch(() => null)
+      throw new Error(message || 'ব্যাকআপ নেওয়া যায়নি')
     }
+
+    const disposition = response.headers.get('content-disposition') || ''
+    const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] || 'foodbox-backup.xlsx'
+
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    // Revoking immediately can cancel the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+
+    return { fileName, size: blob.size }
   }
 }
 

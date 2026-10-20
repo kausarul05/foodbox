@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from './db';
+import { syncSheetsLater } from './sheets';
 
 /**
  * Response helpers matching the old Express backend's envelope exactly:
@@ -27,6 +28,40 @@ export class HttpError extends Error {
 }
 
 /**
+ * Routes that change nothing worth mirroring, or must not trigger a mirror.
+ *
+ * Logging in and asking for a password-reset code write only to fields the
+ * sheet does not carry, and the sync route itself would otherwise sync in a
+ * loop. Everything else that writes is mirrored, including routes added later —
+ * that is the point of hooking it here rather than in each handler.
+ */
+const NO_MIRROR = [
+  '/api/auth/login',
+  '/api/auth/admin/login',
+  '/api/auth/logout',
+  '/api/auth/forgot-password',
+  '/api/admin/sheets/sync',
+];
+
+/**
+ * Mirror the database into the owner's Google Sheet after a successful write.
+ *
+ * `syncSheetsLater` runs on `after()` and swallows its own errors, so a broken
+ * sheet or a dead network cannot fail the customer's request — and when no
+ * sheet is configured it returns immediately.
+ */
+function mirrorAfterWrite(first: unknown, response: Response): void {
+  if (!(first instanceof Request)) return;
+  if (first.method === 'GET' || first.method === 'HEAD' || first.method === 'OPTIONS') return;
+  if (!response.ok) return;
+
+  const path = new URL(first.url).pathname;
+  if (NO_MIRROR.some((skip) => path.startsWith(skip))) return;
+
+  syncSheetsLater(`${first.method} ${path}`);
+}
+
+/**
  * Wraps a route handler: connects to Mongo, converts HttpError into the right
  * status, and turns anything unexpected into a 500 — the job `errorHandler`
  * middleware did in Express.
@@ -37,7 +72,9 @@ export function handler<Args extends unknown[]>(
   return async (...args: Args): Promise<Response> => {
     try {
       await connectDB();
-      return await fn(...args);
+      const response = await fn(...args);
+      mirrorAfterWrite(args[0], response);
+      return response;
     } catch (error) {
       if (error instanceof HttpError) {
         return fail(error.message, error.status);

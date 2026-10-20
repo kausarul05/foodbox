@@ -25,7 +25,10 @@ src/
 │   ├── auth.ts          generateToken, requireUser, requireAdmin, authorize.
 │   ├── deadlines.ts     Ordering and cancellation cut-off rules.
 │   ├── seed-data.ts     Rows used by POST /api/setup.
-│   └── models/          11 Mongoose models.
+│   ├── backupData.ts    Every collection as flat tables — the source for both backups.
+│   ├── excelBackup.ts   Renders those tables as one .xlsx.
+│   ├── sheets.ts        Pushes those tables into the live Google Sheet.
+│   └── models/          13 Mongoose models.
 ├── lib/
 │   ├── api.ts           Customer API client. Switches mock ⇄ real on NEXT_PUBLIC_USE_MOCK.
 │   ├── api.mock.ts      Mock implementation, backed by src/mock/data.ts.
@@ -77,8 +80,9 @@ should not meet a date/zone/meal form before learning what FoodBox is.
 ## Database — live, and already populated
 
 `.env.local` points at the **real Atlas database** (`fcs_meal_manager`), and it
-already holds production data carried over from the old Express backend: 8 users,
-40 orders, 21 weekly-menu rows, 20 zones, 2 packages, 3 subscriptions, 1 admin.
+holds live data. As of 20 Oct 2026: 4 users, 14 orders, 1 subscription, 1 wallet
+top-up, 6 deposit events, 21 weekly-menu rows, 22 zones, 3 packages, 1 admin.
+Counts move with real use — take a backup (below) rather than trusting this line.
 
 **Do not run `POST /api/setup`.** It refuses when zones or packages already exist,
 but it will re-seed if handed `{ "force": true }`. There is nothing to seed.
@@ -193,6 +197,82 @@ curl -X POST http://localhost:3000/api/setup/admin \
   -H "x-setup-secret: $SETUP_SECRET" -H "content-type: application/json" \
   -d '{"email":"admin@foodbox.com","password":"<at least 8 chars>"}'
 ```
+
+## Backups
+
+Three of them, three different jobs.
+
+**1. Google Sheet — the live mirror.** `src/server/sheets.ts`. Every successful
+write rewrites the owner's sheet a second or two after the response goes out, so
+there is always an online spreadsheet of customers, orders, wallets and
+deposits with nothing to press. Set up in `docs/google-sheets-setup.md`
+(`GOOGLE_SHEETS_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`,
+`GOOGLE_SERVICE_ACCOUNT_KEY`); unset = the feature is simply off.
+
+Four things about it are load-bearing:
+
+- **The trigger lives in `handler()`** (src/server/http.ts), not in each route.
+  Any non-GET request that returns 2xx queues a sync, so routes added later are
+  mirrored without being touched. `NO_MIRROR` there skips logins and the sync
+  route itself — the latter would otherwise sync in a loop.
+- **A sync must never fail or slow a request.** `syncSheetsLater()` hands the
+  work to Next's `after()`, exactly as `notifyAdminLater` does and for the same
+  reason: an unawaited promise dies when a serverless instance freezes on
+  responding. Verified: a write answers in 145ms while its sync takes ~350ms
+  afterwards, and with Google unreachable the write still returns 200 with
+  `[sheets] sync failed` in the log.
+- **Each tab is rewritten whole, not appended to.** Statuses change, wallets
+  move, rows get cancelled. Matching rows by id on every write would drift the
+  first time a match failed; a rewrite is right by construction. It also means
+  **anything typed into those tabs by hand is lost on the next sync** — own
+  calculations belong in a new tab that references them.
+- **`valueInputOption` is RAW.** With USER_ENTERED, Sheets parses every string:
+  `01868703130` becomes 1868703130 and loses its leading zero, and an address
+  starting with `=` becomes a formula. RAW also means dates go as
+  `yyyy-mm-dd` text, which sorts chronologically and cannot be misread
+  month-first by a US-locale sheet.
+
+A full sync is four HTTPS calls however many tabs there are: read the tab list,
+create/grow/format tabs, clear values, write values — plus one more on a sync
+that creates tabs, since column widths need the sheetIds that create call
+returns. `POST
+/api/admin/sheets/sync` forces one by hand (any admin role — no data goes back
+to the caller; `GET` on it reports whether the mirror is on), and `vercel.json` runs
+a daily safety-net sync at 20:00 UTC (2 AM Dhaka) for anything changed straight
+in the database. That cron needs `CRON_SECRET` set; Vercel sends it back as a
+bearer token, which is why `isCron()` is checked before `requireAdmin`.
+
+**2. Excel download — the point-in-time copy.** `GET
+/api/admin/backup/excel` (`src/server/excelBackup.ts`), button in the admin
+Settings page, `super_admin` only — it is the one route that hands out every
+customer's phone number, address and balance in a single file.
+
+**3. JSON — the one a machine restores.** `node scripts/backup-db.mjs` writes
+EJSON, every field, every index, to `backups/<timestamp>/` (gitignored: real
+customer data). This is what to restore from, and it needs no running server.
+
+Both spreadsheet backups render the tables defined once in
+`src/server/backupData.ts`, so they can never disagree about the data. Three
+decisions in there apply to both:
+
+- **Numbers stay Latin digits** (1200, not ১২০০). This is the one place
+  `src/lib/format.ts` must not be used: a Bengali numeral is text to a
+  spreadsheet, and text cannot be summed, sorted or charted.
+- **Dates are shifted +6h** before being written. A spreadsheet date is
+  wall-clock with no time zone, so a UTC instant reads six hours early in Dhaka.
+- **Password hashes are excluded** by name in the queries. These tables end up
+  in files that get mailed around and in a sheet that gets shared; a bcrypt hash
+  is a credential. Rebuilding from them means re-issuing passwords, which
+  Settings can already do.
+
+Neither spreadsheet is a restore format — nested documents are flattened and
+zone ids are replaced by Bengali names.
+
+The old no-op `POST /api/admin/backup` is gone. It answered "Database backup
+completed successfully" while persisting nothing, which is worse than no route;
+`settingsAPI.backupDatabase` went with it. `exceljs` is the only dependency
+either path adds — the Sheets client is plain `fetch` plus the `jsonwebtoken`
+already here, since a service-account token is just a signed JWT.
 
 ## Business rules
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Bell, Shield, Globe, Mail, Save, Loader2, RefreshCw, Key, Database } from 'lucide-react';
+import { Settings, Bell, Shield, Globe, Mail, Save, Loader2, RefreshCw, Key, Database, Download, Sheet, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { settingsAPI, authAPI } from '@/app/admin/lib/api';
 import CustomerPasswordReset from '@/app/admin/components/admin/CustomerPasswordReset';
@@ -26,6 +26,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [sheet, setSheet] = useState<{ configured: boolean; url: string | null } | null>(null);
   const [settings, setSettings] = useState<SettingsType>({
     siteName: 'FoodBox',
     adminEmail: 'admin@foodbox.com',
@@ -50,6 +53,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
+    // The mirror is configured by environment variables, so the panel has to
+    // ask the server whether it is on rather than storing a flag.
+    settingsAPI
+      .sheetsStatus()
+      .then((response) => setSheet(response.data))
+      .catch(() => setSheet({ configured: false, url: null }));
   }, []);
 
   const fetchSettings = async () => {
@@ -134,20 +143,36 @@ export default function SettingsPage() {
     }
   };
 
-  const handleBackup = async () => {
+  const handleExcelBackup = async () => {
+    setBackingUp(true);
+    const loadingToast = toast.loading('ব্যাকআপ ফাইল তৈরি হচ্ছে...');
     try {
-      const loadingToast = toast.loading('ব্যাকআপ নেওয়া হচ্ছে...');
-      const response = await settingsAPI.backupDatabase();
+      const { fileName } = await settingsAPI.downloadExcelBackup();
       toast.dismiss(loadingToast);
-      
-      if (response.success) {
-        toast.success('ডাটাবেজ ব্যাকআপ নেওয়া হয়েছে!');
-      } else {
-        toast.error(response.message || 'ব্যাকআপ নিতে ব্যর্থ হয়েছে');
-      }
-    } catch (error: any) {
+      toast.success(`ডাউনলোড হয়েছে — ${fileName}`);
+    } catch (error) {
+      toast.dismiss(loadingToast);
       console.error('Error taking backup:', error);
-      toast.error(error.message || 'ব্যাকআপ নিতে ব্যর্থ হয়েছে');
+      toast.error(error instanceof Error ? error.message : 'ব্যাকআপ নিতে ব্যর্থ হয়েছে');
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleSheetSync = async () => {
+    setSyncing(true);
+    const loadingToast = toast.loading('গুগল শীট আপডেট হচ্ছে...');
+    try {
+      const response = await settingsAPI.syncSheets();
+      toast.dismiss(loadingToast);
+      toast.success(`শীটে ${response.data.rows} সারি লেখা হয়েছে`);
+      if (response.data.url) setSheet({ configured: true, url: response.data.url });
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      console.error('Error syncing sheet:', error);
+      toast.error(error instanceof Error ? error.message : 'শীট আপডেট করা যায়নি');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -342,19 +367,79 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
-            <div className="flex items-center gap-3 mb-4">
+          <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
+            <div className="flex items-center gap-3 mb-2">
               <Database size={24} className="text-brand-600" />
-              <h2 className="text-xl font-bold text-ink-900">ব্যাকআপ</h2>
+              <h2 className="text-xl font-bold text-ink-900">ডাটাবেস ব্যাকআপ</h2>
             </div>
+            <p className="text-sm text-ink-500 mb-4">
+              কাস্টমার, অর্ডার, সাবস্ক্রিপশন, ওয়ালেট, রিচার্জ, ডিপোজিট, খরচ, মেনু, জোন — সবকিছু
+              একটি এক্সেল ফাইলে, প্রতিটি আলাদা শীটে। ডাটাবেসে সমস্যা হলেও তথ্য এই ফাইলে থাকবে।
+            </p>
             <button
-              onClick={handleBackup}
-              className="w-full bg-brand-600 hover:shadow-lg text-white py-2 rounded-lg font-medium transition flex items-center justify-center gap-2"
+              onClick={handleExcelBackup}
+              disabled={backingUp}
+              className="w-full bg-brand-600 hover:shadow-lg text-white py-2.5 rounded-lg font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <Database size={18} />
-              ডাটাবেজ ব্যাকআপ নিন
+              {backingUp ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              {backingUp ? 'ফাইল তৈরি হচ্ছে...' : 'এক্সেল ব্যাকআপ ডাউনলোড করুন'}
             </button>
-          </div> */}
+            <p className="text-xs text-ink-400 mt-3">
+              নিরাপত্তার জন্য পাসওয়ার্ড ফাইলে রাখা হয় না। ফাইলে কাস্টমারের ফোন ও ঠিকানা আছে —
+              নিরাপদ জায়গায় রাখুন।
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-ink-200 shadow-card p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Sheet size={24} className="text-leaf-600" />
+              <h2 className="text-xl font-bold text-ink-900">গুগল শীট (লাইভ)</h2>
+              {sheet && (
+                <span
+                  className={`ml-auto text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    sheet.configured ? 'bg-leaf-100 text-leaf-700' : 'bg-ink-100 text-ink-500'
+                  }`}
+                >
+                  {sheet.configured ? 'চালু' : 'বন্ধ'}
+                </span>
+              )}
+            </div>
+
+            {sheet?.configured ? (
+              <>
+                <p className="text-sm text-ink-500 mb-4">
+                  ডাটাবেসে নতুন অর্ডার, কাস্টমার বা রিচার্জ ঢুকলে কয়েক সেকেন্ডের মধ্যেই শীটে চলে
+                  যায় — কিছু করতে হয় না। নিচের বাটন শুধু তখন দরকার, যখন ডাটাবেসে বাইরে থেকে কিছু
+                  বদলানো হয়েছে।
+                </p>
+                {sheet.url && (
+                  <a
+                    href={sheet.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline mb-4"
+                  >
+                    শীটটি খুলুন <ExternalLink size={14} />
+                  </a>
+                )}
+                <button
+                  onClick={handleSheetSync}
+                  disabled={syncing}
+                  className="w-full bg-leaf-600 hover:shadow-lg text-white py-2.5 rounded-lg font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {syncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                  {syncing ? 'আপডেট হচ্ছে...' : 'এখনই সিঙ্ক করুন'}
+                </button>
+              </>
+            ) : (
+              <p className="text-sm text-ink-500">
+                এখনো সেট করা হয়নি। চালু করতে <code className="text-xs">GOOGLE_SHEETS_ID</code>,{' '}
+                <code className="text-xs">GOOGLE_SERVICE_ACCOUNT_EMAIL</code> ও{' '}
+                <code className="text-xs">GOOGLE_SERVICE_ACCOUNT_KEY</code> বসাতে হবে — ধাপগুলো
+                <code className="text-xs"> docs/google-sheets-setup.md</code> ফাইলে আছে।
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { mailConfigured } from '@/server/mail';
+import { sheetsConfigured } from '@/server/sheets';
 
 /**
  * Deployment diagnostic: GET /api/health
@@ -45,6 +46,9 @@ export async function GET() {
     // customer's top-up). This is the only place it shows.
     EMAIL_SMTP: mailConfigured(),
     ADMIN_NOTIFY_EMAIL: Boolean(process.env.ADMIN_NOTIFY_EMAIL?.trim()),
+    // The live Google Sheet mirror. Off when false; every write still works,
+    // it just is not copied anywhere. Equally silent by design.
+    GOOGLE_SHEETS: sheetsConfigured(),
   };
 
   /**
@@ -53,7 +57,7 @@ export async function GET() {
    * space) and a variable that exists but is empty.
    */
   const relatedNames = Object.keys(process.env)
-    .filter((name) => /MONGO|JWT|SETUP_SECRET|EMAIL|ADMIN_PASSWORD/i.test(name))
+    .filter((name) => /MONGO|JWT|SETUP_SECRET|EMAIL|ADMIN_PASSWORD|GOOGLE_SHEETS|GOOGLE_SERVICE_ACCOUNT|CRON_SECRET/i.test(name))
     .sort()
     .map((name) => (process.env[name]?.trim() ? name : `${name} (EMPTY)`));
 
