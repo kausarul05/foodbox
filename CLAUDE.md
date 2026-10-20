@@ -80,7 +80,7 @@ should not meet a date/zone/meal form before learning what FoodBox is.
 ## Database — live, and already populated
 
 `.env.local` points at the **real Atlas database** (`fcs_meal_manager`), and it
-holds live data. As of 20 Oct 2026: 4 users, 14 orders, 1 subscription, 1 wallet
+holds live data. As of 21 Oct 2026: 5 users, 14 orders, 1 subscription, 1 wallet
 top-up, 6 deposit events, 21 weekly-menu rows, 22 zones, 3 packages, 1 admin.
 Counts move with real use — take a backup (below) rather than trusting this line.
 
@@ -252,8 +252,26 @@ EJSON, every field, every index, to `backups/<timestamp>/` (gitignored: real
 customer data). This is what to restore from, and it needs no running server.
 
 Both spreadsheet backups render the tables defined once in
-`src/server/backupData.ts`, so they can never disagree about the data. Three
-decisions in there apply to both:
+`src/server/backupData.ts`, so they can never disagree about the data.
+
+The first tab, **সারসংক্ষেপ**, is the owner's page rather than a dump: revenue,
+expenses and profit, then orders, then customers and wallets, each figure with
+a sentence saying what it means. Its arithmetic is deliberately the same as
+`GET /api/admin/profit-stats` over all time — revenue is every *delivered*
+order (food + delivery charge, customer and manual) plus every *paid*
+subscription fee, profit is that minus expenses — so the sheet and the admin
+panel cannot tell the owner two different numbers. Change one and change the
+other.
+
+**কাস্টমার** is one row per customer holding their whole account: contact,
+subscription, the three wallet figures, the box deposit, and the order history
+rolled up (placed, delivered, cancelled, spent, last order). That is what makes
+the sheet a usable answer to "the database is gone, who are my customers and
+what do they have with me". Database ids sit in the **last** columns of every
+table, not the first — a 24-character hex id in column A is the quickest way to
+make a readable sheet unreadable.
+
+Three decisions apply to both renderers:
 
 - **Numbers stay Latin digits** (1200, not ১২০০). This is the one place
   `src/lib/format.ts` must not be used: a Bengali numeral is text to a

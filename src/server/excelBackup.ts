@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 
-import { BD_OFFSET_MS, DATETIME, collectBackup, type Table } from './backupData';
+import { BD_OFFSET_MS, DATE, DATETIME, collectBackup, type Table } from './backupData';
 
 /**
  * The whole database as one Excel workbook — the backup the owner downloads.
@@ -11,13 +11,19 @@ import { BD_OFFSET_MS, DATETIME, collectBackup, type Table } from './backupData'
  */
 
 const BRAND = 'FFEA580C';
+const CREAM = 'FFFEF9F4';
+const SECTION_BG = 'FFFEEDDB';
+const SECTION_FG = 'FF7C350C';
 
 /**
- * One sheet from one table. Header row frozen and filterable, so a 5,000-row
- * order sheet is still usable.
+ * One sheet from one table, painted to match the live Google Sheet: brand
+ * header band, frozen heading, alternating rows and a filter.
  */
 function addSheet(wb: ExcelJS.Workbook, source: Table) {
-  const ws = wb.addWorksheet(source.name, { views: [{ state: 'frozen', ySplit: 1 }] });
+  // A wide table also freezes its first column, so the name stays in view.
+  const ySplit = 1;
+  const xSplit = source.plain ? 0 : 1;
+  const ws = wb.addWorksheet(source.name, { views: [{ state: 'frozen', xSplit, ySplit }] });
 
   ws.columns = source.columns.map((column, index) => ({
     header: column.header,
@@ -26,16 +32,35 @@ function addSheet(wb: ExcelJS.Workbook, source: Table) {
     style: column.fmt ? { numFmt: column.fmt } : undefined,
   }));
 
-  for (const row of source.rows) {
+  const sections = new Set(source.sectionRows ?? []);
+  const accents = new Set(source.accentRows ?? []);
+
+  source.rows.forEach((row, index) => {
     const added = ws.addRow(row);
+
     // A date in a column that is not formatted as one — the summary's single
     // timestamp — would otherwise render as Excel's raw day number.
-    row.forEach((value, index) => {
-      if (value instanceof Date && !source.columns[index]?.fmt) {
-        added.getCell(index + 1).numFmt = DATETIME;
+    const rowFormat = source.rowFormats?.[index];
+    row.forEach((value, column) => {
+      const fmt = source.columns[column]?.fmt ?? (column === 1 ? rowFormat : undefined);
+      const cell = added.getCell(column + 1);
+      if (value instanceof Date) {
+        if (fmt !== DATE && fmt !== DATETIME) cell.numFmt = DATETIME;
+      } else if (fmt && !source.columns[column]?.fmt) {
+        cell.numFmt = fmt;
+        cell.alignment = { horizontal: 'right' };
       }
     });
-  }
+
+    if (sections.has(index)) {
+      added.font = { bold: true, size: 11, color: { argb: SECTION_FG } };
+      added.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SECTION_BG } };
+    } else if (accents.has(index)) {
+      added.font = { bold: true, size: 11 };
+    } else if (!source.plain && index % 2 === 1) {
+      added.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: CREAM } };
+    }
+  });
 
   const header = ws.getRow(1);
   header.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
@@ -43,7 +68,7 @@ function addSheet(wb: ExcelJS.Workbook, source: Table) {
   header.alignment = { vertical: 'middle' };
   header.height = 22;
 
-  if (source.rows.length > 0) {
+  if (source.rows.length > 0 && !source.plain) {
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: source.columns.length } };
   }
 
