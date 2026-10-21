@@ -18,8 +18,9 @@ const getToken = () => {
 // Helper function for API calls
 const apiCall = async (endpoint, options = {}) => {
   // The login screen never sends the stored token: a stale one would turn a
-  // wrong password (401) into the forced logout-and-reload below.
-  const token = endpoint === '/auth/admin/login' ? null : getToken()
+  // wrong password (401) into the forced logout-and-reload below. First-run
+  // setup sits on the same screen and runs before any token exists.
+  const token = endpoint.startsWith('/auth/admin/') ? null : getToken()
 
   const defaultHeaders = {
     'Content-Type': 'application/json',
@@ -65,6 +66,19 @@ export const authAPI = {
     return apiCall('/auth/admin/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    });
+  },
+
+  // Is the Admin collection still empty? Drives the first-run setup form.
+  adminSetupStatus: () => {
+    return apiCall('/auth/admin/setup');
+  },
+
+  // Create that first admin and get a session back in one call.
+  adminSetup: (fullName, email, password) => {
+    return apiCall('/auth/admin/setup', {
+      method: 'POST',
+      body: JSON.stringify({ fullName, email, password }),
     });
   },
 

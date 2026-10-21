@@ -65,6 +65,22 @@ export async function requireAdmin(req: Request): Promise<IAdmin> {
 }
 
 /**
+ * Requires any signed-in account, customer or admin.
+ *
+ * Both are signed with the same JWT_SECRET and carry only an id, so a token
+ * alone does not say which collection it came from. `requireUser` looks only
+ * in User and throws for an admin's token — which is why the shared
+ * change-password route rejected every admin until this existed.
+ */
+export async function requireAccount(req: Request): Promise<IUser | IAdmin> {
+  const id = verify(req);
+  const account =
+    (await User.findById(id).select('-password')) ?? (await Admin.findById(id).select('-password'));
+  if (!account) throw new HttpError('Not authorized, token failed', 401);
+  return account;
+}
+
+/**
  * Role gate, equivalent to the old `authorize(...roles)` middleware.
  * Usage: `const admin = authorize(await requireAdmin(req), 'super_admin');`
  */

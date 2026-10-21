@@ -141,7 +141,27 @@ invent a different shape — both clients depend on this one.
 JWTs in `localStorage`, sent as `Authorization: Bearer <token>`.
 Customer token key is `userToken`; admin token key is `adminToken`. Both are
 signed with the same `JWT_SECRET`; `requireUser` looks the id up in `User`,
-`requireAdmin` in `Admin`.
+`requireAdmin` in `Admin`. A token carries only an id, so it does not say which
+collection it came from — `requireAccount` is the guard for routes both kinds
+of account use, and `PUT /api/auth/change-password` is the one that needs it.
+It called `requireUser` until Oct 2026, which meant admin Settings' change-
+password form returned "Not authorized, token failed" for every admin.
+
+**The first admin is created from the login page, not from a seed.**
+`/admin/login` asks `GET /api/auth/admin/setup`; while the Admin collection is
+empty it renders an email / password / confirm form, posts it to
+`POST /api/auth/admin/setup`, and signs the new super_admin straight in. Once
+one admin exists that endpoint is a 409 for everyone, which is why it needs no
+secret — unlike `POST /api/setup/admin`, which can overwrite an *existing*
+admin's password and so stays behind `SETUP_SECRET`.
+
+This is the handover: `node scripts/reset-admin.mjs --yes` deletes every admin
+(dry run without `--yes`), the owner opens the panel and picks their own
+credentials, and nobody who built the site ever knew them. Do the two steps
+back to back — between them, whoever reaches the page first becomes the admin.
+Setup lowercases the address before storing it, so the login route tries what
+was typed and then the folded form; admins created before this keep whatever
+case they were given.
 
 **The `/api/admin/*` route guards are the real security boundary.** The
 client-side redirect in `admin/dashboard/layout.tsx` is UX only — tokens live in

@@ -6,7 +6,15 @@ import Admin from '@/server/models/Admin';
 export const POST = handler(async (req: Request) => {
   const { email, password } = await body(req);
 
-  const admin = await Admin.findOne({ email });
+  /**
+   * Setup stores the address lowercased, but older admins were created with
+   * whatever case was typed. Try the address as given, then folded — so an
+   * owner who set up as "Owner@..." still gets in typing "owner@...", and an
+   * existing admin with capitals is unaffected.
+   */
+  const typed = String(email ?? '').trim();
+  const admin =
+    (await Admin.findOne({ email: typed })) ?? (await Admin.findOne({ email: typed.toLowerCase() }));
   if (!admin || !(await admin.matchPassword(password))) {
     return fail('ইমেইল বা পাসওয়ার্ড ভুল', 401);
   }

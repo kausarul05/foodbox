@@ -1,4 +1,4 @@
-import { requireUser } from '@/server/auth';
+import { requireAccount } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
 import Admin from '@/server/models/Admin';
 import User from '@/server/models/User';
@@ -9,7 +9,7 @@ import { MIN_PASSWORD_LENGTH } from '@/server/passwordReset';
 // Used by the customer profile (e.g. to replace a temporary password an admin
 // issued) and by admin Settings.
 export const PUT = handler(async (req: Request) => {
-  const authUser = await requireUser(req);
+  const authUser = await requireAccount(req);
   const { currentPassword, newPassword } = await body<{ currentPassword?: string; newPassword?: string }>(req);
 
   const next = String(newPassword ?? '');
@@ -17,7 +17,7 @@ export const PUT = handler(async (req: Request) => {
     return fail(`নতুন পাসওয়ার্ড কমপক্ষে ${MIN_PASSWORD_LENGTH} অক্ষরের হতে হবে`, 400);
   }
 
-  // The same token id may belong to an Admin document.
+  // Re-read with the password: the guard strips it, matchPassword needs it.
   const account = (await User.findById(authUser._id)) ?? (await Admin.findById(authUser._id));
   if (!account) return fail('User not found', 404);
 
