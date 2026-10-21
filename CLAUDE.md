@@ -91,18 +91,32 @@ should not meet a date/zone/meal form before learning what FoodBox is.
 `Testimonials` uses placeholder reviews. There is no Review model or
 `/api/reviews` route; add one before treating them as real.
 
-## Database — live, and already populated
+## Database — live, and empty
 
-`.env.local` points at the **real Atlas database** (`fcs_meal_manager`), and it
-holds live data. As of 21 Oct 2026: 5 users, 14 orders, 1 subscription, 1 wallet
-top-up, 6 deposit events, 21 weekly-menu rows, 22 zones, 3 packages, 1 admin.
-Counts move with real use — take a backup (below) rather than trusting this line.
+`.env.local` points at the **real Atlas database** (`fcs_meal_manager`). On
+21 Oct 2026 it was wiped for the handover: `node scripts/reset-db.mjs --confirm
+--with-settings` dropped all 13 collections, 86 documents — 8 users, 17 orders,
+2 subscriptions, 2 top-ups, 7 deposit events, 2 expenses, 22 zones, 3 packages,
+21 weekly-menu rows, 1 admin and the settings document. The JSON backup taken
+first is `backups/2026-10-21T15-01-03/` (gitignored, real customer data).
 
-**Do not run `POST /api/setup`.** It refuses when zones or packages already exist,
-but it will re-seed if handed `{ "force": true }`. There is nothing to seed.
+So there is nothing in it, and three things follow:
 
-Every route was smoke-tested against this data and passes; both auth guards
-correctly return 401. Admin login works with `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+- `/admin/login` shows its first-run setup form, because no admin exists.
+- `settings` rebuilds itself from the schema defaults the first time it is
+  written — FCS Meal, ain19951995@gmail.com, +8801410906862.
+- **The customer site cannot take an order yet.** Zones, packages and the
+  weekly menu are reference data, and all three are gone. They have to be
+  entered from the admin panel, or re-seeded from `src/server/seed-data.ts`
+  with `POST /api/setup` — which needs `SETUP_SECRET`, currently unset, and
+  which re-seeds everything when handed `{ "force": true }`. Do not run it
+  without deciding that is what you want.
+
+`node scripts/backup-db.mjs` before anything destructive; `reset-db.mjs`
+refuses to run unless a backup exists, and dry-runs unless given `--confirm`.
+
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env.local` are notes, not credentials —
+no code reads them. Admin login only ever checks the `admins` collection.
 
 ## Mock mode
 
@@ -274,7 +288,11 @@ returns. `POST
 to the caller; `GET` on it reports whether the mirror is on), and `vercel.json` runs
 a daily safety-net sync at 20:00 UTC (2 AM Dhaka) for anything changed straight
 in the database. That cron needs `CRON_SECRET` set; Vercel sends it back as a
-bearer token, which is why `isCron()` is checked before `requireAdmin`.
+bearer token, which is why `isCron()` is checked before `requireAdmin`. It is
+set in `.env.local` as of 21 Oct 2026 and still needs adding on Vercel. The
+same secret is the only way to force a sync when no admin exists —
+`GET /api/admin/sheets/sync` with `Authorization: Bearer $CRON_SECRET` — which
+is how the sheet was emptied after the handover wipe.
 
 **2. Excel download — the point-in-time copy.** `GET
 /api/admin/backup/excel` (`src/server/excelBackup.ts`), button in the admin

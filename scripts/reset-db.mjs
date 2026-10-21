@@ -1,31 +1,41 @@
 /**
  * Empties the database for a clean end-to-end test.
  *
- *   node scripts/reset-db.mjs               # report what it would do
- *   node scripts/reset-db.mjs --confirm     # do it
+ *   node scripts/reset-db.mjs                             # report what it would do
+ *   node scripts/reset-db.mjs --confirm                   # do it
+ *   node scripts/reset-db.mjs --confirm --with-settings   # and the settings document
  *
  * This is destructive and cannot be undone. It refuses to run unless a backup
  * taken by scripts/backup-db.mjs exists under backups/, so there is always
  * something to go back to.
  *
- * `settings` is left alone — it is one document of site configuration, not
- * test data. Everything else goes, including the reference collections, which
- * POST /api/setup re-seeds afterwards.
+ * `settings` is kept by default — it is one document of site configuration,
+ * not test data. `--with-settings` drops it too, which is what a handover
+ * wants: the app recreates it from the schema defaults, so the new owner gets
+ * the current site name, contact email and phone rather than whatever the
+ * previous owner had typed.
+ *
+ * Everything else goes, including the reference collections. No admin is left
+ * afterwards, which is the point: /admin/login then shows its first-run setup
+ * form and the new owner picks their own credentials.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import mongoose from 'mongoose';
 
 const confirmed = process.argv.includes('--confirm');
+const withSettings = process.argv.includes('--with-settings');
 
 /** Dropped entirely. */
 const WIPE = [
+  ...(withSettings ? ['settings'] : []),
   'users',
   'orders',
   'manualorders',
   'subscriptions',
   'transactions',
   'expenses',
+  'depositevents',
   'blockeddates',
   'zones',
   'packages',
@@ -33,8 +43,8 @@ const WIPE = [
   'admins',
 ];
 
-/** Left as it is. */
-const KEEP = ['settings'];
+/** Left as it is, unless --with-settings is passed. */
+const KEEP = withSettings ? [] : ['settings'];
 
 function readUri() {
   if (process.env.MONGODB_URI) return process.env.MONGODB_URI.trim();
@@ -99,5 +109,11 @@ if (confirmed) {
   console.log('users indexes:', (await db.collection('users').indexes()).map(describe).join(' | '));
 }
 
-console.log(confirmed ? 'done — now re-seed with POST /api/setup and POST /api/setup/admin' : 'dry run complete');
+console.log(
+  confirmed
+    ? 'done. Open /admin/login — it now asks for the first admin.\n' +
+      'Zones, packages and the weekly menu are gone too, so add them from the\n' +
+      'panel (or re-seed with POST /api/setup) before any customer can order.'
+    : 'dry run complete'
+);
 await mongoose.disconnect();
