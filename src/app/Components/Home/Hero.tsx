@@ -103,7 +103,7 @@ export default async function Hero() {
           <div className="relative aspect-4/3 overflow-hidden rounded-3xl shadow-lift ring-1 ring-ink-900/5">
             <Image
               src={heroImage}
-              alt="FoodBox-এর তাজা রান্না করা খাবার"
+              alt="FCS Meal-এর তাজা রান্না করা খাবার"
               fill
               priority
               sizes="(max-width: 1024px) 100vw, 50vw"

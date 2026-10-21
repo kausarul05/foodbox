@@ -54,7 +54,7 @@ export default function CustomerPasswordReset() {
   };
 
   const message = issued
-    ? `আসসালামু আলাইকুম ${issued.fullName}, আপনার FoodBox অ্যাকাউন্টের নতুন পাসওয়ার্ড: ${issued.tempPassword}\nলগইন করার পর প্রোফাইল থেকে পাসওয়ার্ড বদলে নিন।`
+    ? `আসসালামু আলাইকুম ${issued.fullName}, আপনার FCS Meal অ্যাকাউন্টের নতুন পাসওয়ার্ড: ${issued.tempPassword}\nলগইন করার পর প্রোফাইল থেকে পাসওয়ার্ড বদলে নিন।`
     : '';
 
   const copy = async () => {

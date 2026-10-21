@@ -30,22 +30,22 @@ export default function Footer() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-12 lg:gap-8">
           {/* Brand */}
           <div className="lg:col-span-4">
-            <span className="text-2xl font-bold text-white">FoodBox</span>
+            <span className="text-2xl font-bold text-white">FCS Meal</span>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-400">
               ময়মনসিংহে ঘরের মতো রান্না করা খাবারের সাবস্ক্রিপশন সার্ভিস। তাজা রান্না,
               সাশ্রয়ী দাম, সময়মতো ডেলিভারি।
             </p>
             <div className="mt-6 space-y-3 text-sm">
-              <a href="tel:+8801868703130" className="flex items-center gap-3 transition-colors hover:text-brand-400">
+              <a href="tel:+8801410906862" className="flex items-center gap-3 transition-colors hover:text-brand-400">
                 <Phone size={16} className="shrink-0 text-brand-500" />
-                +8801868703130
+                +8801410906862
               </a>
               <a
-                href="mailto:foodbox947@gmail.com"
+                href="mailto:ain19951995@gmail.com"
                 className="flex items-center gap-3 break-all transition-colors hover:text-brand-400"
               >
                 <Mail size={16} className="shrink-0 text-brand-500" />
-                foodbox947@gmail.com
+                ain19951995@gmail.com
               </a>
               <p className="flex items-start gap-3 text-ink-400">
                 <MapPin size={16} className="mt-0.5 shrink-0 text-brand-500" />
@@ -95,7 +95,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col gap-2 border-t border-white/10 pt-6 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} FoodBox. সর্বস্বত্ব সংরক্ষিত।</p>
+          <p>© {new Date().getFullYear()} FCS Meal. সর্বস্বত্ব সংরক্ষিত।</p>
           <div className="flex gap-5">
             <Link href="/privacy" className="transition-colors hover:text-ink-300">
               প্রাইভেসি পলিসি

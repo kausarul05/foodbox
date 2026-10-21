@@ -71,7 +71,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 text-ink-900 pr-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
-                  placeholder="admin@foodbox.com"
+                  placeholder="admin@fcsbd.com"
                   required
                 />
               </div>
@@ -103,12 +103,6 @@ export default function LoginPage() {
               {loading ? 'লগইন হচ্ছে...' : 'লগইন করুন'}
             </button>
           </form>
-
-          <div className="mt-6 text-center text-sm text-ink-500">
-            <p>ডেমো ক্রেডেনশিয়াল:</p>
-            <p>Email: admin@foodbox.com</p>
-            <p>Password: admin@123</p>
-          </div>
         </div>
       </div>
     </div>

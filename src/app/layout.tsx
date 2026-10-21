@@ -15,12 +15,12 @@ const bangla = Hind_Siliguri({
 
 export const metadata: Metadata = {
   title: {
-    default: 'FoodBox — ঘরের মতো রান্না, প্রতিদিন আপনার দরজায়',
-    template: '%s · FoodBox',
+    default: 'FCS Meal — ঘরের মতো রান্না, প্রতিদিন আপনার দরজায়',
+    template: '%s · FCS Meal',
   },
   description:
     'ময়মনসিংহে হোমমেড খাবারের সাবস্ক্রিপশন সার্ভিস। সকাল, দুপুর ও রাতের খাবার — তাজা রান্না, সময়মতো ডেলিভারি।',
-  keywords: ['FoodBox', 'মিল সাবস্ক্রিপশন', 'ময়মনসিংহ খাবার', 'হোম ডেলিভারি', 'গেস্ট মিল'],
+  keywords: ['FCS Meal', 'মিল সাবস্ক্রিপশন', 'ময়মনসিংহ খাবার', 'হোম ডেলিভারি', 'গেস্ট মিল'],
 }
 
 export const viewport: Viewport = {

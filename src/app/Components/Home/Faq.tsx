@@ -39,7 +39,7 @@ export default function Faq() {
         <SectionHeading
           eyebrow="জিজ্ঞাসা"
           title="সাধারণ কিছু প্রশ্ন"
-          subtitle="উত্তর না পেলে সরাসরি কল করুন ০১৭৯২৬৯৫৯৩৯ নম্বরে।"
+          subtitle="উত্তর না পেলে সরাসরি কল করুন ০১৪১০৯০৬৮৬২ নম্বরে।"
         />
 
         <div className="mx-auto mt-12 max-w-3xl divide-y divide-ink-200 overflow-hidden rounded-2xl border border-ink-200 shadow-card">

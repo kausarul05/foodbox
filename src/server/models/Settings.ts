@@ -25,9 +25,9 @@ interface SettingsModel extends mongoose.Model<ISettings> {
 
 const settingsSchema = new Schema<ISettings, SettingsModel>(
   {
-    siteName: { type: String, default: 'FoodBox' },
-    adminEmail: { type: String, default: 'admin@foodbox.com' },
-    phoneNumber: { type: String, default: '+8801913945595' },
+    siteName: { type: String, default: 'FCS Meal' },
+    adminEmail: { type: String, default: 'ain19951995@gmail.com' },
+    phoneNumber: { type: String, default: '+8801410906862' },
     deliveryCharge: { type: Number, default: 50 },
     minOrderAmount: { type: Number, default: 300 },
     maxOrderAmount: { type: Number, default: 10000 },

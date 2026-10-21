@@ -26,7 +26,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <UtensilsCrossed size={20} />
           </span>
           <span className="leading-tight">
-            <span className="block font-bold">FoodBox</span>
+            <span className="block font-bold">FCS Meal</span>
             <span className="block text-xs text-ink-400">অ্যাডমিন প্যানেল</span>
           </span>
         </Link>

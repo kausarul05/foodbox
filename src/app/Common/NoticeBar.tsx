@@ -2,8 +2,8 @@
 
 import { Phone } from 'lucide-react';
 
-const SUPPORT_NUMBER = '01792695939';
-const SUPPORT_TEL = '+8801792695939';
+const SUPPORT_NUMBER = '01410906862';
+const SUPPORT_TEL = '+8801410906862';
 
 /**
  * Thin scrolling support strip. Sits at the top of the sticky header stack in
@@ -19,7 +19,7 @@ function Message() {
       <Phone size={14} className="shrink-0" aria-hidden />
       অর্ডার বা পেমেন্ট সংক্রান্ত যেকোনো সমস্যায় সরাসরি কল করুন
       <a href={`tel:${SUPPORT_TEL}`} className="font-semibold underline underline-offset-2 hover:no-underline">
-        ০১৭৯২৬৯৫৯৩৯
+        ০১৪১০৯০৬৮৬২
       </a>
       <span aria-hidden className="text-white/50">•</span>
     </span>

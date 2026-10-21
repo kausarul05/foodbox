@@ -67,7 +67,7 @@ export default function LoginPage() {
         <div className="relative max-w-md">
           <Link href="/" className="flex items-center gap-3">
             <Image src={logo} alt="" width={44} height={44} className="size-11 rounded-xl object-cover" />
-            <span className="text-xl font-bold text-white">FoodBox</span>
+            <span className="text-xl font-bold text-white">FCS Meal</span>
           </Link>
 
           <h2 className="mt-10 text-4xl leading-tight font-bold text-balance text-white">
@@ -147,8 +147,8 @@ export default function LoginPage() {
 
           <p className="mt-4 text-center text-xs leading-relaxed text-ink-500">
             সমস্যা হচ্ছে? কল করুন{' '}
-            <a href="tel:+8801792695939" className="font-medium text-ink-700 hover:underline">
-              ০১৭৯২৬৯৫৯৩৯
+            <a href="tel:+8801410906862" className="font-medium text-ink-700 hover:underline">
+              ০১৪১০৯০৬৮৬২
             </a>
           </p>
         </div>

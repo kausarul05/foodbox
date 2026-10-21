@@ -52,11 +52,11 @@ export function tempPassword(): string {
 }
 
 export function resetEmail(name: string, code: string) {
-  const subject = `FoodBox পাসওয়ার্ড রিসেট কোড: ${code}`;
-  const text = `প্রিয় ${name},\n\nআপনার FoodBox পাসওয়ার্ড রিসেট কোড: ${code}\n\nকোডটি ${CODE_TTL_MINUTES} মিনিট পর্যন্ত কাজ করবে। আপনি অনুরোধ না করে থাকলে এই ইমেইলটি উপেক্ষা করুন — আপনার পাসওয়ার্ড বদলাবে না।\n\n— FoodBox`;
+  const subject = `FCS Meal পাসওয়ার্ড রিসেট কোড: ${code}`;
+  const text = `প্রিয় ${name},\n\nআপনার FCS Meal পাসওয়ার্ড রিসেট কোড: ${code}\n\nকোডটি ${CODE_TTL_MINUTES} মিনিট পর্যন্ত কাজ করবে। আপনি অনুরোধ না করে থাকলে এই ইমেইলটি উপেক্ষা করুন — আপনার পাসওয়ার্ড বদলাবে না।\n\n— FCS Meal`;
   const html = `
 <div style="font-family:'Hind Siliguri',Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#292524">
-  <p style="font-size:20px;font-weight:700;color:#ea580c;margin:0 0 16px">FoodBox</p>
+  <p style="font-size:20px;font-weight:700;color:#ea580c;margin:0 0 16px">FCS Meal</p>
   <p style="margin:0 0 8px">প্রিয় ${escapeHtml(name)},</p>
   <p style="margin:0 0 16px">আপনার পাসওয়ার্ড রিসেট কোড:</p>
   <p style="font-size:32px;font-weight:700;letter-spacing:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px;text-align:center;margin:0 0 16px">${code}</p>

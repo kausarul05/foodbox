@@ -83,21 +83,21 @@ export interface BackupResult {
   counts: Record<string, number>;
 }
 
-/** `foodbox-backup-2026-10-20-1830.xlsx`, stamped in Dhaka time. */
+/** `fcs-meal-backup-2026-10-20-1830.xlsx`, stamped in Dhaka time. */
 export function backupFileName(now = new Date()): string {
   const bd = new Date(now.getTime() + BD_OFFSET_MS);
   const pad = (n: number) => String(n).padStart(2, '0');
   const stamp =
     `${bd.getUTCFullYear()}-${pad(bd.getUTCMonth() + 1)}-${pad(bd.getUTCDate())}` +
     `-${pad(bd.getUTCHours())}${pad(bd.getUTCMinutes())}`;
-  return `foodbox-backup-${stamp}.xlsx`;
+  return `fcs-meal-backup-${stamp}.xlsx`;
 }
 
 export async function buildBackupWorkbook(): Promise<BackupResult> {
   const { takenAt, counts, tables } = await collectBackup();
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'FoodBox';
+  wb.creator = 'FCS Meal';
   wb.created = takenAt;
   for (const source of tables) addSheet(wb, source);
 

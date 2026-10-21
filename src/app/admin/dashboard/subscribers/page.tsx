@@ -208,7 +208,7 @@ export default function SubscribersPage() {
       toast.error('এই গ্রাহকের ইমেইল নেই');
       return;
     }
-    const subject = encodeURIComponent('FoodBox — আপনার সাবস্ক্রিপশন');
+    const subject = encodeURIComponent('FCS Meal — আপনার সাবস্ক্রিপশন');
     window.location.href = `mailto:${subscriber.email}?subject=${subject}`;
   };
 

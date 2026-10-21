@@ -528,7 +528,7 @@ export const settingsAPI = {
     }
 
     const disposition = response.headers.get('content-disposition') || ''
-    const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] || 'foodbox-backup.xlsx'
+    const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] || 'fcs-meal-backup.xlsx'
 
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)

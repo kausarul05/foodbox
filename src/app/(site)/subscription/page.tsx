@@ -104,8 +104,8 @@ export default function SubscriptionPage() {
             <CreditCard size={20} className="text-brand-600" />
             <p className="text-sm text-ink-600">
               পেমেন্ট নিয়ে প্রশ্ন আছে? কল করুন{' '}
-              <a href="tel:+8801792695939" className="font-semibold text-ink-900 hover:underline">
-                ০১৭৯২৬৯৫৯৩৯
+              <a href="tel:+8801410906862" className="font-semibold text-ink-900 hover:underline">
+                ০১৪১০৯০৬৮৬২
               </a>
             </p>
           </div>

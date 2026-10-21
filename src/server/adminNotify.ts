@@ -76,7 +76,7 @@ function layout(opts: { heading: string; lead: string; rows: Row[]; actionLabel:
 
   const html = `
 <div style="font-family:'Hind Siliguri',Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#292524">
-  <p style="font-size:20px;font-weight:700;color:#ea580c;margin:0 0 4px">FoodBox</p>
+  <p style="font-size:20px;font-weight:700;color:#ea580c;margin:0 0 4px">FCS Meal</p>
   <p style="font-size:17px;font-weight:700;margin:0 0 4px">${escapeHtml(opts.heading)}</p>
   <p style="margin:0 0 16px;font-size:14px;color:#78716c">${escapeHtml(opts.lead)}</p>
   <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -94,11 +94,11 @@ function layout(opts: { heading: string; lead: string; rows: Row[]; actionLabel:
       ? `<p style="margin:20px 0 0"><a href="${escapeHtml(opts.actionUrl)}" style="display:inline-block;background:#ea580c;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 20px;border-radius:10px">${escapeHtml(opts.actionLabel)}</a></p>`
       : ''
   }
-  <p style="margin:20px 0 0;font-size:12px;color:#a8a29e">এটি FoodBox অ্যাডমিন প্যানেলের স্বয়ংক্রিয় বার্তা।</p>
+  <p style="margin:20px 0 0;font-size:12px;color:#a8a29e">এটি FCS Meal অ্যাডমিন প্যানেলের স্বয়ংক্রিয় বার্তা।</p>
 </div>`;
 
   const text = [
-    `FoodBox — ${opts.heading}`,
+    `FCS Meal — ${opts.heading}`,
     '',
     opts.lead,
     '',

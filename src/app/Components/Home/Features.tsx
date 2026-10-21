@@ -73,7 +73,7 @@ export default function Features() {
 
       <div className="relative container-page">
         <SectionHeading
-          eyebrow="কেন FoodBox"
+          eyebrow="কেন FCS Meal"
           title="প্রতিদিনের খাবার নিয়ে দুশ্চিন্তা শেষ"
           subtitle="আমরা শুধু খাবার পৌঁছে দিই না — পুরো রুটিনটাই সহজ করে দিই।"
         />

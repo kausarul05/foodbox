@@ -30,9 +30,9 @@ export default function SettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [sheet, setSheet] = useState<{ configured: boolean; url: string | null } | null>(null);
   const [settings, setSettings] = useState<SettingsType>({
-    siteName: 'FoodBox',
-    adminEmail: 'admin@foodbox.com',
-    phoneNumber: '+8801913945595',
+    siteName: 'FCS Meal',
+    adminEmail: 'ain19951995@gmail.com',
+    phoneNumber: '+8801410906862',
     deliveryCharge: 50,
     minOrderAmount: 300,
     maxOrderAmount: 10000,

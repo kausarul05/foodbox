@@ -29,7 +29,7 @@ export default function CtaBand() {
                 <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
               </Link>
               <a
-                href="tel:+8801792695939"
+                href="tel:+8801410906862"
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-base font-semibold text-white transition hover:bg-white/10"
               >
                 <Phone size={17} />

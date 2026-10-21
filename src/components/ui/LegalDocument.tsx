@@ -23,8 +23,8 @@ export interface LegalSection {
 
 /** Same details the footer shows. */
 const CONTACT = {
-  phone: '+8801868703130',
-  email: 'foodbox947@gmail.com',
+  phone: '+8801410906862',
+  email: 'ain19951995@gmail.com',
   address: 'Mile Quarter, Academic Road, Mymensingh Sadar',
 };
 

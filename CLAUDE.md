@@ -4,6 +4,20 @@ Bengali meal-subscription and delivery service. **Customer site, admin panel, an
 backend API all live in this one Next.js app.** There is no separate backend or
 admin repo — if you are looking for one, it was merged in here.
 
+**The brand shown to customers is "FCS Meal"** — that is what the logo, the
+navbar, the footer, every page title and every outgoing email say, and it is the
+only spelling that belongs in user-facing copy. The *internal* name is still
+`foodbox`: the repo, the package, the `foodbox-sync` service account. Those are
+identifiers, not copy, and renaming them would break deploys for nothing. The
+Atlas database was always called `fcs_meal_manager`.
+
+Support contact, in `Footer.tsx`, `NoticeBar.tsx`, `LegalDocument.tsx`,
+`CtaBand.tsx`, `Faq.tsx` and the login / subscription / forgot-password pages:
+**01410906862** and **ain19951995@gmail.com**. The numbers in
+`src/lib/payment.ts` are *not* this — those are the bKash / Nagad / Rocket
+accounts customers send money to, and they change only when the business
+changes accounts.
+
 ## Layout
 
 ```

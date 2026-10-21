@@ -30,7 +30,7 @@ function transporter(): Transporter {
 export async function sendMail(to: string, subject: string, html: string, text: string) {
   if (!mailConfigured()) throw new Error('Email is not configured');
   await transporter().sendMail({
-    from: `"FoodBox" <${process.env.EMAIL_USER}>`,
+    from: `"FCS Meal" <${process.env.EMAIL_USER}>`,
     to,
     subject,
     html,

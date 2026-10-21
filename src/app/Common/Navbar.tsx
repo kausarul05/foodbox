@@ -45,7 +45,7 @@ export default function Navbar() {
             priority
           />
           <span className="flex flex-col leading-none">
-            <span className="text-lg font-bold tracking-tight text-ink-900 md:text-xl">FoodBox</span>
+            <span className="text-lg font-bold tracking-tight text-ink-900 md:text-xl">FCS Meal</span>
             <span className="mt-0.5 text-[11px] font-medium text-ink-500">ঘরের মতো রান্না</span>
           </span>
         </Link>

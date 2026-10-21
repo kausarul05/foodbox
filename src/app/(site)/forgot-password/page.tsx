@@ -10,8 +10,8 @@ import { Field, Input, PasswordInput } from '@/components/ui/Field';
 import { bn } from '@/lib/format';
 
 /** Support line customers already see on the login page. */
-const SUPPORT_WHATSAPP = '8801792695939';
-const SUPPORT_DISPLAY = '০১৭৯২৬৯৫৯৩৯';
+const SUPPORT_WHATSAPP = '8801410906862';
+const SUPPORT_DISPLAY = '০১৪১০৯০৬৮৬২';
 const MIN_PASSWORD = 6;
 
 type Step = 'phone' | 'code' | 'admin' | 'done';
@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
 
   // The number is in the message so the admin can reset straight from it.
   const whatsappHref = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(
-    `আসসালামু আলাইকুম, আমি FoodBox অ্যাকাউন্টের পাসওয়ার্ড ভুলে গেছি। দয়া করে রিসেট করে দিন।
+    `আসসালামু আলাইকুম, আমি FCS Meal অ্যাকাউন্টের পাসওয়ার্ড ভুলে গেছি। দয়া করে রিসেট করে দিন।
 অ্যাকাউন্টের ফোন নাম্বার: ${phone.trim()}`
   )}`;
 
