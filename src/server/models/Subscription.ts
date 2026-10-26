@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export interface ISubscription {
   _id: Types.ObjectId;
@@ -65,6 +66,5 @@ subscriptionSchema.pre('save', async function () {
   this.subscriptionId = `SUB${year}${month}${(count + 1).toString().padStart(4, '0')}`;
 });
 
-export const Subscription = (models.Subscription ||
-  model<ISubscription>('Subscription', subscriptionSchema)) as mongoose.Model<ISubscription>;
+export const Subscription = defineModel<ISubscription>('Subscription', subscriptionSchema);
 export default Subscription;

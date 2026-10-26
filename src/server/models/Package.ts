@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export interface IPackage {
   _id: Types.ObjectId;
@@ -28,5 +29,5 @@ const packageSchema = new Schema<IPackage>(
   { timestamps: true }
 );
 
-export const Package = (models.Package || model<IPackage>('Package', packageSchema)) as mongoose.Model<IPackage>;
+export const Package = defineModel<IPackage>('Package', packageSchema);
 export default Package;

@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export type ExpenseCategory =
   | 'daily_bazar'
@@ -35,5 +36,5 @@ const expenseSchema = new Schema<IExpense>(
   { timestamps: true }
 );
 
-export const Expense = (models.Expense || model<IExpense>('Expense', expenseSchema)) as mongoose.Model<IExpense>;
+export const Expense = defineModel<IExpense>('Expense', expenseSchema);
 export default Expense;

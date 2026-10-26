@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export interface ITransaction {
   _id: Types.ObjectId;
@@ -30,6 +31,5 @@ const transactionSchema = new Schema<ITransaction>(
   { timestamps: true }
 );
 
-export const Transaction = (models.Transaction ||
-  model<ITransaction>('Transaction', transactionSchema)) as mongoose.Model<ITransaction>;
+export const Transaction = defineModel<ITransaction>('Transaction', transactionSchema);
 export default Transaction;

@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export interface IBlockedDate {
   _id: Types.ObjectId;
@@ -20,6 +21,5 @@ const blockedDateSchema = new Schema<IBlockedDate>(
   { timestamps: true }
 );
 
-export const BlockedDate = (models.BlockedDate ||
-  model<IBlockedDate>('BlockedDate', blockedDateSchema)) as mongoose.Model<IBlockedDate>;
+export const BlockedDate = defineModel<IBlockedDate>('BlockedDate', blockedDateSchema);
 export default BlockedDate;

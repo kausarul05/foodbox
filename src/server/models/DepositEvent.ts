@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 /**
  * One line of a customer's food-box deposit history. Written by
@@ -39,6 +40,5 @@ const depositEventSchema = new Schema<IDepositEvent>(
   { timestamps: true }
 );
 
-export const DepositEvent = (models.DepositEvent ||
-  model<IDepositEvent>('DepositEvent', depositEventSchema)) as mongoose.Model<IDepositEvent>;
+export const DepositEvent = defineModel<IDepositEvent>('DepositEvent', depositEventSchema);
 export default DepositEvent;

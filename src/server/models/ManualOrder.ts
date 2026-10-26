@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 import type { DeliveryTime, IOrderItem, OrderStatus } from './Order';
 
 export interface IManualOrder {
@@ -56,6 +57,5 @@ manualOrderSchema.pre('save', async function () {
   this.orderId = `MAN${year}${month}${(count + 1).toString().padStart(4, '0')}`;
 });
 
-export const ManualOrder = (models.ManualOrder ||
-  model<IManualOrder>('ManualOrder', manualOrderSchema)) as mongoose.Model<IManualOrder>;
+export const ManualOrder = defineModel<IManualOrder>('ManualOrder', manualOrderSchema);
 export default ManualOrder;

@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 import bcrypt from 'bcryptjs';
 
 export type AdminRole = 'super_admin' | 'manager' | 'support';
@@ -61,5 +62,5 @@ adminSchema.methods.matchPassword = function (entered: string) {
   return bcrypt.compare(entered, this.password);
 };
 
-export const Admin = (models.Admin || model<IAdmin>('Admin', adminSchema)) as mongoose.Model<IAdmin>;
+export const Admin = defineModel<IAdmin>('Admin', adminSchema);
 export default Admin;

@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export interface IZone {
   _id: Types.ObjectId;
@@ -26,5 +27,5 @@ const zoneSchema = new Schema<IZone>(
   { timestamps: true }
 );
 
-export const Zone = (models.Zone || model<IZone>('Zone', zoneSchema)) as mongoose.Model<IZone>;
+export const Zone = defineModel<IZone>('Zone', zoneSchema);
 export default Zone;

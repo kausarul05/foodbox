@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export type OrderStatus =
   | 'pending'
@@ -122,5 +123,5 @@ orderSchema.methods.isWithinDeadline = function (this: IOrder): boolean {
   }
 };
 
-export const Order = (models.Order || model<IOrder>('Order', orderSchema)) as mongoose.Model<IOrder>;
+export const Order = defineModel<IOrder>('Order', orderSchema);
 export default Order;

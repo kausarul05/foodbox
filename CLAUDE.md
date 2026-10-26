@@ -42,7 +42,7 @@ src/
 │   ├── backupData.ts    Every collection as flat tables — the source for both backups.
 │   ├── excelBackup.ts   Renders those tables as one .xlsx.
 │   ├── sheets.ts        Pushes those tables into the live Google Sheet.
-│   └── models/          13 Mongoose models.
+│   └── models/          13 Mongoose models, each registered through define.ts.
 ├── lib/
 │   ├── api.ts           Customer API client. Switches mock ⇄ real on NEXT_PUBLIC_USE_MOCK.
 │   ├── api.mock.ts      Mock implementation, backed by src/mock/data.ts.
@@ -149,6 +149,24 @@ export const PUT = handler(async (req: Request, ctx: RouteContext<{ id: string }
 
 Response envelope is always `{ success: boolean, data?, message?, ... }`. Do not
 invent a different shape — both clients depend on this one.
+
+## Changing a schema
+
+**Every model is registered through `defineModel()`** (`src/server/models/define.ts`),
+not `models.X || model('X', schema)`. The old guard meant the first schema the
+process ever saw was the one it kept: mongoose caches models on its own
+singleton in `node_modules`, which survives Next's hot reload, so a schema edit
+did nothing until the dev server was restarted. Schemas are strict, so the
+write to the new field was not an error either — the field was simply dropped.
+
+That is not theoretical. On 26 Oct 2026 `paidAmount` / `walletCredit` were added
+to Subscription and a ৳1,930 joining payment stored as a ৳90 fee with no trace of
+the ৳1,840 the customer had sent; approving it would have credited nothing.
+`defineModel` drops and rebuilds the cached model in development and is the plain
+cache guard in production. `POST /api/subscriptions` additionally checks
+`Subscription.schema.path('paidAmount')` before storing a joining payment and
+answers 503 if it is missing, because a payment half-recorded is worse than one
+refused.
 
 ## Auth
 

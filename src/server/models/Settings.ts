@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import mongoose, { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export interface ISettings {
   _id: Types.ObjectId;
@@ -67,6 +68,5 @@ settingsSchema.statics.getSettings = async function (this: SettingsModel) {
   return (await this.findOne()) ?? (await this.create({}));
 };
 
-export const Settings = (models.Settings ||
-  model<ISettings, SettingsModel>('Settings', settingsSchema)) as SettingsModel;
+export const Settings = defineModel<ISettings, SettingsModel>('Settings', settingsSchema);
 export default Settings;

@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 
 export const MENU_DAYS = [
   'শনিবার',
@@ -43,6 +44,5 @@ const weeklyMenuSchema = new Schema<IWeeklyMenu>(
 // One menu row per day per package.
 weeklyMenuSchema.index({ day: 1, package: 1 }, { unique: true });
 
-export const WeeklyMenu = (models.WeeklyMenu ||
-  model<IWeeklyMenu>('WeeklyMenu', weeklyMenuSchema)) as mongoose.Model<IWeeklyMenu>;
+export const WeeklyMenu = defineModel<IWeeklyMenu>('WeeklyMenu', weeklyMenuSchema);
 export default WeeklyMenu;

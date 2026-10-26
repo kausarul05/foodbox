@@ -1,4 +1,5 @@
-import mongoose, { Schema, Types, model, models } from 'mongoose';
+import { Schema, Types } from 'mongoose';
+import { defineModel } from './define';
 import bcrypt from 'bcryptjs';
 
 export type DepositStatus = 'none' | 'active' | 'deducted' | 'refunded';
@@ -91,5 +92,5 @@ userSchema.methods.matchPassword = function (entered: string) {
   return bcrypt.compare(entered, this.password);
 };
 
-export const User = (models.User || model<IUser>('User', userSchema)) as mongoose.Model<IUser>;
+export const User = defineModel<IUser>('User', userSchema);
 export default User;
