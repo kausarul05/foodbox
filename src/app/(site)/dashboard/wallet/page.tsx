@@ -12,7 +12,7 @@ import Modal from '@/components/ui/Modal';
 import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bengaliDate, bn, taka } from '@/lib/format';
 import { isHandCash } from '@/lib/payment';
-import { FIRST_RECHARGE_MIN, MIN_RECHARGE } from '@/lib/rules';
+import { MIN_RECHARGE } from '@/lib/rules';
 
 interface Transaction {
   _id: string;
@@ -24,8 +24,6 @@ interface Transaction {
 }
 
 const QUICK_AMOUNTS = [200, 500, 1000, 2000];
-/** Shown instead while the customer has no approved top-up yet. */
-const FIRST_QUICK_AMOUNTS = [1200, 1500, 2000, 3000];
 
 const EMPTY_PAYMENT: PaymentDetails = { paymentMethod: 'bkash', transactionId: '', senderNumber: '' };
 
@@ -80,19 +78,18 @@ export default function WalletPage() {
     setPayment(EMPTY_PAYMENT);
   };
 
-  /** No top-up approved yet, so this one must meet the first-top-up minimum (the server checks it too). */
-  const isFirstRecharge = !transactions.some((t) => t.status === 'approved');
-  const minRecharge = isFirstRecharge ? FIRST_RECHARGE_MIN : MIN_RECHARGE;
-  const quickAmounts = isFirstRecharge ? FIRST_QUICK_AMOUNTS : QUICK_AMOUNTS;
+  /**
+   * Every top-up is just MIN_RECHARGE now. The first week of food is funded by
+   * the joining payment (POST /api/subscriptions), so the old ৳1,200
+   * first-top-up minimum had nothing left to guarantee.
+   */
+  const minRecharge = MIN_RECHARGE;
+  const quickAmounts = QUICK_AMOUNTS;
 
   const handleRecharge = async () => {
     const amount = Number(rechargeAmount);
     if (!amount || amount < minRecharge) {
-      toast.error(
-        isFirstRecharge
-          ? `প্রথম রিচার্জ সর্বনিম্ন ${bn(FIRST_RECHARGE_MIN)} টাকা`
-          : `ন্যূনতম ${bn(MIN_RECHARGE)} টাকা রিচার্জ করতে হবে`
-      );
+      toast.error(`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা রিচার্জ করতে হবে`);
       return;
     }
     const problem = validatePayment(payment);
@@ -297,11 +294,7 @@ export default function WalletPage() {
             label="কত টাকা রিচার্জ করবেন?"
             htmlFor="amount"
             required
-            hint={
-              isFirstRecharge
-                ? `প্রথম রিচার্জ সর্বনিম্ন ${bn(FIRST_RECHARGE_MIN)} টাকা। এরপর যত খুশি রিচার্জ করা যাবে।`
-                : `ন্যূনতম ${bn(MIN_RECHARGE)} টাকা`
-            }
+            hint={`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা — এর পর যত খুশি।`}
           >
             <Input
               id="amount"
@@ -311,7 +304,7 @@ export default function WalletPage() {
               step={10}
               value={rechargeAmount}
               onChange={(e) => setRechargeAmount(e.target.value)}
-              placeholder={isFirstRecharge ? `যেমন ${bn(FIRST_RECHARGE_MIN)}` : 'যেমন ৫০০'}
+              placeholder="যেমন ৫০০"
             />
             <div className="mt-2.5 grid grid-cols-4 gap-2">
               {quickAmounts.map((amount) => (

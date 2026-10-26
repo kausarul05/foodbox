@@ -394,11 +394,40 @@ history. Wallet top-ups are manual: the user submits a bKash/Nagad
 transaction id, an admin approves it, and only then is the balance credited.
 Only a customer with an active subscription can top up (the recharge route
 refuses everyone else).
-A customer's first top-up (none approved yet) must be at least ৳1,200, after that ৳50 —
-`src/lib/rules.ts`, enforced in `POST /api/wallet/recharge`.
+Every top-up is at least `MIN_RECHARGE` (৳50) and otherwise any amount — the old
+flat ৳1,200 first-top-up minimum is gone, because **joining is now one payment**
+(see below).
 
 Subscription fees (৳70 / ৳90 / ৳120 for 30 days) are non-refundable; the customer
-confirms a popup before paying. Finance (`/api/admin/profit-stats`): revenue is
+confirms a popup before paying.
+
+**Joining is one payment.** A first-time subscriber sends the fee, a week of every
+meal on their package's menu, and the ৳100 box deposit together — basic works out
+at ৳1,910 on the current menu. `joiningMinimum()` / `weekMealTotal()` in
+`src/lib/rules.ts` compute it, `POST /api/subscriptions` enforces it, and
+`Packages.tsx` shows the breakdown. "First time" means no approved `Transaction`
+yet; a returning customer owes the fee alone and may send more.
+
+`Subscription.amount` stays the **fee alone** — it is what `profit-stats` counts
+as revenue, so putting the total there would book the customer's own food money as
+earnings. The rest lives in `paidAmount` and `walletCredit`. Approving the
+subscription credits `walletCredit` to the wallet as an approved `Transaction`
+(id `JOIN-<reference>`, so it reads as a top-up and counts as `customerRecharge`),
+**then** holds the deposit — that order matters, or the hold lands on an empty
+wallet and the customer starts at "deposit due". `walletCreditedAt` is claimed
+with a conditional update, so approving twice cannot credit twice.
+
+**One payment, one screen.** A joining payment is approved only on
+`/admin/dashboard/pending-subscribers`, which shows the total the customer sent
+and splits it into fee / wallet credit / box deposit — that total is the figure
+to match against the bKash statement, not `amount`.
+`/admin/dashboard/pending-transactions` lists **wallet top-ups alone**. It
+briefly listed pending subscriptions as well, which made every new subscriber
+appear on both screens, at the fee rather than what they paid; do not merge them
+again. The joining credit never shows up there either — it is created
+`approved`, and that page queries `status: 'pending'`.
+
+Finance (`/api/admin/profit-stats`): revenue is
 every delivered order (food + delivery charge, `orderRevenue`) **plus** the paid
 subscription fees — the fee buys no food and is never refunded, so it is earned
 on approval. Profit is that revenue minus expenses.

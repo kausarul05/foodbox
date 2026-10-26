@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { AlertCircle, Check, Sparkles } from 'lucide-react';
-import { packageAPI, subscriptionAPI } from '@/lib/api';
+import { menuAPI, packageAPI, subscriptionAPI, transactionAPI } from '@/lib/api';
 import SectionHeading from '@/components/ui/SectionHeading';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import { Field, Input } from '@/components/ui/Field';
 import { useDialog } from '@/components/ui/DialogProvider';
 import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bn, taka } from '@/lib/format';
+import { BOX_DEPOSIT, JOINING_FLOAT_DAYS, joiningMinimum, weekMealTotal } from '@/lib/rules';
 import { useMySubscription } from '@/lib/useMySubscription';
 
 interface PackageType {
@@ -35,6 +37,15 @@ export default function Packages() {
   const [submitting, setSubmitting] = useState(false);
   const [selected, setSelected] = useState<PackageType | null>(null);
   const [payment, setPayment] = useState<PaymentDetails>(EMPTY_PAYMENT);
+  /** Which card is fetching its menu, so its button can show the wait. */
+  const [preparing, setPreparing] = useState<string | null>(null);
+  /**
+   * What joining the selected package costs. `weekMeals` is a week of every
+   * meal on its menu; `minimum` adds the fee and the box deposit. Null for a
+   * returning customer, who has funded a wallet before and owes the fee alone.
+   */
+  const [joining, setJoining] = useState<{ weekMeals: number; minimum: number } | null>(null);
+  const [amount, setAmount] = useState('');
 
   // A customer with a live or waiting subscription cannot request another — the
   // server refuses it — so the cards say so instead of offering a button that
@@ -60,26 +71,73 @@ export default function Packages() {
   }, []);
 
   const startSubscribe = async (pkg: PackageType) => {
-    if (locked) return;
+    if (locked || preparing) return;
     if (!localStorage.getItem('userToken')) {
       toast.error('সাবস্ক্রাইব করতে আগে লগইন করুন');
       router.push('/login');
       return;
     }
+
+    /**
+     * Work out what this customer owes before showing them anything, because
+     * the warning below has to name the real figure. A first-time joiner funds
+     * the fee, a week of meals and the box deposit in one payment; someone who
+     * has funded a wallet before owes only the fee. The server checks the same
+     * thing — this is so the form cannot ask for the wrong number.
+     */
+    setPreparing(pkg._id);
+    let plan: { weekMeals: number; minimum: number } | null = null;
+    try {
+      const [menuRes, txRes] = await Promise.all([
+        menuAPI.getMenuByPackage(pkg.name),
+        transactionAPI.getMyTransactions(),
+      ]);
+      const funded = (txRes.data ?? []).some((t: { status: string }) => t.status === 'approved');
+      if (!funded) {
+        const menu = menuRes.data ?? [];
+        if (!menu.length) {
+          toast.error('এই প্যাকেজের সাপ্তাহিক মেনু এখনো যোগ করা হয়নি');
+          return;
+        }
+        const weekMeals = weekMealTotal(menu);
+        plan = { weekMeals, minimum: joiningMinimum(pkg.price, weekMeals) };
+      }
+    } catch {
+      toast.error('তথ্য লোড করা যায়নি, আবার চেষ্টা করুন');
+      return;
+    } finally {
+      setPreparing(null);
+    }
+
     // Asked before the payment form, so nobody sends money without seeing it.
     const agreed = await confirm({
-      title: 'এই টাকা ফেরতযোগ্য নয়',
-      message: `${pkg.title} প্যাকেজের সাবস্ক্রিপশন ফি ${taka(pkg.price)}। অনুমোদনের পর এই টাকা কোনো অবস্থাতেই ফেরত দেওয়া হবে না — সাবস্ক্রিপশন বাতিল করলেও না।`,
+      title: 'শুধু সাবস্ক্রিপশন ফি ফেরতযোগ্য নয়',
+      message: plan
+        ? `প্রথমবার সাবস্ক্রাইব করতে ${taka(plan.minimum)} পাঠাতে হবে — ${pkg.title} প্যাকেজের ফি ${taka(pkg.price)}, ${bn(JOINING_FLOAT_DAYS)} দিনের খাবারের ${taka(plan.weekMeals)}, আর খাবারের বক্সের ${taka(BOX_DEPOSIT)} ডিপোজিট। এর মধ্যে শুধু ফি'র ${taka(pkg.price)} ফেরতযোগ্য নয় — বাকি ${taka(plan.minimum - pkg.price)} আপনার ওয়ালেটেই থাকবে, খাবার ডেলিভারি হলে তখন কাটা হবে।`
+        : `${pkg.title} প্যাকেজের সাবস্ক্রিপশন ফি ${taka(pkg.price)}। অনুমোদনের পর এই টাকা কোনো অবস্থাতেই ফেরত দেওয়া হবে না — সাবস্ক্রিপশন বাতিল করলেও না।`,
       confirmLabel: 'বুঝেছি, এগিয়ে যান',
       tone: 'warning',
     });
     if (!agreed) return;
     setPayment(EMPTY_PAYMENT);
+    setJoining(plan);
+    setAmount(String(plan ? plan.minimum : pkg.price));
     setSelected(pkg);
   };
 
   const confirmSubscribe = async () => {
     if (!selected) return;
+
+    const sent = Number(amount);
+    const least = joining ? joining.minimum : selected.price;
+    if (!Number.isFinite(sent) || sent < least) {
+      toast.error(
+        joining
+          ? `প্রথমবার সাবস্ক্রাইব করতে সর্বনিম্ন ${bn(least)} টাকা পাঠাতে হবে`
+          : `সাবস্ক্রিপশন ফি ${bn(least)} টাকা পাঠাতে হবে`
+      );
+      return;
+    }
 
     const problem = validatePayment(payment);
     if (problem) {
@@ -98,6 +156,7 @@ export default function Packages() {
         senderNumber: payment.senderNumber.trim(),
         address: '',
         zone: '',
+        amount: sent,
       });
       if (res.success) {
         toast.success('রিকোয়েস্ট পাঠানো হয়েছে! অ্যাডমিন অনুমোদনের অপেক্ষায়।');
@@ -190,7 +249,7 @@ export default function Packages() {
 
                   <button
                     onClick={() => void startSubscribe(pkg)}
-                    disabled={locked}
+                    disabled={locked || preparing !== null}
                     className={`mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold transition disabled:cursor-not-allowed ${
                       own
                         ? 'bg-leaf-100 text-leaf-700'
@@ -208,6 +267,8 @@ export default function Packages() {
                       </>
                     ) : locked ? (
                       'আপনার সাবস্ক্রিপশন চালু আছে'
+                    ) : preparing === pkg._id ? (
+                      'হিসাব করা হচ্ছে...'
                     ) : (
                       <>
                         <Sparkles size={16} />
@@ -238,17 +299,63 @@ export default function Packages() {
           <div className="rounded-2xl bg-brand-50 p-4">
             <p className="text-xs text-ink-600">আপনি সাবস্ক্রাইব করছেন</p>
             <p className="mt-0.5 font-semibold text-brand-800">{selected.title}</p>
-            <p className="mt-1 text-3xl font-bold text-ink-900">{taka(selected.price)}</p>
+            <p className="mt-1 text-3xl font-bold text-ink-900">{taka(Number(amount) || 0)}</p>
             <p className="mt-0.5 text-xs text-ink-500">{bn(selected.duration)} দিনের জন্য</p>
+
+            {/* What the one payment is made of, so no line is a surprise. */}
+            {joining && (
+              <dl className="mt-3 space-y-1 border-t border-brand-200/70 pt-3 text-xs text-ink-700">
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt>সাবস্ক্রিপশন ফি</dt>
+                  <dd className="font-semibold">{taka(selected.price)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt>{bn(JOINING_FLOAT_DAYS)} দিনের খাবার (ওয়ালেটে জমা থাকবে)</dt>
+                  <dd className="font-semibold">{taka(joining.weekMeals)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt>খাবারের বক্সের ডিপোজিট (ফেরতযোগ্য)</dt>
+                  <dd className="font-semibold">{taka(BOX_DEPOSIT)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 border-t border-brand-200/70 pt-1.5 text-ink-900">
+                  <dt className="font-semibold">সর্বনিম্ন</dt>
+                  <dd className="font-bold">{taka(joining.minimum)}</dd>
+                </div>
+              </dl>
+            )}
           </div>
 
           <div className="mt-5">
-            <PaymentFields amount={selected.price} value={payment} onChange={setPayment} />
+            <Field
+              label="কত টাকা পাঠাচ্ছেন?"
+              htmlFor="joiningAmount"
+              required
+              hint={
+                joining
+                  ? `সর্বনিম্ন ${bn(joining.minimum)} টাকা — বেশি পাঠালে বাকিটাও ওয়ালেটে জমা হবে।`
+                  : `সাবস্ক্রিপশন ফি ${bn(selected.price)} টাকা — বেশি পাঠালে বাকিটা ওয়ালেটে জমা হবে।`
+              }
+            >
+              <Input
+                id="joiningAmount"
+                type="number"
+                inputMode="numeric"
+                min={joining ? joining.minimum : selected.price}
+                step={10}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="mt-5">
+            <PaymentFields amount={Number(amount) || 0} value={payment} onChange={setPayment} />
           </div>
 
           <p className="mt-5 rounded-xl bg-amber-50 p-3.5 text-xs leading-relaxed text-amber-900">
             অ্যাডমিন ট্রানজেকশন আইডি মিলিয়ে দেখে অনুমোদন দিলে তবেই সাবস্ক্রিপশন চালু হবে। ভুল আইডি দিলে রিকোয়েস্ট
-            বাতিল হয়ে যাবে। <strong>সাবস্ক্রিপশন ফি ফেরতযোগ্য নয়।</strong>
+            বাতিল হয়ে যাবে। <strong>এর মধ্যে শুধু সাবস্ক্রিপশন ফি ফেরতযোগ্য নয়</strong>
+            {joining && <> — বাকি {taka(joining.minimum - selected.price)} আপনার ওয়ালেটেই থাকবে।</>}
           </p>
         </Modal>
       )}

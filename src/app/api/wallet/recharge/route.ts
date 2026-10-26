@@ -1,6 +1,6 @@
 import { bn } from '@/lib/format';
 import { cashReference, isHandCash } from '@/lib/payment';
-import { FIRST_RECHARGE_MIN, MIN_RECHARGE } from '@/lib/rules';
+import { MIN_RECHARGE } from '@/lib/rules';
 import { baseUrlFrom, notifyAdminLater, rechargeAlert } from '@/server/adminNotify';
 import { requireUser } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
@@ -22,15 +22,18 @@ export const POST = handler(async (req: Request) => {
     return fail('শুধু সাবস্ক্রাইবাররা ওয়ালেটে টাকা যোগ করতে পারেন। আগে একটি প্যাকেজ নিন।', 403);
   }
 
+  /**
+   * Any amount from MIN_RECHARGE up. The old ৳1,200 first-top-up minimum is
+   * gone: the first week of food is funded by the joining payment now
+   * (POST /api/subscriptions), so there is nothing left for a top-up to
+   * guarantee.
+   */
   const value = Number(amount);
   if (!Number.isFinite(value) || value < MIN_RECHARGE) {
     return fail(`ন্যূনতম ${bn(MIN_RECHARGE)} টাকা রিচার্জ করতে হবে`, 400);
   }
-  // Until one top-up has been approved, every request must meet the first-top-up minimum.
+  // Still wanted for the alert, which says whether this is their first top-up.
   const hasApproved = await Transaction.exists({ userId: authUser._id, status: 'approved' });
-  if (!hasApproved && value < FIRST_RECHARGE_MIN) {
-    return fail(`প্রথম রিচার্জ সর্বনিম্ন ${bn(FIRST_RECHARGE_MIN)} টাকা`, 400);
-  }
 
   // Hand cash has no provider id, so it gets a reference of our own. The
   // admin approves it once the money is actually in hand.

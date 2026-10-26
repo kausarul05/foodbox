@@ -114,7 +114,16 @@ export interface SubscriptionAlert {
   phoneNumber: string;
   email?: string;
   packageName: string;
+  /** The subscription fee alone. */
   amount: number;
+  /**
+   * What the customer says they sent — the fee plus the food float a joining
+   * customer pays up front. This is the figure to check against the bKash
+   * statement, so it is what the alert leads with.
+   */
+  paidAmount?: number;
+  /** The part of paidAmount that becomes wallet balance on approval. */
+  walletCredit?: number;
   paymentMethod: string;
   transactionId?: string;
   senderNumber?: string;
@@ -125,7 +134,9 @@ export interface SubscriptionAlert {
 }
 
 export function subscriptionAlert(sub: SubscriptionAlert) {
-  const subject = `নতুন সাবস্ক্রিপশন: ${sub.userName} — ${sub.packageName} (${taka(sub.amount)})`;
+  const sent = sub.paidAmount ?? sub.amount;
+  const credit = sub.walletCredit ?? 0;
+  const subject = `নতুন সাবস্ক্রিপশন: ${sub.userName} — ${sub.packageName} (${taka(sent)})`;
   const { html, text } = layout({
     heading: 'নতুন সাবস্ক্রিপশন রিকোয়েস্ট',
     lead: sub.returning
@@ -136,7 +147,10 @@ export function subscriptionAlert(sub: SubscriptionAlert) {
       ['ফোন', bn(sub.phoneNumber)],
       ['ইমেইল', sub.email],
       ['প্যাকেজ', sub.packageName],
-      ['টাকার পরিমাণ', taka(sub.amount)],
+      ['পাঠিয়েছেন', taka(sent)],
+      // Only shown when the payment carries a food float, i.e. a new joiner.
+      ['— সাবস্ক্রিপশন ফি', credit > 0 ? taka(sub.amount) : undefined],
+      ['— ওয়ালেটে জমা হবে', credit > 0 ? taka(credit) : undefined],
       ['পেমেন্ট মাধ্যম', paymentLabel(sub.paymentMethod)],
       ['ট্রানজেকশন আইডি', sub.transactionId],
       ['যে নাম্বার থেকে পাঠানো', sub.senderNumber ? bn(sub.senderNumber) : undefined],

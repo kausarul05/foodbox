@@ -1,6 +1,7 @@
 'use client';
 
 import { bengaliDateNumeric, taka } from '@/lib/format';
+import { BOX_DEPOSIT } from '@/lib/rules';
 import { useDialog } from '@/components/ui/DialogProvider';
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, UserPlus, Mail, Phone, MapPin, Loader2, RefreshCw, Package as PackageIcon } from 'lucide-react';
@@ -24,8 +25,78 @@ interface PendingSubscriber {
   paymentMethod: string;
   transactionId?: string;
   senderNumber?: string;
+  /** The subscription fee alone. */
   amount: number;
+  /** What the customer sent: fee plus the joining food float. */
+  paidAmount?: number;
+  /** The float part, credited to their wallet when this is approved. */
+  walletCredit?: number;
   status: string;
+}
+
+/**
+ * Where the customer's money goes — the whole joining payment in one box.
+ *
+ * Joining is a single payment, so the figure to match against the bKash
+ * statement is the total, not the subscription fee. The fee is the only part
+ * that is earnings; the rest is credited to the customer's wallet on approval,
+ * and ৳100 of that is held as the box deposit. Without this split on screen an
+ * admin seeing "৳1,910" has no way to tell what they are actually approving.
+ */
+function PaymentBreakdown({ sub }: { sub: PendingSubscriber }) {
+  // Older requests, made before joining became one payment, carry neither
+  // field — then the fee is all there was.
+  const sent = sub.paidAmount ?? sub.amount;
+  const credit = sub.walletCredit ?? Math.max(0, sent - sub.amount);
+  const deposit = credit > 0 ? Math.min(BOX_DEPOSIT, credit) : 0;
+  const forFood = credit - deposit;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50/60 p-4">
+      <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">টাকার হিসাব</p>
+
+      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm text-ink-600">মোট পাঠিয়েছেন</span>
+        <span className="text-2xl font-bold text-brand-700">{taka(sent)}</span>
+      </div>
+
+      <dl className="mt-3 space-y-2 border-t border-brand-200 pt-3 text-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-ink-600">
+            সাবস্ক্রিপশন ফি
+            <span className="block text-xs text-ink-400">আপনার আয় — ফেরতযোগ্য নয়</span>
+          </dt>
+          <dd className="font-semibold text-ink-900">{taka(sub.amount)}</dd>
+        </div>
+
+        {credit > 0 && (
+          <>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-ink-600">
+                ওয়ালেটে জমা হবে
+                <span className="block text-xs text-ink-400">গ্রাহকের টাকা — আয় নয়</span>
+              </dt>
+              <dd className="font-semibold text-ink-900">{taka(credit)}</dd>
+            </div>
+            <div className="ml-4 flex items-baseline justify-between gap-3 border-l-2 border-brand-200 pl-3">
+              <dt className="text-xs text-ink-500">বক্স জামানত — আটকে থাকবে</dt>
+              <dd className="text-xs font-medium text-ink-700">{taka(deposit)}</dd>
+            </div>
+            <div className="ml-4 flex items-baseline justify-between gap-3 border-l-2 border-brand-200 pl-3">
+              <dt className="text-xs text-ink-500">খাবারের জন্য খরচ করতে পারবেন</dt>
+              <dd className="text-xs font-medium text-leaf-700">{taka(forFood)}</dd>
+            </div>
+          </>
+        )}
+      </dl>
+
+      <p className="mt-3 border-t border-brand-200 pt-3 text-xs text-ink-500">
+        {credit > 0
+          ? `অনুমোদন দিলে ${taka(credit)} গ্রাহকের ওয়ালেটে যোগ হবে, তার মধ্যে ${taka(deposit)} বক্স জামানত হিসেবে আটকে থাকবে। আলাদা করে রিচার্জ অনুমোদন করার দরকার নেই।`
+          : 'এটি শুধু সাবস্ক্রিপশন ফি — ওয়ালেটে কোনো টাকা যোগ হবে না। গ্রাহক পরে আলাদা করে রিচার্জ করবেন।'}
+      </p>
+    </div>
+  );
 }
 
 export default function PendingSubscribersPage() {
@@ -218,12 +289,13 @@ export default function PendingSubscribersPage() {
                     <div>
                       <p className="text-xs text-ink-500">প্যাকেজ</p>
                       {/* Packages are database rows, not a fixed golden/diamond pair. */}
-                      <p className="font-semibold text-brand-700">
-                        {sub.packageName || sub.package} — {taka(sub.amount)}
-                      </p>
+                      <p className="font-semibold text-brand-700">{sub.packageName || sub.package}</p>
                     </div>
                   </div>
                 </div>
+
+                {/* The money, before the payment proof — it is the decision. */}
+                <PaymentBreakdown sub={sub} />
 
                 {/*
                   Payment proof. Without the transaction id on screen there is

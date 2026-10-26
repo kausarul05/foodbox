@@ -25,6 +25,7 @@ import { DateInput, Field, Input, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
 import ZoneSelect from '@/components/ui/ZoneSelect';
 import { bengaliDate, bn, isClosedFriday, taka } from '@/lib/format';
+import { COD_MEAL_SURCHARGE, mealPrice } from '@/lib/rules';
 import { displayName, useHydrated, useSession } from '@/lib/useSession';
 
 /* -------------------------------------------------------------------------- */
@@ -328,14 +329,23 @@ export default function Order() {
   /* Derived data                                                           */
   /* ---------------------------------------------------------------------- */
 
+  /**
+   * What one meal costs, given how it is paid for. The menu price is the wallet
+   * price; cash on delivery adds COD_MEAL_SURCHARGE (src/lib/rules.ts). Every
+   * price on this page — each picker, the summary, and the `totalAmount` sent
+   * to the API — comes through here, so they cannot disagree.
+   */
   const priceOf = useCallback(
-    (dayName: string, meal: MealKey) => {
+    (dayName: string, meal: MealKey, pay: MealLine['pay']) => {
       const row = menu.find((m) => m.day === dayName);
       const priceKey = `${meal}Price` as const;
-      return row?.[priceKey] ?? FALLBACK_PRICE[meal];
+      return mealPrice(row?.[priceKey] ?? FALLBACK_PRICE[meal], pay);
     },
     [menu]
   );
+
+  /** How the customer's own meals are paid for. Guest meals are always cash. */
+  const selfPay: MealLine['pay'] = hasActiveSubscription ? 'wallet' : 'cash';
 
   const nameOf = useCallback(
     (dayName: string, meal: MealKey) => menu.find((m) => m.day === dayName)?.[meal] ?? '',
@@ -407,22 +417,22 @@ export default function Order() {
         // A meal that is not on the menu for that day cannot be ordered.
         if (!nameOf(dayName, meal.key)) continue;
         if (self[meal.key]) {
-          selfMealPrice += priceOf(dayName, meal.key);
+          selfMealPrice += priceOf(dayName, meal.key, selfPay);
           lines.push({
             meal: meal.key,
             name: nameOf(dayName, meal.key),
-            price: priceOf(dayName, meal.key),
+            price: priceOf(dayName, meal.key, selfPay),
             guest: false,
-            pay: hasActiveSubscription ? 'wallet' : 'cash',
+            pay: selfPay,
           });
           hasSelf = true;
         }
         if (enableGuestMeal && guest[meal.key]) {
-          guestMealPrice += priceOf(dayName, meal.key);
+          guestMealPrice += priceOf(dayName, meal.key, 'cash');
           lines.push({
             meal: meal.key,
             name: nameOf(dayName, meal.key),
-            price: priceOf(dayName, meal.key),
+            price: priceOf(dayName, meal.key, 'cash'),
             guest: true,
             pay: 'cash',
           });
@@ -461,7 +471,17 @@ export default function Order() {
       guestTotal: guestMealPrice + guestDelivery,
       total: selfMealPrice + selfDelivery + guestMealPrice + guestDelivery,
     };
-  }, [days, selfMealsFor, guestMealsFor, nameOf, priceOf, enableGuestMeal, hasActiveSubscription, deliveryPerMeal]);
+  }, [
+    days,
+    selfMealsFor,
+    guestMealsFor,
+    nameOf,
+    priceOf,
+    selfPay,
+    enableGuestMeal,
+    hasActiveSubscription,
+    deliveryPerMeal,
+  ]);
 
   /* ---------------------------------------------------------------------- */
   /* Handlers                                                               */
@@ -558,22 +578,27 @@ export default function Order() {
         for (const meal of MEALS) {
           const itemName = nameOf(dayName, meal.key);
           if (!itemName) continue;
-          const price = priceOf(dayName, meal.key);
 
           const base = {
             deliveryDate: date,
             deliveryTime: meal.key,
             address,
             zone: selectedZone,
-            items: [{ name: itemName, price, quantity: 1 }],
-            totalAmount: price,
+          };
+
+          // A guest meal is cash even for a subscriber, so the two orders can
+          // carry different prices for the same meal — each gets its own.
+          const lineFor = (pay: MealLine['pay']) => {
+            const price = priceOf(dayName, meal.key, pay);
+            return { items: [{ name: itemName, price, quantity: 1 }], totalAmount: price };
           };
 
           if (self[meal.key]) {
             const res = await orderAPI.createOrder({
               ...base,
+              ...lineFor(selfPay),
               deliveryCharge: hasActiveSubscription ? 0 : deliveryPerMeal,
-              paymentMethod: hasActiveSubscription ? 'wallet' : 'cash',
+              paymentMethod: selfPay,
               specialInstructions: '',
               package: subscriptionData?.packageName || 'Regular',
               orderType: 'self',
@@ -587,6 +612,7 @@ export default function Order() {
           if (enableGuestMeal && guest[meal.key]) {
             const res = await orderAPI.createOrder({
               ...base,
+              ...lineFor('cash'),
               deliveryCharge: deliveryPerMeal,
               paymentMethod: 'cash',
               specialInstructions: 'Guest Meal Order',
@@ -877,6 +903,7 @@ export default function Order() {
                               selection={self}
                               nameOf={nameOf}
                               priceOf={priceOf}
+                              pay={selfPay}
                               taken={(meal) => isOrdered(date, meal)}
                               onToggle={(meal) => toggleSelfMeal(date, meal)}
                               accent="brand"
@@ -890,6 +917,7 @@ export default function Order() {
                                 selection={guest}
                                 nameOf={nameOf}
                                 priceOf={priceOf}
+                                pay="cash"
                                 onToggle={(meal) => toggleGuestMeal(date, meal)}
                                 accent="leaf"
                               />
@@ -1122,9 +1150,15 @@ function PaymentExplainer({
       <p className="text-sm font-bold">এখন কোনো টাকা দিতে হবে না</p>
       <ul className="mt-1.5 list-disc space-y-1 pl-4">
         {cashTotal > 0 && (
-          <li>
-            প্রতিদিন খাবার হাতে পেলে <strong>শুধু সেই দিনের</strong> খাবার ও ডেলিভারি চার্জ ডেলিভারি ম্যানকে ক্যাশে দেবেন।
-          </li>
+          <>
+            <li>
+              প্রতিদিন খাবার হাতে পেলে <strong>শুধু সেই দিনের</strong> খাবার ও ডেলিভারি চার্জ ডেলিভারি ম্যানকে ক্যাশে দেবেন।
+            </li>
+            <li>
+              ক্যাশ অন ডেলিভারিতে প্রতি বেলায় মেনুর দামের চেয়ে {taka(COD_MEAL_SURCHARGE)} বেশি — উপরের দামে এটি যোগ করা
+              আছে।
+            </li>
+          </>
         )}
         {subscribed && walletTotal > 0 && (
           <li>
@@ -1197,6 +1231,7 @@ function MealPicker({
   selection,
   nameOf,
   priceOf,
+  pay,
   onToggle,
   accent,
   taken,
@@ -1206,7 +1241,9 @@ function MealPicker({
   dayName: string;
   selection: MealSelection;
   nameOf: (day: string, meal: MealKey) => string;
-  priceOf: (day: string, meal: MealKey) => number;
+  priceOf: (day: string, meal: MealKey, pay: MealLine['pay']) => number;
+  /** How these meals are paid for — cash on delivery costs more per meal. */
+  pay: MealLine['pay'];
   onToggle: (meal: MealKey) => void;
   accent: 'brand' | 'leaf';
   /** Meals already ordered for this day — shown, but cannot be picked again. */
@@ -1251,7 +1288,9 @@ function MealPicker({
                 </span>
               </span>
               {available && (
-                <span className="shrink-0 text-sm font-semibold text-ink-900">{taka(priceOf(dayName, meal.key))}</span>
+                <span className="shrink-0 text-sm font-semibold text-ink-900">
+                  {taka(priceOf(dayName, meal.key, pay))}
+                </span>
               )}
             </label>
           );

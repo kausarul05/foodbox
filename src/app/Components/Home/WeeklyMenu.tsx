@@ -7,6 +7,10 @@ import { menuAPI, packageAPI, subscriptionAPI } from '@/lib/api';
 import { useSession } from '@/lib/useSession';
 import SectionHeading from '@/components/ui/SectionHeading';
 import { sortByMenuDay, taka, todayAndTomorrow } from '@/lib/format';
+import { COD_MEAL_SURCHARGE, mealPrice } from '@/lib/rules';
+
+/** How the viewer would pay: a subscriber from the wallet, everyone else cash. */
+type Pay = 'cash' | 'wallet';
 
 interface MenuDay {
   _id?: string;
@@ -33,17 +37,18 @@ const SLOTS = [
   { key: 'dinner', priceKey: 'dinnerPrice', label: 'রাত', icon: Moon, tint: 'text-indigo-600 bg-indigo-50' },
 ] as const;
 
-function mealOf(row: MenuDay | undefined, slot: (typeof SLOTS)[number]) {
+function mealOf(row: MenuDay | undefined, slot: (typeof SLOTS)[number], pay: Pay) {
   return {
     name: (row?.[slot.key] as string) || 'এখনো ঠিক হয়নি',
-    price: (row?.[slot.priceKey] as number) ?? 0,
+    // The menu price is the wallet price; cash on delivery costs more per meal.
+    price: mealPrice((row?.[slot.priceKey] as number) ?? 0, pay),
     available: Boolean(row?.[slot.key]),
   };
 }
 
 /** One meal row inside a spotlight card. */
-function MealRow({ row, slot }: { row: MenuDay | undefined; slot: (typeof SLOTS)[number] }) {
-  const meal = mealOf(row, slot);
+function MealRow({ row, slot, pay }: { row: MenuDay | undefined; slot: (typeof SLOTS)[number]; pay: Pay }) {
+  const meal = mealOf(row, slot, pay);
   return (
     <div className="flex items-start gap-3 py-3">
       <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${slot.tint}`}>
@@ -66,11 +71,13 @@ function SpotlightCard({
   title,
   day,
   row,
+  pay,
   highlight,
 }: {
   title: string;
   day: string;
   row: MenuDay | undefined;
+  pay: Pay;
   highlight?: boolean;
 }) {
   return (
@@ -90,7 +97,7 @@ function SpotlightCard({
       </header>
       <div className="divide-y divide-ink-100">
         {SLOTS.map((slot) => (
-          <MealRow key={slot.key} row={row} slot={slot} />
+          <MealRow key={slot.key} row={row} slot={slot} pay={pay} />
         ))}
       </div>
     </article>
@@ -163,6 +170,14 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
 
   /** The subscriber's package name, once known — null for everyone else. */
   const [ownPackage, setOwnPackage] = useState<{ name: string; title?: string } | null>(null);
+  /**
+   * Whether the viewer has an active subscription, which decides which price
+   * the menu quotes. Unlike `ownPackage` this is wanted everywhere, not only on
+   * the order page: a visitor on the home page pays cash, so they must be
+   * quoted the cash price there too.
+   */
+  const [subscribed, setSubscribed] = useState(false);
+  const pay: Pay = subscribed ? 'wallet' : 'cash';
 
   useEffect(() => {
     // The session is unknown until hydration; deciding early would show a
@@ -172,13 +187,17 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
     (async () => {
       try {
         let mine: { name: string; title?: string } | null = null;
-        if (compact && user) {
+        let isSubscribed = false;
+        if (user) {
           try {
             const subs = await subscriptionAPI.getMySubscriptions();
-            const active = (subs.data ?? []).find((x: { status: string }) => x.status === 'active');
-            if (active?.package) mine = { name: active.package, title: active.packageName };
+            const mySub = (subs.data ?? []).find((x: { status: string }) => x.status === 'active');
+            isSubscribed = Boolean(mySub);
+            // Only the order page narrows the list down to their own package.
+            if (compact && mySub?.package) mine = { name: mySub.package, title: mySub.packageName };
           } catch {
-            // Not fatal: without it they simply see every package, as before.
+            // Not fatal: they see every package and the cash price, as a
+            // visitor would.
           }
         }
 
@@ -193,6 +212,7 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
             : [{ _id: mine.name, name: mine.name, title: mine.title || mine.name, isActive: true }];
         }
         if (cancelled) return;
+        setSubscribed(isSubscribed);
         setOwnPackage(mine);
         setPackages(active);
         if (active.length) {
@@ -292,6 +312,14 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
               })}
             </div>
 
+            {/* The price quoted depends on who is reading it, so say which one. */}
+            {!subscribed && (
+              <p className="mx-auto mt-6 max-w-xl text-center text-xs leading-relaxed text-ink-500">
+                দামগুলো ক্যাশ অন ডেলিভারির — প্রতি বেলায় {taka(COD_MEAL_SURCHARGE)} যোগ করা আছে। সাবস্ক্রাইব করলে মেনুর
+                মূল দামে, ওয়ালেট থেকে কাটা হবে।
+              </p>
+            )}
+
             {error ? (
               <div className="mx-auto mt-10 max-w-md rounded-2xl border border-ink-200 bg-ink-50 p-10 text-center">
                 <AlertCircle className="mx-auto size-10 text-brand-500" />
@@ -312,12 +340,14 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                     title="আজকের খাবার"
                     day={today}
                     row={rows.find((r) => r.day === today)}
+                    pay={pay}
                     highlight
                   />
                   <SpotlightCard
                     title="আগামীকালের খাবার"
                     day={tomorrow}
                     row={rows.find((r) => r.day === tomorrow)}
+                    pay={pay}
                   />
                 </div>
 
@@ -348,7 +378,7 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                               )}
                             </th>
                             {SLOTS.map((slot) => {
-                              const meal = mealOf(row, slot);
+                              const meal = mealOf(row, slot, pay);
                               return (
                                 <td key={slot.key} className="px-5 py-4 align-top">
                                   <span className={meal.available ? 'text-ink-700' : 'text-ink-400 italic'}>
@@ -400,7 +430,7 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                   {mobileRow && (
                     <div className="mt-4 divide-y divide-ink-100 rounded-2xl border border-ink-200 bg-white px-5 shadow-card">
                       {SLOTS.map((slot) => (
-                        <MealRow key={slot.key} row={mobileRow} slot={slot} />
+                        <MealRow key={slot.key} row={mobileRow} slot={slot} pay={pay} />
                       ))}
                     </div>
                   )}

@@ -11,7 +11,18 @@ export interface ISubscription {
   email?: string;
   package: string;
   packageName: string;
+  /**
+   * The subscription fee alone — non-refundable, and the figure
+   * /api/admin/profit-stats counts as revenue. Never the total the customer
+   * sent: the food float below is their money, not earnings.
+   */
   amount: number;
+  /** Everything the customer sent to join: `amount` plus `walletCredit`. */
+  paidAmount?: number;
+  /** The food float and box deposit, credited to the wallet on approval. */
+  walletCredit?: number;
+  /** Set when walletCredit was credited, so approving twice cannot double it. */
+  walletCreditedAt?: Date;
   startDate: Date;
   endDate: Date;
   status: 'pending' | 'active' | 'expired' | 'cancelled';
@@ -40,6 +51,9 @@ const subscriptionSchema = new Schema<ISubscription>(
     package: { type: String, required: true },
     packageName: { type: String, required: true },
     amount: { type: Number, required: true },
+    paidAmount: { type: Number },
+    walletCredit: { type: Number, default: 0 },
+    walletCreditedAt: { type: Date },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
     status: { type: String, enum: ['pending', 'active', 'expired', 'cancelled'], default: 'pending' },

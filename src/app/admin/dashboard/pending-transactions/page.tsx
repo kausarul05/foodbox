@@ -1,27 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle, Clock, Loader2, Package, Phone, RefreshCw, Wallet, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { CheckCircle, Clock, Loader2, Phone, RefreshCw, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDialog } from '@/components/ui/DialogProvider';
-import { bengaliDateTime, bn, taka } from '@/lib/format';
+import { bengaliDateTime, taka } from '@/lib/format';
 import { isHandCash, paymentLabel } from '@/lib/payment';
-import { subscriptionAPI, transactionAPI } from '../../lib/api';
+import { transactionAPI } from '../../lib/api';
 
 /**
- * Every payment waiting for an admin to check it.
+ * Wallet top-ups waiting for an admin to check them — and nothing else.
  *
- * Two kinds of money arrive by bKash / Nagad / Rocket / hand cash: wallet
- * top-ups (Transaction) and subscription requests (Subscription). This page
- * used to list only the first, so a subscriber's payment never showed up here
- * and could only be found on the pending-subscribers screen. Both now sit in
- * one list; approving goes through each kind's own route, exactly as before.
+ * This page briefly listed subscription requests too, on the grounds that both
+ * are money arriving by bKash. It made every new subscriber appear twice, once
+ * here and once on পেন্ডিং সাবস্ক্রাইবার, and the figure it showed was the
+ * subscription fee while the customer had actually sent the fee plus a week of
+ * food money and the box deposit. One payment, one place: a joining payment is
+ * approved on the subscriber screen, where its whole breakdown is visible, and
+ * this screen is for top-ups from customers who are already subscribed.
  */
 
-type Kind = 'wallet' | 'subscription';
-
 interface Payment {
-  kind: Kind;
   _id: string;
   userName: string;
   phoneNumber?: string;
@@ -29,8 +28,6 @@ interface Payment {
   paymentMethod: string;
   transactionId?: string;
   senderNumber?: string;
-  /** Subscription only — what is being paid for. */
-  packageName?: string;
   createdAt: string;
 }
 
@@ -42,20 +39,11 @@ interface ApiRow {
   paymentMethod?: string;
   transactionId?: string;
   senderNumber?: string;
-  packageName?: string;
-  package?: string;
   createdAt?: string;
-  requestedDate?: string;
 }
 
-const KIND_META: Record<Kind, { label: string; icon: typeof Wallet; pill: string }> = {
-  wallet: { label: 'ওয়ালেট রিচার্জ', icon: Wallet, pill: 'bg-brand-100 text-brand-800' },
-  subscription: { label: 'সাবস্ক্রিপশন', icon: Package, pill: 'bg-leaf-100 text-leaf-700' },
-};
-
-function toPayment(row: ApiRow, kind: Kind): Payment {
+function toPayment(row: ApiRow): Payment {
   return {
-    kind,
     _id: row._id,
     userName: row.userName ?? '—',
     phoneNumber: row.phoneNumber,
@@ -63,8 +51,7 @@ function toPayment(row: ApiRow, kind: Kind): Payment {
     paymentMethod: row.paymentMethod ?? '',
     transactionId: row.transactionId,
     senderNumber: row.senderNumber,
-    packageName: kind === 'subscription' ? row.packageName || row.package : undefined,
-    createdAt: row.createdAt ?? row.requestedDate ?? '',
+    createdAt: row.createdAt ?? '',
   };
 }
 
@@ -72,60 +59,37 @@ export default function PendingTransactionsPage() {
   const { promptText } = useDialog();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | Kind>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
-    // Independent sources: one failing must not blank out the other.
-    const [wallet, subs] = await Promise.allSettled([
-      transactionAPI.getPendingTransactions(),
-      subscriptionAPI.getPendingSubscriptions(),
-    ]);
-
-    const out: Payment[] = [];
-    if (wallet.status === 'fulfilled' && wallet.value?.success) {
-      for (const row of wallet.value.data ?? []) out.push(toPayment(row, 'wallet'));
+    try {
+      const res = await transactionAPI.getPendingTransactions();
+      const rows: ApiRow[] = (res?.success && res.data) || [];
+      // Oldest first: whoever has waited longest is checked first.
+      const out = rows
+        .map(toPayment)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      setPayments(out);
+    } catch {
+      toast.error('পেন্ডিং রিচার্জ লোড করা যায়নি');
+      setPayments([]);
+    } finally {
+      setLoading(false);
     }
-    if (subs.status === 'fulfilled' && subs.value?.success) {
-      for (const row of subs.value.data ?? []) out.push(toPayment(row, 'subscription'));
-    }
-    if (wallet.status === 'rejected' || subs.status === 'rejected') {
-      toast.error('কিছু পেমেন্ট লোড করা যায়নি');
-    }
-
-    // Oldest first: whoever has waited longest is checked first.
-    out.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    setPayments(out);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     void fetchPayments();
   }, [fetchPayments]);
 
-  const counts = useMemo(
-    () => ({
-      all: payments.length,
-      wallet: payments.filter((p) => p.kind === 'wallet').length,
-      subscription: payments.filter((p) => p.kind === 'subscription').length,
-    }),
-    [payments]
-  );
-
-  const visible = filter === 'all' ? payments : payments.filter((p) => p.kind === filter);
-  const keyOf = (p: Payment) => `${p.kind}-${p._id}`;
-
   const handleApprove = async (p: Payment) => {
     try {
-      setProcessingId(keyOf(p));
-      const res =
-        p.kind === 'wallet'
-          ? await transactionAPI.approveTransaction(p._id)
-          : await subscriptionAPI.approveSubscription(p._id);
+      setProcessingId(p._id);
+      const res = await transactionAPI.approveTransaction(p._id);
       if (res.success) {
-        toast.success(p.kind === 'wallet' ? 'রিচার্জ অনুমোদন করা হয়েছে' : 'সাবস্ক্রিপশন অনুমোদন করা হয়েছে');
-        setPayments((prev) => prev.filter((x) => keyOf(x) !== keyOf(p)));
+        toast.success('রিচার্জ অনুমোদন করা হয়েছে');
+        setPayments((prev) => prev.filter((x) => x._id !== p._id));
       } else {
         toast.error(res.message || 'অনুমোদন ব্যর্থ হয়েছে');
       }
@@ -138,7 +102,7 @@ export default function PendingTransactionsPage() {
 
   const handleReject = async (p: Payment) => {
     const reason = await promptText({
-      title: p.kind === 'wallet' ? 'রিচার্জ বাতিল করবেন?' : 'সাবস্ক্রিপশন বাতিল করবেন?',
+      title: 'রিচার্জ বাতিল করবেন?',
       message: 'গ্রাহক এই কারণটি দেখতে পাবেন, তাই স্পষ্ট করে লিখুন।',
       label: 'বাতিলের কারণ',
       placeholder: 'যেমন: এই ট্রানজেকশন আইডি পাওয়া যায়নি',
@@ -150,14 +114,11 @@ export default function PendingTransactionsPage() {
     if (reason === null) return;
 
     try {
-      setProcessingId(keyOf(p));
-      const res =
-        p.kind === 'wallet'
-          ? await transactionAPI.rejectTransaction(p._id, reason)
-          : await subscriptionAPI.rejectSubscription(p._id, reason);
+      setProcessingId(p._id);
+      const res = await transactionAPI.rejectTransaction(p._id, reason);
       if (res.success) {
         toast.success('বাতিল করা হয়েছে');
-        setPayments((prev) => prev.filter((x) => keyOf(x) !== keyOf(p)));
+        setPayments((prev) => prev.filter((x) => x._id !== p._id));
       } else {
         toast.error(res.message || 'বাতিল ব্যর্থ হয়েছে');
       }
@@ -176,18 +137,15 @@ export default function PendingTransactionsPage() {
     );
   }
 
-  const FILTERS: { key: 'all' | Kind; label: string; count: number }[] = [
-    { key: 'all', label: 'সব', count: counts.all },
-    { key: 'wallet', label: 'ওয়ালেট রিচার্জ', count: counts.wallet },
-    { key: 'subscription', label: 'সাবস্ক্রিপশন', count: counts.subscription },
-  ];
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-ink-900">পেন্ডিং ট্রানজেকশন</h1>
-          <p className="text-ink-500">ওয়ালেট রিচার্জ ও সাবস্ক্রিপশনের পেমেন্ট — যাচাই করে অনুমোদন দিন</p>
+          <p className="text-ink-500">
+            ওয়ালেট রিচার্জের পেমেন্ট — যাচাই করে অনুমোদন দিন। নতুন সাবস্ক্রিপশনের পেমেন্ট আছে{' '}
+            <span className="font-medium text-ink-700">পেন্ডিং সাবস্ক্রাইবার</span> পাতায়।
+          </p>
         </div>
         <button
           onClick={() => void fetchPayments()}
@@ -198,50 +156,21 @@ export default function PendingTransactionsPage() {
         </button>
       </div>
 
-      <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl bg-ink-100 p-1 sm:w-fit">
-        {FILTERS.map((f) => {
-          const active = f.key === filter;
-          return (
-            <button
-              key={f.key}
-              type="button"
-              aria-pressed={active}
-              onClick={() => setFilter(f.key)}
-              className={`shrink-0 rounded-lg px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
-                active ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600 hover:text-ink-900'
-              }`}
-            >
-              {f.label}
-              <span className={`ml-1.5 text-xs ${active ? 'text-brand-700' : 'text-ink-400'}`}>{bn(f.count)}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {visible.length === 0 ? (
+      {payments.length === 0 ? (
         <div className="rounded-2xl border border-ink-200 bg-white p-12 text-center shadow-card">
           <Clock className="mx-auto mb-4 h-16 w-16 text-ink-400" />
-          <p className="text-ink-500">কোনো পেন্ডিং পেমেন্ট নেই</p>
+          <p className="text-ink-500">কোনো পেন্ডিং রিচার্জ নেই</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {visible.map((p) => {
-            const meta = KIND_META[p.kind];
-            const KindIcon = meta.icon;
-            const busy = processingId === keyOf(p);
+          {payments.map((p) => {
+            const busy = processingId === p._id;
             const cash = isHandCash(p.paymentMethod);
 
             return (
-              <div key={keyOf(p)} className="rounded-2xl border border-ink-200 bg-white p-5 shadow-card sm:p-6">
+              <div key={p._id} className="rounded-2xl border border-ink-200 bg-white p-5 shadow-card sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 space-y-1">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${meta.pill}`}
-                    >
-                      <KindIcon size={12} />
-                      {meta.label}
-                      {p.packageName && <span className="font-normal">· {p.packageName}</span>}
-                    </span>
                     <p className="font-semibold text-ink-900">{p.userName}</p>
                     {p.phoneNumber && (
                       <a
@@ -253,6 +182,7 @@ export default function PendingTransactionsPage() {
                       </a>
                     )}
                     <p className="text-2xl font-bold text-brand-600">{taka(p.amount)}</p>
+                    <p className="text-sm text-ink-500">অনুমোদন দিলে পুরো টাকাটা গ্রাহকের ওয়ালেটে যোগ হবে</p>
                     <p className="text-sm text-ink-500">
                       মাধ্যম: <span className="font-semibold text-ink-800">{paymentLabel(p.paymentMethod)}</span>
                     </p>
