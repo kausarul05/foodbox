@@ -6,7 +6,7 @@ import { AlertCircle, Coffee, Moon, RefreshCw, Sun, UtensilsCrossed } from 'luci
 import { menuAPI, packageAPI, subscriptionAPI } from '@/lib/api';
 import { useSession } from '@/lib/useSession';
 import SectionHeading from '@/components/ui/SectionHeading';
-import { sortByMenuDay, taka, todayAndTomorrow } from '@/lib/format';
+import { bn, sortByMenuDay, taka, todayAndTomorrow } from '@/lib/format';
 import { COD_MEAL_SURCHARGE, mealPrice } from '@/lib/rules';
 
 interface MenuDay {
@@ -81,8 +81,8 @@ function PriceHeadings() {
   return (
     <div className="hidden items-end justify-end gap-1.5 pt-3 @sm:flex">
       <p className={PRICE_COL}>
-        <span className="block text-[11px] font-semibold text-ink-500">ক্যাশে</span>
-        <span className="block text-[10px] leading-tight text-ink-400">+ ডেলিভারি</span>
+        <span className="block text-[11px] font-semibold text-ink-700">ক্যাশে</span>
+        <span className="block text-[10px] leading-tight text-ink-500">+ ডেলিভারি</span>
       </p>
       <p className={PRICE_COL}>
         <span className="block text-[11px] font-semibold text-leaf-700">প্যাকেজে</span>
@@ -120,10 +120,10 @@ function MealRow({
             price it is, since there are no column headings to look up to. */}
         {meal.available && compare && (
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 @sm:hidden">
-            <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-500">
+            <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-800">
               ক্যাশে {taka(meal.cash)} + ডেলিভারি
             </span>
-            <span className="rounded-full bg-leaf-50 px-2 py-0.5 text-[11px] font-bold text-leaf-700">
+            <span className="rounded-full bg-leaf-100 px-2 py-0.5 text-xs font-bold text-leaf-700">
               প্যাকেজে {taka(meal.wallet)} · ফ্রি ডেলিভারি
             </span>
           </p>
@@ -132,8 +132,12 @@ function MealRow({
       {meal.available &&
         (compare ? (
           <div className="hidden shrink-0 items-center gap-1.5 @sm:flex">
-            <span className={`${PRICE_COL} text-sm font-medium text-ink-400`}>{taka(meal.cash)}</span>
-            <span className={`${PRICE_COL} rounded-lg bg-leaf-50 py-1 text-sm font-bold text-leaf-700`}>
+            {/* Both prices are read, so both are legible. The package one is
+                set apart by its colour and fill, not by fading the other. */}
+            <span className={`${PRICE_COL} rounded-lg bg-ink-100 py-1 text-sm font-bold text-ink-800`}>
+              {taka(meal.cash)}
+            </span>
+            <span className={`${PRICE_COL} rounded-lg bg-leaf-100 py-1 text-sm font-bold text-leaf-700`}>
               {taka(meal.wallet)}
             </span>
           </div>
@@ -401,10 +405,10 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
               <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-leaf-200 bg-leaf-50/60 px-5 py-4 text-center">
                 <p className="text-sm leading-relaxed text-ink-700">
                   <strong className="font-semibold text-leaf-700">
-                    প্যাকেজ নিলে প্রতি বেলায় {taka(COD_MEAL_SURCHARGE)} কম, ডেলিভারিও ফ্রি
+                    প্যাকেজ নিলে প্রতিবেলায় {bn(COD_MEAL_SURCHARGE)} টাকা কম, ডেলিভারি চার্জ ও ফ্রি।
                   </strong>{' '}
-                  — মেনুর মূল দামেই খাবার। ক্যাশ অন ডেলিভারিতে প্রতি বেলায় {taka(COD_MEAL_SURCHARGE)} বেশি, সাথে আপনার
-                  জোনের ডেলিভারি চার্জ। প্যাকেজের টাকা ওয়ালেট থেকে কাটা হয় খাবার হাতে পাওয়ার পর।
+                  মেন্যুর মূল দামেই খাবার। ক্যাশ অন ডেলিভারিতে মেন্যুর মূল দামের সাথে আপনার জোনের ডেলিভারি চার্জ যুক্ত
+                  হবে। খাবার হাতে পেয়ে মূল্য পরিশোধ করবেন।
                 </p>
                 {/* Not on the order page: they are mid-form there, and a link
                     out of it costs the order that was about to be placed. */}
@@ -488,8 +492,10 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                                       // Labelled per cell: a table column heading
                                       // is too far away to carry the meaning here.
                                       <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                                        <span className="text-ink-400">ক্যাশে {taka(meal.cash)}</span>
-                                        <span className="rounded-full bg-leaf-50 px-2 py-0.5 font-semibold text-leaf-700">
+                                        <span className="rounded-full bg-ink-100 px-2 py-0.5 font-semibold text-ink-800">
+                                          ক্যাশে {taka(meal.cash)}
+                                        </span>
+                                        <span className="rounded-full bg-leaf-100 px-2 py-0.5 font-semibold text-leaf-700">
                                           প্যাকেজে {taka(meal.wallet)}
                                         </span>
                                       </span>
