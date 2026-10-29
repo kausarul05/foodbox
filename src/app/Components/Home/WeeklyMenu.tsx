@@ -9,9 +9,6 @@ import SectionHeading from '@/components/ui/SectionHeading';
 import { sortByMenuDay, taka, todayAndTomorrow } from '@/lib/format';
 import { COD_MEAL_SURCHARGE, mealPrice } from '@/lib/rules';
 
-/** How the viewer would pay: a subscriber from the wallet, everyone else cash. */
-type Pay = 'cash' | 'wallet';
-
 interface MenuDay {
   _id?: string;
   day: string;
@@ -37,18 +34,78 @@ const SLOTS = [
   { key: 'dinner', priceKey: 'dinnerPrice', label: 'রাত', icon: Moon, tint: 'text-indigo-600 bg-indigo-50' },
 ] as const;
 
-function mealOf(row: MenuDay | undefined, slot: (typeof SLOTS)[number], pay: Pay) {
+/**
+ * Both prices for one meal — the two the visitor is choosing between.
+ *
+ * The menu price is what a subscriber pays from their wallet. In cash at the
+ * door it is COD_MEAL_SURCHARGE more, and a cash order also pays the zone's
+ * delivery charge on every meal, which a subscription makes free (Order.tsx:
+ * `deliveryCharge: hasActiveSubscription ? 0 : deliveryPerMeal`). Quoting only
+ * one of them left the cheaper way to eat the same food invisible on the page
+ * where people actually look at the food.
+ */
+function mealOf(row: MenuDay | undefined, slot: (typeof SLOTS)[number]) {
+  const menu = (row?.[slot.priceKey] as number) ?? 0;
   return {
     name: (row?.[slot.key] as string) || 'এখনো ঠিক হয়নি',
-    // The menu price is the wallet price; cash on delivery costs more per meal.
-    price: mealPrice((row?.[slot.priceKey] as number) ?? 0, pay),
     available: Boolean(row?.[slot.key]),
+    cash: mealPrice(menu, 'cash'),
+    wallet: mealPrice(menu, 'wallet'),
   };
 }
 
-/** One meal row inside a spotlight card. */
-function MealRow({ row, slot, pay }: { row: MenuDay | undefined; slot: (typeof SLOTS)[number]; pay: Pay }) {
-  const meal = mealOf(row, slot, pay);
+/**
+ * One price column, shared by the headings and the rows so they line up.
+ *
+ * The pair needs about 160px, and a meal here reads "ভাত + মাছ + শাক /সবজি /
+ * ভাজি + ডাল". On a phone — and in either half of the two-up spotlight grid at
+ * tablet width — that would leave the food itself a column barely wide enough
+ * for one word. So the columns appear only once the **card** is wide enough:
+ * `@sm` is 24rem of card, not of window, because the same row renders in a
+ * half-width card and a full-width one on the same screen. Narrower than that,
+ * the two prices sit under the meal as self-labelled chips with the whole
+ * width to themselves. Those variants are written out in full wherever they
+ * are used — Tailwind scans the source as text, so a class assembled from a
+ * constant is never generated.
+ */
+const PRICE_COL = 'w-[76px] shrink-0 text-center';
+
+/**
+ * The two column headings, once per card.
+ *
+ * "+ ডেলিভারি" and "ফ্রি ডেলিভারি" belong here rather than beside all nine
+ * prices: repeated on every row they read as clutter, stated once they read as
+ * the difference between the columns.
+ */
+function PriceHeadings() {
+  return (
+    <div className="hidden items-end justify-end gap-1.5 pt-3 @sm:flex">
+      <p className={PRICE_COL}>
+        <span className="block text-[11px] font-semibold text-ink-500">ক্যাশে</span>
+        <span className="block text-[10px] leading-tight text-ink-400">+ ডেলিভারি</span>
+      </p>
+      <p className={PRICE_COL}>
+        <span className="block text-[11px] font-semibold text-leaf-700">প্যাকেজে</span>
+        <span className="block text-[10px] leading-tight text-leaf-600">ফ্রি ডেলিভারি</span>
+      </p>
+    </div>
+  );
+}
+
+/**
+ * One meal row. `compare` shows both columns; a subscriber already pays the
+ * package price, so they are quoted that one figure and nothing to weigh up.
+ */
+function MealRow({
+  row,
+  slot,
+  compare,
+}: {
+  row: MenuDay | undefined;
+  slot: (typeof SLOTS)[number];
+  compare: boolean;
+}) {
+  const meal = mealOf(row, slot);
   return (
     <div className="flex items-start gap-3 py-3">
       <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${slot.tint}`}>
@@ -59,10 +116,30 @@ function MealRow({ row, slot, pay }: { row: MenuDay | undefined; slot: (typeof S
         <p className={`mt-0.5 text-sm leading-snug ${meal.available ? 'text-ink-900' : 'text-ink-400 italic'}`}>
           {meal.name}
         </p>
+        {/* Narrow card: the pair sits under the meal, each chip saying which
+            price it is, since there are no column headings to look up to. */}
+        {meal.available && compare && (
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 @sm:hidden">
+            <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-500">
+              ক্যাশে {taka(meal.cash)} + ডেলিভারি
+            </span>
+            <span className="rounded-full bg-leaf-50 px-2 py-0.5 text-[11px] font-bold text-leaf-700">
+              প্যাকেজে {taka(meal.wallet)} · ফ্রি ডেলিভারি
+            </span>
+          </p>
+        )}
       </div>
-      {meal.available && (
-        <span className="shrink-0 text-sm font-semibold text-ink-900">{taka(meal.price)}</span>
-      )}
+      {meal.available &&
+        (compare ? (
+          <div className="hidden shrink-0 items-center gap-1.5 @sm:flex">
+            <span className={`${PRICE_COL} text-sm font-medium text-ink-400`}>{taka(meal.cash)}</span>
+            <span className={`${PRICE_COL} rounded-lg bg-leaf-50 py-1 text-sm font-bold text-leaf-700`}>
+              {taka(meal.wallet)}
+            </span>
+          </div>
+        ) : (
+          <span className="shrink-0 text-sm font-semibold text-ink-900">{taka(meal.wallet)}</span>
+        ))}
     </div>
   );
 }
@@ -71,18 +148,18 @@ function SpotlightCard({
   title,
   day,
   row,
-  pay,
+  compare,
   highlight,
 }: {
   title: string;
   day: string;
   row: MenuDay | undefined;
-  pay: Pay;
+  compare: boolean;
   highlight?: boolean;
 }) {
   return (
     <article
-      className={`rounded-2xl border bg-white p-5 shadow-card ${
+      className={`@container rounded-2xl border bg-white p-5 shadow-card ${
         highlight ? 'border-brand-300 ring-1 ring-brand-200' : 'border-ink-200'
       }`}
     >
@@ -95,9 +172,10 @@ function SpotlightCard({
           <span className="rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white">আজ</span>
         )}
       </header>
+      {compare && <PriceHeadings />}
       <div className="divide-y divide-ink-100">
         {SLOTS.map((slot) => (
-          <MealRow key={slot.key} row={row} slot={slot} pay={pay} />
+          <MealRow key={slot.key} row={row} slot={slot} compare={compare} />
         ))}
       </div>
     </article>
@@ -177,7 +255,8 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
    * quoted the cash price there too.
    */
   const [subscribed, setSubscribed] = useState(false);
-  const pay: Pay = subscribed ? 'wallet' : 'cash';
+  /** Only someone who could still choose is shown both prices. */
+  const compare = !subscribed;
 
   useEffect(() => {
     // The session is unknown until hydration; deciding early would show a
@@ -312,12 +391,32 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
               })}
             </div>
 
-            {/* The price quoted depends on who is reading it, so say which one. */}
-            {!subscribed && (
-              <p className="mx-auto mt-6 max-w-xl text-center text-xs leading-relaxed text-ink-500">
-                দামগুলো ক্যাশ অন ডেলিভারির — প্রতি বেলায় {taka(COD_MEAL_SURCHARGE)} যোগ করা আছে। সাবস্ক্রাইব করলে মেনুর
-                মূল দামে, ওয়ালেট থেকে কাটা হবে।
-              </p>
+            {/*
+              What the two columns mean, and what the cheaper one is worth.
+              The delivery charge is per zone, so it cannot be quoted as a
+              number here — but it is the larger half of the saving, and saying
+              it is free carries further than the ৳5 on its own.
+            */}
+            {compare && (
+              <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-leaf-200 bg-leaf-50/60 px-5 py-4 text-center">
+                <p className="text-sm leading-relaxed text-ink-700">
+                  <strong className="font-semibold text-leaf-700">
+                    প্যাকেজ নিলে প্রতি বেলায় {taka(COD_MEAL_SURCHARGE)} কম, ডেলিভারিও ফ্রি
+                  </strong>{' '}
+                  — মেনুর মূল দামেই খাবার। ক্যাশ অন ডেলিভারিতে প্রতি বেলায় {taka(COD_MEAL_SURCHARGE)} বেশি, সাথে আপনার
+                  জোনের ডেলিভারি চার্জ। প্যাকেজের টাকা ওয়ালেট থেকে কাটা হয় খাবার হাতে পাওয়ার পর।
+                </p>
+                {/* Not on the order page: they are mid-form there, and a link
+                    out of it costs the order that was about to be placed. */}
+                {!compact && (
+                  <Link
+                    href="/subscription"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-leaf-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-leaf-700"
+                  >
+                    প্যাকেজগুলো দেখুন
+                  </Link>
+                )}
+              </div>
             )}
 
             {error ? (
@@ -340,14 +439,14 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                     title="আজকের খাবার"
                     day={today}
                     row={rows.find((r) => r.day === today)}
-                    pay={pay}
+                    compare={compare}
                     highlight
                   />
                   <SpotlightCard
                     title="আগামীকালের খাবার"
                     day={tomorrow}
                     row={rows.find((r) => r.day === tomorrow)}
-                    pay={pay}
+                    compare={compare}
                   />
                 </div>
 
@@ -378,17 +477,27 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                               )}
                             </th>
                             {SLOTS.map((slot) => {
-                              const meal = mealOf(row, slot, pay);
+                              const meal = mealOf(row, slot);
                               return (
                                 <td key={slot.key} className="px-5 py-4 align-top">
                                   <span className={meal.available ? 'text-ink-700' : 'text-ink-400 italic'}>
                                     {meal.name}
                                   </span>
-                                  {meal.available && (
-                                    <span className="mt-1 block text-xs font-semibold text-brand-700">
-                                      {taka(meal.price)}
-                                    </span>
-                                  )}
+                                  {meal.available &&
+                                    (compare ? (
+                                      // Labelled per cell: a table column heading
+                                      // is too far away to carry the meaning here.
+                                      <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                                        <span className="text-ink-400">ক্যাশে {taka(meal.cash)}</span>
+                                        <span className="rounded-full bg-leaf-50 px-2 py-0.5 font-semibold text-leaf-700">
+                                          প্যাকেজে {taka(meal.wallet)}
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      <span className="mt-1 block text-xs font-semibold text-brand-700">
+                                        {taka(meal.wallet)}
+                                      </span>
+                                    ))}
                                 </td>
                               );
                             })}
@@ -428,10 +537,13 @@ export default function WeeklyMenu({ compact = false }: { compact?: boolean }) {
                   </div>
 
                   {mobileRow && (
-                    <div className="mt-4 divide-y divide-ink-100 rounded-2xl border border-ink-200 bg-white px-5 shadow-card">
-                      {SLOTS.map((slot) => (
-                        <MealRow key={slot.key} row={mobileRow} slot={slot} pay={pay} />
-                      ))}
+                    <div className="@container mt-4 rounded-2xl border border-ink-200 bg-white px-5 pb-1 shadow-card">
+                      {compare && <PriceHeadings />}
+                      <div className="divide-y divide-ink-100">
+                        {SLOTS.map((slot) => (
+                          <MealRow key={slot.key} row={mobileRow} slot={slot} compare={compare} />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
