@@ -502,3 +502,15 @@ npm run build
 npx tsc --noEmit # typecheck — run this before claiming a change works
 npm run lint
 ```
+
+**`dev` runs the webpack bundler on purpose.** Next 16 defaults to Turbopack,
+which on Windows panics while compiling `globals.css`: it spawns a node worker
+for the PostCSS transform and that worker dies with `0xc0000142`
+(STATUS_DLL_INIT_FAILED), leaving `FATAL: An unexpected Turbopack error
+occurred` and a 500 on every page. It is a Next bug, not a machine problem —
+RAM, desktop heap, the oxide binary, AppInit_DLLs, PATH and the nvm symlink
+were all ruled out, and no orphaned postcss workers were involved. `npm run
+dev:turbo` is Turbopack, kept for retrying after a Next upgrade (16.1.3 here;
+16.4.3 is out and fixed a related Windows postcss-worker bug). `build` still
+uses Turbopack: the bug is Windows-only and the host builds on Linux.
+
