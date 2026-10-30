@@ -82,7 +82,7 @@ function PriceHeadings() {
     <div className="hidden items-end justify-end gap-1.5 pt-3 @sm:flex">
       <p className={PRICE_COL}>
         <span className="block text-[11px] font-semibold text-ink-700">ক্যাশে</span>
-        <span className="block text-[10px] leading-tight text-ink-500">+ ডেলিভারি</span>
+        <span className="block text-[10px] leading-tight text-ink-500">+ ডেলিভারি চার্জ</span>
       </p>
       <p className={PRICE_COL}>
         <span className="block text-[11px] font-semibold text-leaf-700">প্যাকেজে</span>
@@ -121,7 +121,7 @@ function MealRow({
         {meal.available && compare && (
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 @sm:hidden">
             <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-800">
-              ক্যাশে {taka(meal.cash)} + ডেলিভারি
+              ক্যাশে {taka(meal.cash)} + ডেলিভারি চার্জ
             </span>
             <span className="rounded-full bg-leaf-100 px-2 py-0.5 text-xs font-bold text-leaf-700">
               প্যাকেজে {taka(meal.wallet)} · ফ্রি ডেলিভারি

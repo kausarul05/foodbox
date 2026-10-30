@@ -148,7 +148,7 @@ export default function LoginPage() {
           <p className="mt-4 text-center text-xs leading-relaxed text-ink-500">
             সমস্যা হচ্ছে? কল করুন{' '}
             <a href="tel:+8801410906862" className="font-medium text-ink-700 hover:underline">
-              ০১৪১০৯০৬৮৬২
+              01410906862
             </a>
           </p>
         </div>

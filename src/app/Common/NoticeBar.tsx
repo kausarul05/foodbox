@@ -19,7 +19,7 @@ function Message() {
       <Phone size={14} className="shrink-0" aria-hidden />
       অর্ডার বা পেমেন্ট সংক্রান্ত যেকোনো সমস্যায় সরাসরি কল করুন
       <a href={`tel:${SUPPORT_TEL}`} className="font-semibold underline underline-offset-2 hover:no-underline">
-        ০১৪১০৯০৬৮৬২
+        01410906862
       </a>
       <span aria-hidden className="text-white/50">•</span>
     </span>

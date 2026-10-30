@@ -105,7 +105,7 @@ export default function SubscriptionPage() {
             <p className="text-sm text-ink-600">
               পেমেন্ট নিয়ে প্রশ্ন আছে? কল করুন{' '}
               <a href="tel:+8801410906862" className="font-semibold text-ink-900 hover:underline">
-                ০১৪১০৯০৬৮৬২
+                01410906862
               </a>
             </p>
           </div>

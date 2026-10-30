@@ -11,7 +11,7 @@ import { bn } from '@/lib/format';
 
 /** Support line customers already see on the login page. */
 const SUPPORT_WHATSAPP = '8801410906862';
-const SUPPORT_DISPLAY = '০১৪১০৯০৬৮৬২';
+const SUPPORT_DISPLAY = '01410906862';
 const MIN_PASSWORD = 6;
 
 type Step = 'phone' | 'code' | 'admin' | 'done';
