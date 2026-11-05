@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import { menuAPI, orderAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
+import { menuAPI, orderAPI, packageAPI, subscriptionAPI, zoneAPI } from '@/lib/api';
 import Button, { buttonClass } from '@/components/ui/Button';
 import { DateInput, Field, Input, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
@@ -43,6 +43,14 @@ interface MenuItem {
 }
 
 type MealKey = 'morning' | 'lunch' | 'dinner';
+
+/** A package as the menu picker needs it. */
+interface PackageOption {
+  _id: string;
+  name: string;
+  title: string;
+  isActive?: boolean;
+}
 
 /** One meal on one day, as the order summary lists it. */
 interface MealLine {
@@ -73,9 +81,6 @@ const MEALS = [
   { key: 'lunch', label: 'দুপুর', full: 'দুপুরের খাবার', icon: Sun, tint: 'text-brand-600' },
   { key: 'dinner', label: 'রাত', full: 'রাতের খাবার', icon: Moon, tint: 'text-indigo-600' },
 ] as const satisfies readonly { key: MealKey; label: string; full: string; icon: typeof Coffee; tint: string }[];
-
-/** Used only when the menu row carries no price of its own. */
-const FALLBACK_PRICE: Record<MealKey, number> = { morning: 50, lunch: 80, dinner: 100 };
 
 /**
  * Delivery is charged per meal (each bela is its own delivery), at the chosen zone's rate. This is
@@ -132,11 +137,30 @@ export default function Order() {
   /** Zone id -> delivery charge per day, from /api/zones. */
   const [zoneCharges, setZoneCharges] = useState<Map<string, number>>(new Map());
 
-  const [loading, setLoading] = useState(true);
+  const [loadingAccount, setLoadingAccount] = useState(true);
+  /** Goes true when the first menu lands and never back — see the menu effect. */
+  const [menuReady, setMenuReady] = useState(false);
+  /** True while a package switch is in flight, so the tabs cannot be raced. */
+  const [menuBusy, setMenuBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<{ packageName?: string } | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  /** Active packages, cheapest first — GET /api/packages already sorts them. */
+  const [packages, setPackages] = useState<PackageOption[]>([]);
+  /** False until that request has answered, success or not. */
+  const [packagesLoaded, setPackagesLoaded] = useState(false);
+  /**
+   * Whose menu is being ordered from.
+   *
+   * A subscriber is locked to their own package. Everyone else chooses, because
+   * a cash customer may order from any menu — the weekly menu shows them all.
+   * This was hard-coded to 'basic' until 5 Nov 2026, so someone who had just
+   * read স্ট্যান্ডার্ডের ৳70 dinner on the menu reached this form and was quoted
+   * ৳55: বেসিকের ৳50 dinner plus the cash surcharge, under a food name that was
+   * not the one they had picked either.
+   */
+  const [packageSlug, setPackageSlug] = useState('');
   /** ISO date -> reason. Admin-blocked days the kitchen is shut. */
   const [blockedDates, setBlockedDates] = useState<Map<string, string>>(new Map());
   /** What a new order can spend: balance minus what undelivered orders hold. */
@@ -165,6 +189,13 @@ export default function Order() {
   const [shortfall, setShortfall] = useState<number | null>(null);
 
   const isLoggedIn = Boolean(user);
+  /**
+   * The full-page skeleton. It waits for the first menu as well as the account,
+   * so prices are never shown before they are known — but `menuReady` never
+   * goes back to false, so switching package updates the list in place instead
+   * of throwing the whole form away.
+   */
+  const loading = loadingAccount || (isLoggedIn && !menuReady);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,10 +223,11 @@ export default function Order() {
   /* Load subscription + menu                                               */
   /* ---------------------------------------------------------------------- */
 
+  // The account: subscription, wallet and the saved profile fields.
   useEffect(() => {
     if (!hydrated) return;
     if (!user) {
-      setLoading(false);
+      setLoadingAccount(false);
       return;
     }
 
@@ -215,29 +247,78 @@ export default function Order() {
         /* treated as "no subscription" below */
       }
 
-      let rows: MenuItem[] = [];
-      try {
-        const res = await menuAPI.getMenuByPackage(active?.package ?? 'basic');
-        if (res.success && res.data) rows = res.data;
-      } catch {
-        if (!cancelled) toast.error('মেনু লোড করতে ব্যর্থ হয়েছে');
-      }
-
       if (cancelled) return;
       setHasActiveSubscription(Boolean(active));
       setSubscriptionData(active);
       setWalletAvailable(balance);
-      setMenu(rows);
+      // A subscriber eats from their own package and nothing else.
+      if (active?.package) setPackageSlug(active.package);
       setPhoneNumber(user.phoneNumber ?? '');
       setSelectedZone(user.zone ?? '');
       setAddress(user.address ?? '');
-      setLoading(false);
+      setLoadingAccount(false);
     })();
 
     return () => {
       cancelled = true;
     };
   }, [hydrated, user]);
+
+  // The packages themselves, so a non-subscriber has something to choose from.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await packageAPI.getAllPackages();
+        if (!cancelled && res.success) {
+          setPackages((res.data ?? []).filter((p: PackageOption) => p.isActive !== false));
+        }
+      } catch {
+        // Leaves the list empty; the fallback below still finds a menu.
+      } finally {
+        if (!cancelled) setPackagesLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * Which menu a non-subscriber starts on: the first package, which is the
+   * cheapest because the route sorts by price. 'basic' only if the package
+   * request failed outright — better a menu than an empty form.
+   */
+  useEffect(() => {
+    if (loadingAccount || hasActiveSubscription || packageSlug || !packagesLoaded) return;
+    setPackageSlug(packages[0]?.name ?? 'basic');
+  }, [loadingAccount, hasActiveSubscription, packageSlug, packagesLoaded, packages]);
+
+  // The menu for whichever package is in play. Re-runs when it is switched.
+  useEffect(() => {
+    if (!hydrated || !user || !packageSlug) return;
+
+    let cancelled = false;
+    setMenuBusy(true);
+
+    (async () => {
+      let rows: MenuItem[] = [];
+      try {
+        const res = await menuAPI.getMenuByPackage(packageSlug);
+        if (res.success && res.data) rows = res.data;
+      } catch {
+        if (!cancelled) toast.error('মেনু লোড করতে ব্যর্থ হয়েছে');
+      }
+      if (cancelled) return;
+      setMenu(rows);
+      setMenuBusy(false);
+      setMenuReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, user, packageSlug]);
 
   /**
    * Guest meals are capped at 30 per account per calendar month.
@@ -339,7 +420,10 @@ export default function Order() {
     (dayName: string, meal: MealKey, pay: MealLine['pay']) => {
       const row = menu.find((m) => m.day === dayName);
       const priceKey = `${meal}Price` as const;
-      return mealPrice(row?.[priceKey] ?? FALLBACK_PRICE[meal], pay);
+      // No invented fallback: a price this page does not know is 0, and a meal
+      // priced 0 is never offered (see nameOf). Guessing 50/80/100 here meant
+      // quoting a number that was on no menu anywhere.
+      return mealPrice(row?.[priceKey] ?? 0, pay);
     },
     [menu]
   );
@@ -347,8 +431,25 @@ export default function Order() {
   /** How the customer's own meals are paid for. Guest meals are always cash. */
   const selfPay: MealLine['pay'] = hasActiveSubscription ? 'wallet' : 'cash';
 
+  /** Which package's menu this order is from, as stored on the order. */
+  const packageLabel =
+    subscriptionData?.packageName ||
+    packages.find((p) => p.name === packageSlug)?.title ||
+    'Regular';
+
+  /**
+   * The dish on the menu that day, or '' if there is none to order.
+   *
+   * A dish with a name but no price counts as none: POST /api/orders refuses it
+   * rather than hand out a free meal, so offering it here would only produce a
+   * tick box that fails at submit.
+   */
   const nameOf = useCallback(
-    (dayName: string, meal: MealKey) => menu.find((m) => m.day === dayName)?.[meal] ?? '',
+    (dayName: string, meal: MealKey) => {
+      const row = menu.find((m) => m.day === dayName);
+      const price = row?.[`${meal}Price` as const] ?? 0;
+      return price > 0 ? (row?.[meal] ?? '') : '';
+    },
     [menu]
   );
 
@@ -373,7 +474,7 @@ export default function Order() {
       if (blockedReason !== undefined) {
         closed.push({ date, dayName, reason: blockedReason || 'অনিবার্য কারণে মিল বন্ধ' });
       } else if (isClosedFriday(cursor)) {
-        closed.push({ date, dayName, reason: 'মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ' });
+        closed.push({ date, dayName, reason: 'মাসের 2য় ও শেষ শুক্রবার রান্নাঘর বন্ধ' });
       } else {
         open.push({ date, dayName });
       }
@@ -584,6 +685,9 @@ export default function Order() {
             deliveryTime: meal.key,
             address,
             zone: selectedZone,
+            // Which menu the server should price this against. A subscriber's
+            // own package wins there regardless of what is sent.
+            packageSlug,
           };
 
           // A guest meal is cash even for a subscriber, so the two orders can
@@ -600,7 +704,7 @@ export default function Order() {
               deliveryCharge: hasActiveSubscription ? 0 : deliveryPerMeal,
               paymentMethod: selfPay,
               specialInstructions: '',
-              package: subscriptionData?.packageName || 'Regular',
+              package: packageLabel,
               orderType: 'self',
             });
             if (res.success) {
@@ -732,6 +836,42 @@ export default function Order() {
           {/* ------------------------------------------------ configuration */}
           <div className="space-y-6">
             {/* Which meals */}
+            {/*
+              Only for someone without a subscription: a subscriber's menu is
+              decided by the package they pay for, so offering a choice here
+              would be offering food they cannot order.
+            */}
+            {!hasActiveSubscription && packages.length > 1 && (
+              <section className="rounded-3xl border border-ink-200 bg-white p-6 shadow-card">
+                <h2 className="text-base font-bold text-ink-900">কোন প্যাকেজের মেনু?</h2>
+                <p className="mt-1 text-sm text-ink-500">
+                  প্যাকেজভেদে খাবার আর দাম আলাদা। সাবস্ক্রিপশন ছাড়াও যেকোনো মেনু থেকে অর্ডার করা যায়।
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2.5">
+                  {packages.map((pkg) => {
+                    const on = pkg.name === packageSlug;
+                    return (
+                      <button
+                        key={pkg._id}
+                        type="button"
+                        aria-pressed={on}
+                        disabled={menuBusy}
+                        onClick={() => setPackageSlug(pkg.name)}
+                        className={`rounded-full border px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
+                          on
+                            ? 'border-brand-500 bg-brand-50 text-brand-800'
+                            : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                        }`}
+                      >
+                        {pkg.title}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             <section className="rounded-3xl border border-ink-200 bg-white p-6 shadow-card">
               <h2 className="text-base font-bold text-ink-900">কোন বেলার খাবার নেবেন?</h2>
               <p className="mt-1 text-sm text-ink-500">এখানে যা বাছবেন সেটাই প্রতিদিনের ডিফল্ট হবে।</p>
@@ -998,7 +1138,7 @@ export default function Order() {
                 </div>
               </dl>
 
-              <PaymentExplainer daily={totals.daily} cashTotal={totals.cashTotal} subscribed={hasActiveSubscription} />
+              <PaymentExplainer daily={totals.daily} cashTotal={totals.cashTotal} subscribed={hasActiveSubscription} capList />
               {hasActiveSubscription && (
                 <p className="mt-2 text-xs text-ink-500">ওয়ালেটে অর্ডারের জন্য আছে {taka(walletAvailable)}।</p>
               )}
@@ -1015,8 +1155,8 @@ export default function Order() {
               </Button>
 
               <ul className="mt-5 space-y-1.5 border-t border-ink-100 pt-4 text-xs leading-relaxed text-ink-500">
-                <li>সকাল ৭টা–৯টা · দুপুর ১২টা–২টা · রাত ৮টা–১০টা</li>
-                <li>মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।</li>
+                <li>সকাল 7টা–9টা · দুপুর 12টা–2টা · রাত 8টা–10টা</li>
+                <li>মাসের 2য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।</li>
               </ul>
             </div>
           </aside>
@@ -1137,10 +1277,22 @@ function PaymentExplainer({
   daily,
   cashTotal,
   subscribed,
+  capList = false,
 }: {
   daily: DayBill[];
   cashTotal: number;
   subscribed: boolean;
+  /**
+   * Cap the per-meal list and let it scroll on its own.
+   *
+   * Only true in the sticky desktop sidebar, where a week of meals would run
+   * taller than the screen and the column could not be scrolled past. Anywhere
+   * else the cap buys nothing and costs a lot: a phone got a 288px window on
+   * 1,155px of list, with its own scrollbar, and inside the confirm dialog that
+   * was a scroll area inside a scroll area — flick at the list and the page
+   * behind it stays put.
+   */
+  capList?: boolean;
 }) {
   if (daily.length === 0) return null;
   const walletTotal = daily.reduce((sum, d) => sum + d.wallet, 0);
@@ -1170,7 +1322,7 @@ function PaymentExplainer({
       </ul>
 
       <p className="mt-3 font-semibold">প্রতি বেলার হিসাব</p>
-      <ul className="mt-1.5 max-h-72 space-y-2 overflow-y-auto pr-1">
+      <ul className={`mt-1.5 space-y-2 ${capList ? 'lg:max-h-72 lg:overflow-y-auto lg:pr-1' : ''}`}>
         {daily.map((d) => (
           <li key={d.date} className="rounded-xl bg-white/70 p-2.5 text-ink-700">
             <p className="font-semibold text-ink-900">{bengaliDate(d.date)}</p>

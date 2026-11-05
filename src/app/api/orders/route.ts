@@ -1,21 +1,40 @@
 import { bn } from '@/lib/format';
+import { mealPrice } from '@/lib/rules';
 import { requireAdmin, requireUser } from '@/server/auth';
 import { checkDeliveryDeadline, isClosedFriday } from '@/server/deadlines';
 import { body, fail, handler, ok } from '@/server/http';
 import { GUEST_DAYS_MONTHLY_LIMIT, GUEST_MEAL_MONTHLY_LIMIT, countGuestMeals } from '@/server/limits';
 import BlockedDate from '@/server/models/BlockedDate';
 import Order from '@/server/models/Order';
+import Package from '@/server/models/Package';
 import Subscription from '@/server/models/Subscription';
 import User from '@/server/models/User';
+import WeeklyMenu, { MENU_DAYS } from '@/server/models/WeeklyMenu';
+import Zone from '@/server/models/Zone';
 import { walletSummary } from '@/server/wallet';
+
+/**
+ * getUTCDay() is Sunday-first, and a delivery date is a calendar date stored as
+ * midnight UTC — reading it with local getters moves the day for any server
+ * west of UTC, which would price Saturday's menu against Friday's.
+ */
+const MENU_DAY_BY_UTC_INDEX: (typeof MENU_DAYS)[number][] = [
+  'রবিবার',
+  'সোমবার',
+  'মঙ্গলবার',
+  'বুধবার',
+  'বৃহস্পতিবার',
+  'শুক্রবার',
+  'শনিবার',
+];
+
+type MealKey = 'morning' | 'lunch' | 'dinner';
+const MEAL_KEYS = new Set<MealKey>(['morning', 'lunch', 'dinner']);
 
 // POST /api/orders — user
 export const POST = handler(async (req: Request) => {
   const authUser = await requireUser(req);
   const {
-    items,
-    totalAmount,
-    deliveryCharge,
     paymentMethod,
     deliveryDate,
     deliveryTime,
@@ -23,8 +42,18 @@ export const POST = handler(async (req: Request) => {
     zone,
     specialInstructions,
     package: packageName,
+    packageSlug,
     orderType,
   } = await body(req);
+
+  /**
+   * `items`, `totalAmount` and `deliveryCharge` are deliberately **not** read
+   * from the request. They used to be, and were written to the order as sent:
+   * anyone who could edit the request could order a ৳70 dinner for ৳1, and a
+   * wallet order would then reserve and charge that ৳1. Everything chargeable
+   * is looked up below — the dish and its price from the weekly menu, the
+   * delivery charge from the zone. The form still sends them; they are ignored.
+   */
 
   /**
    * The order form has always sent this, and this handler has always dropped
@@ -50,7 +79,7 @@ export const POST = handler(async (req: Request) => {
 
   // 2. Kitchen closed on the 2nd and last Friday of the month
   if (isClosedFriday(orderDate)) {
-    return fail('প্রতি মাসের ২য় ও লাস্ট শুক্রবার মিল বন্ধ থাকে। আগামীকাল অর্ডার করুন।', 400, {
+    return fail('প্রতি মাসের 2য় ও লাস্ট শুক্রবার মিল বন্ধ থাকে। আগামীকাল অর্ডার করুন।', 400, {
       isFridayClosed: true,
     });
   }
@@ -99,14 +128,68 @@ export const POST = handler(async (req: Request) => {
     }
   }
 
-  // 5. Wallet payments require an active subscription and enough *available*
+  /* ------------------------------------------------------------------ *
+   * 5. What this meal costs — read from the menu, never from the request.
+   * ------------------------------------------------------------------ */
+
+  const activeSubscription = await Subscription.findOne({
+    userId: authUser._id,
+    status: 'active',
+  });
+
+  if (!MEAL_KEYS.has(deliveryTime as MealKey)) return fail('কোন বেলার খাবার তা দিন', 400);
+  const meal = deliveryTime as MealKey;
+
+  /**
+   * Which menu to price against.
+   *
+   * A subscriber's is decided by what they pay for, so the request does not get
+   * a say. Everyone else picks on the form and sends the slug, which only
+   * selects a public menu — the price still comes from that menu, so there is
+   * nothing to gain by lying about it. It is checked against a live package all
+   * the same, or a typo would silently price nothing.
+   */
+  let menuPackage: string | undefined = activeSubscription?.package;
+  if (!menuPackage) {
+    const chosen = typeof packageSlug === 'string' ? packageSlug.trim() : '';
+    const exists = chosen ? await Package.findOne({ name: chosen, isActive: true }) : null;
+    if (!exists) return fail('কোন প্যাকেজের মেন্যু থেকে নিচ্ছেন সেটা বেছে নিন', 400);
+    menuPackage = chosen;
+  }
+
+  const menuDay = MENU_DAY_BY_UTC_INDEX[orderDate.getUTCDay()];
+  const menuRow = await WeeklyMenu.findOne({ package: menuPackage, day: menuDay, isActive: true });
+
+  const itemName = menuRow?.[meal];
+  const menuPrice = menuRow?.[`${meal}Price`] ?? 0;
+  // A dish with no name is not on the menu that day. A dish with no price is
+  // not priced yet, and letting it through would hand out a free meal.
+  if (!itemName) return fail('এই দিনে এই বেলার খাবার মেন্যুতে নেই', 400);
+  if (!(menuPrice > 0)) return fail('এই খাবারের দাম এখনো ঠিক করা হয়নি — একটু পরে চেষ্টা করুন', 400);
+
+  const pay = paymentMethod === 'wallet' ? 'wallet' : 'cash';
+  const totalAmount = mealPrice(menuPrice, pay);
+  const items = [{ name: itemName, price: totalAmount, quantity: 1 }];
+
+  /**
+   * Delivery is free for a subscriber's own meals and charged on everything
+   * else — a guest meal included, even when the host subscribes. The rate is
+   * the zone's, read here rather than taken from the request for the same
+   * reason as the price.
+   */
+  const zoneId = zone || user.zone;
+  const freeDelivery = Boolean(activeSubscription) && !isGuest;
+  const zoneDoc = zoneId ? await Zone.findById(zoneId).catch(() => null) : null;
+  // Delivery is never free by accident. If the zone cannot be read, refuse
+  // rather than record a 0 charge the customer was never quoted — the form
+  // shows a fallback rate, and the two must not drift apart silently.
+  if (!freeDelivery && !zoneDoc) return fail('ডেলিভারির জোন বেছে নিন', 400);
+  const deliveryCharge = freeDelivery ? 0 : (zoneDoc?.deliveryCharge ?? 0);
+
+  // 6. Wallet payments require an active subscription and enough *available*
   //    balance. Nothing is taken yet: the order reserves its price and is
   //    charged when it is delivered (src/server/wallet.ts).
   if (paymentMethod === 'wallet') {
-    const activeSubscription = await Subscription.findOne({
-      userId: authUser._id,
-      status: 'active',
-    });
     if (!activeSubscription) {
       return fail('No active subscription found. Please subscribe first.', 400);
     }
@@ -133,7 +216,7 @@ export const POST = handler(async (req: Request) => {
     package: packageName || (paymentMethod === 'wallet' ? 'Subscription' : 'Regular'),
     items,
     totalAmount,
-    deliveryCharge: deliveryCharge || 0,
+    deliveryCharge,
     paymentMethod: paymentMethod === 'wallet' ? 'wallet' : 'cash',
     // Paid when delivered, for wallet and cash alike.
     paymentStatus: 'pending',

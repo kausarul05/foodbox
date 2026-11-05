@@ -46,9 +46,13 @@ const SLOTS = [
  */
 function mealOf(row: MenuDay | undefined, slot: (typeof SLOTS)[number]) {
   const menu = (row?.[slot.priceKey] as number) ?? 0;
+  // A dish with no price is not ready to be sold: POST /api/orders refuses it
+  // and the order form hides it, so showing it here at ৳0 would advertise a
+  // free meal that cannot be ordered.
+  const available = Boolean(row?.[slot.key]) && menu > 0;
   return {
-    name: (row?.[slot.key] as string) || 'এখনো ঠিক হয়নি',
-    available: Boolean(row?.[slot.key]),
+    name: available ? (row?.[slot.key] as string) : 'এখনো ঠিক হয়নি',
+    available,
     cash: mealPrice(menu, 'cash'),
     wallet: mealPrice(menu, 'wallet'),
   };

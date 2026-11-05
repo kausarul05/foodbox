@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import { DateInput, Field, Input, Select, Textarea } from '@/components/ui/Field';
 import Modal from '@/components/ui/Modal';
 import { bengaliDate, bn, taka } from '@/lib/format';
+import { mealPrice } from '@/lib/rules';
 
 /**
  * Phone / walk-in order entry, mirroring the customer form on /order.
@@ -35,9 +36,6 @@ const MEALS = [
 
 /** JS getDay() is Sunday-first; menu rows are keyed by these Bengali names. */
 const WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
-
-/** Fallback only when a menu row carries no price of its own. */
-const FALLBACK_PRICE: Record<MealKey, number> = { morning: 50, lunch: 80, dinner: 100 };
 
 interface MenuRow {
   day: string;
@@ -150,17 +148,38 @@ export default function ManualOrderForm({
     };
   }, [packageName]);
 
+  /**
+   * The dish on the menu that day, or '' when there is nothing to order.
+   *
+   * A dish with a name but no price counts as none — the customer order route
+   * refuses those rather than hand out a free meal, and an admin typing an
+   * order in should not be able to create what a customer cannot.
+   */
   const nameOf = useCallback(
-    (dayName: string, meal: MealKey) => menu.find((m) => m.day === dayName)?.[meal] ?? '',
+    (dayName: string, meal: MealKey) => {
+      const row = menu.find((m) => m.day === dayName);
+      const price = row?.[`${meal}Price` as const] ?? 0;
+      return price > 0 ? (row?.[meal] ?? '') : '';
+    },
     [menu]
   );
 
+  /**
+   * What the customer pays for one meal.
+   *
+   * A manual order marked ক্যাশ অন ডেলিভারি is paid at the door like any other
+   * cash order, so it carries COD_MEAL_SURCHARGE the same way — this form
+   * charged the bare menu price until 5 Nov 2026, which quietly undercut the
+   * site by ৳5 a meal and made the two disagree about what the same dinner
+   * costs. A subscription order comes out of the wallet at the menu price.
+   */
   const priceOf = useCallback(
     (dayName: string, meal: MealKey) => {
       const row = menu.find((m) => m.day === dayName);
-      return row?.[`${meal}Price` as const] ?? FALLBACK_PRICE[meal];
+      const menuPrice = row?.[`${meal}Price` as const] ?? 0;
+      return mealPrice(menuPrice, orderType === 'subscription' ? 'wallet' : 'cash');
     },
-    [menu]
+    [menu, orderType]
   );
 
   /** Every date in the chosen range, with its Bengali weekday. */
@@ -298,8 +317,8 @@ export default function ManualOrderForm({
 
       {/* The same delivery windows the customer sees — handy to read out on a call. */}
       <ul className="mt-4 space-y-1.5 border-t border-ink-100 pt-4 text-xs leading-relaxed text-ink-500">
-        <li>সকাল ৭টা–৯টা · দুপুর ১২টা–২টা · রাত ৮টা–১০টা</li>
-        <li>মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।</li>
+        <li>সকাল 7টা–9টা · দুপুর 12টা–2টা · রাত 8টা–10টা</li>
+        <li>মাসের 2য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।</li>
         <li>প্রতি বেলার জন্য আলাদা অর্ডার তৈরি হবে।</li>
       </ul>
     </>
