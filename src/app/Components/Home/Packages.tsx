@@ -12,7 +12,7 @@ import { Field, Input } from '@/components/ui/Field';
 import { useDialog } from '@/components/ui/DialogProvider';
 import PaymentFields, { validatePayment, type PaymentDetails } from '@/components/ui/PaymentFields';
 import { bn, taka } from '@/lib/format';
-import { BOX_DEPOSIT, JOINING_FLOAT_DAYS, joiningMinimum, weekMealTotal } from '@/lib/rules';
+import { BOX_DEPOSIT, JOINING_FLOAT_DAYS, joiningFoodTotal, joiningMinimum } from '@/lib/rules';
 import { useMySubscription } from '@/lib/useMySubscription';
 
 interface PackageType {
@@ -29,6 +29,25 @@ interface PackageType {
 
 const EMPTY_PAYMENT: PaymentDetails = { paymentMethod: 'bkash', transactionId: '', senderNumber: '' };
 
+/**
+ * The package carrying the "সবচেয়ে জনপ্রিয়" badge, by slug — the owner's pick.
+ *
+ * It used to be the middle card by arithmetic, and with two packages live
+ * `Math.floor((2 - 1) / 2)` is 0, so the badge sat on বেসিক, the cheapest one.
+ * A nudge towards the cheapest package is not a nudge. Matching the slug keeps
+ * it on স্ট্যান্ডার্ড when প্রিমিয়াম is added and the middle moves.
+ */
+const POPULAR_SLUG = 'standard';
+
+/** -1 when nothing should be badged (a single package has nothing to beat). */
+function popularIndexOf(packages: PackageType[]) {
+  const named = packages.findIndex((p) => p.name?.trim().toLowerCase() === POPULAR_SLUG);
+  if (named !== -1) return named;
+  // No package uses the slug — the owner named theirs something else, so fall
+  // back to the dearer middle card rather than badging nothing at all.
+  return packages.length > 1 ? Math.floor(packages.length / 2) : -1;
+}
+
 export default function Packages() {
   const router = useRouter();
   const { confirm } = useDialog();
@@ -40,11 +59,11 @@ export default function Packages() {
   /** Which card is fetching its menu, so its button can show the wait. */
   const [preparing, setPreparing] = useState<string | null>(null);
   /**
-   * What joining the selected package costs. `weekMeals` is a week of every
-   * meal on its menu; `minimum` adds the fee and the box deposit. Null for a
+   * What joining the selected package costs. `food` is JOINING_FLOAT_DAYS of
+   * meals from its menu; `minimum` adds the fee and the box deposit. Null for a
    * returning customer, who has funded a wallet before and owes the fee alone.
    */
-  const [joining, setJoining] = useState<{ weekMeals: number; minimum: number } | null>(null);
+  const [joining, setJoining] = useState<{ food: number; minimum: number } | null>(null);
   const [amount, setAmount] = useState('');
 
   // A customer with a live or waiting subscription cannot request another — the
@@ -52,6 +71,9 @@ export default function Packages() {
   // can only fail.
   const { subscription: mine } = useMySubscription();
   const locked = mine?.status === 'active' || mine?.status === 'pending';
+
+  /** Which card wears the badge. */
+  const popular = popularIndexOf(packages);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,12 +103,12 @@ export default function Packages() {
     /**
      * Work out what this customer owes before showing them anything, because
      * the warning below has to name the real figure. A first-time joiner funds
-     * the fee, a week of meals and the box deposit in one payment; someone who
+     * the fee, a few days of meals and the box deposit in one payment; someone who
      * has funded a wallet before owes only the fee. The server checks the same
      * thing — this is so the form cannot ask for the wrong number.
      */
     setPreparing(pkg._id);
-    let plan: { weekMeals: number; minimum: number } | null = null;
+    let plan: { food: number; minimum: number } | null = null;
     try {
       const [menuRes, txRes] = await Promise.all([
         menuAPI.getMenuByPackage(pkg.name),
@@ -99,8 +121,8 @@ export default function Packages() {
           toast.error('এই প্যাকেজের সাপ্তাহিক মেনু এখনো যোগ করা হয়নি');
           return;
         }
-        const weekMeals = weekMealTotal(menu);
-        plan = { weekMeals, minimum: joiningMinimum(pkg.price, weekMeals) };
+        const food = joiningFoodTotal(menu);
+        plan = { food, minimum: joiningMinimum(pkg.price, food) };
       }
     } catch {
       toast.error('তথ্য লোড করা যায়নি, আবার চেষ্টা করুন');
@@ -113,7 +135,7 @@ export default function Packages() {
     const agreed = await confirm({
       title: 'শুধু সাবস্ক্রিপশন ফি ফেরতযোগ্য নয়',
       message: plan
-        ? `প্রথমবার সাবস্ক্রাইব করতে ${taka(plan.minimum)} পাঠাতে হবে — ${pkg.title} প্যাকেজের ফি ${taka(pkg.price)}, ${bn(JOINING_FLOAT_DAYS)} দিনের খাবারের ${taka(plan.weekMeals)}, আর খাবারের বক্সের ${taka(BOX_DEPOSIT)} ডিপোজিট। এর মধ্যে শুধু ফি'র ${taka(pkg.price)} ফেরতযোগ্য নয় — বাকি ${taka(plan.minimum - pkg.price)} আপনার ওয়ালেটেই থাকবে, খাবার ডেলিভারি হলে তখন কাটা হবে।`
+        ? `প্রথমবার সাবস্ক্রাইব করতে ${taka(plan.minimum)} পাঠাতে হবে — ${pkg.title} প্যাকেজের ফি ${taka(pkg.price)}, ${bn(JOINING_FLOAT_DAYS)} দিনের খাবারের ${taka(plan.food)}, আর খাবারের বক্সের ${taka(BOX_DEPOSIT)} ডিপোজিট। এর মধ্যে শুধু ফি'র ${taka(pkg.price)} ফেরতযোগ্য নয় — বাকি ${taka(plan.minimum - pkg.price)} আপনার ওয়ালেটেই থাকবে, খাবার ডেলিভারি হলে তখন কাটা হবে।`
         : `${pkg.title} প্যাকেজের সাবস্ক্রিপশন ফি ${taka(pkg.price)}। অনুমোদনের পর এই টাকা কোনো অবস্থাতেই ফেরত দেওয়া হবে না — সাবস্ক্রিপশন বাতিল করলেও না।`,
       confirmLabel: 'বুঝেছি, এগিয়ে যান',
       tone: 'warning',
@@ -195,9 +217,7 @@ export default function Packages() {
         ) : (
           <div className="mt-14 grid items-start gap-6 md:grid-cols-2 lg:grid-cols-3">
             {packages.map((pkg, i) => {
-              // The middle card is the one we push; with two packages it is the
-              // second, with one it is simply not highlighted.
-              const featured = packages.length > 1 && i === Math.floor((packages.length - 1) / 2);
+              const featured = i === popular;
               const own = locked && mine?.package === pkg.name;
               return (
                 <article
@@ -311,7 +331,7 @@ export default function Packages() {
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <dt>{bn(JOINING_FLOAT_DAYS)} দিনের খাবার (ওয়ালেটে জমা থাকবে)</dt>
-                  <dd className="font-semibold">{taka(joining.weekMeals)}</dd>
+                  <dd className="font-semibold">{taka(joining.food)}</dd>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <dt>খাবারের বক্সের ডিপোজিট (ফেরতযোগ্য)</dt>
