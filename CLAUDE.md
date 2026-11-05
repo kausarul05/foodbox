@@ -5,8 +5,11 @@ backend API all live in this one Next.js app.** There is no separate backend or
 admin repo — if you are looking for one, it was merged in here.
 
 **The brand shown to customers is "FCS Meal"** — that is what the logo, the
-navbar, the footer, every page title and every outgoing email say, and it is the
-only spelling that belongs in user-facing copy. The *internal* name is still
+footer, every page title and every outgoing email say, and it is the
+only spelling that belongs in user-facing copy — **except the navbar and the
+footer wordmark, which read "FCS Meal Manager"** as of 4 Nov 2026, the owner's
+own wording. Page titles, emails and body copy still say FCS Meal; the two
+wordmarks are the brand lockup, not prose. The *internal* name is still
 `foodbox`: the repo, the package, the `foodbox-sync` service account. Those are
 identifiers, not copy, and renaming them would break deploys for nothing. The
 Atlas database was always called `fcs_meal_manager`.
@@ -70,9 +73,15 @@ token scales:
 Type is Hind Siliguri (Bengali + Latin in one family), wired up in the root
 layout as `--font-bangla`.
 
-Every user-facing number goes through `src/lib/format.ts` so it renders in
-Bengali numerals: `bn(1200)` → `১২০০`, `taka(3500)` → `৳ ৩,৫০০`. Mixing Latin
-digits into Bengali copy is the fastest way to make the UI look unfinished.
+Every user-facing number goes through `src/lib/format.ts`: `bn(1200)` → `1200`,
+`taka(3500)` → `৳ 3,500`. **Digits are Latin, copy is Bengali** — the owner
+asked for that on 4 Nov 2026, because a price or a transaction id that gets
+copied into bKash has to match what bKash shows. `bn()` used to render Bengali
+numerals and is now a pass-through, kept as the one seam where that is decided
+rather than deleted from a hundred call sites; hard-coded numerals in copy
+(`সকাল ৮:৩০`, `২য় শুক্রবার`) were converted with it. **Do not write Bengali
+numerals into new copy** — and if the decision is ever reversed, reverse it in
+`bn()`.
 
 ## Home page
 
@@ -343,9 +352,11 @@ make a readable sheet unreadable.
 
 Three decisions apply to both renderers:
 
-- **Numbers stay Latin digits** (1200, not ১২০০). This is the one place
-  `src/lib/format.ts` must not be used: a Bengali numeral is text to a
-  spreadsheet, and text cannot be summed, sorted or charted.
+- **Numbers are written raw**, never through `src/lib/format.ts` — a number must
+  reach the sheet as a number. `taka()` would make it the string `৳ 1,200`, and
+  text cannot be summed, sorted or charted. (The site's digits are Latin now
+  too, so this is about the `৳` and the grouping comma, not the numerals; it was
+  about the numerals as well until 4 Nov 2026.)
 - **Dates are shifted +6h** before being written. A spreadsheet date is
   wall-clock with no time zone, so a UTC instant reads six hours early in Dhaka.
 - **Password hashes are excluded** by name in the queries. These tables end up
@@ -383,13 +394,17 @@ All of it lives in `src/server/wallet.ts` — never touch `walletBalance` for an
 order anywhere else.
 
 Food-box security deposit (`src/server/deposit.ts`, admin page
-`/admin/dashboard/deposits`): a subscriber with a box has ৳100 of their wallet
-*held* — `User.depositStatus: 'active'`, and `available` is also reduced by it.
+`/admin/dashboard/deposits`): a subscriber with a box has `BOX_DEPOSIT` of their
+wallet *held* — ৳200 since 4 Nov 2026, ৳100 before that — as
+`User.depositStatus: 'active'`, and `available` is reduced by it.
 Approving a subscription starts the hold; subscribers from before this rule get it
 from the admin page. Box returned → `refund` releases the hold (no money moves);
-lost or broken → `deduct` takes up to ৳100 out of `walletBalance`. A wallet short
-of ৳100 still gets the hold, so `available` goes negative ("deposit due") and the
-next top-up fills it first. Every hold/deduct/refund writes a `DepositEvent` — the
+lost or broken → `deduct` takes up to that much out of `walletBalance`. A wallet
+short of it still gets the hold, so `available` goes negative ("deposit due") and
+the next top-up fills it first. **Raising `BOX_DEPOSIT` never moves an existing
+hold:** refund and deduct read `User.depositAmount`, the figure that account was
+held at, so old subscribers stay where they were and only new holds take the new
+figure. Nobody held a box when it went to ৳200, so no account is on ৳100. Every hold/deduct/refund writes a `DepositEvent` — the
 history. Wallet top-ups are manual: the user submits a bKash/Nagad
 transaction id, an admin approves it, and only then is the balance credited.
 Only a customer with an active subscription can top up (the recharge route
@@ -401,12 +416,19 @@ flat ৳1,200 first-top-up minimum is gone, because **joining is now one payment
 Subscription fees (৳70 / ৳90 / ৳120 for 30 days) are non-refundable; the customer
 confirms a popup before paying.
 
-**Joining is one payment.** A first-time subscriber sends the fee, a week of every
-meal on their package's menu, and the ৳100 box deposit together — basic works out
-at ৳1,910 on the current menu. `joiningMinimum()` / `weekMealTotal()` in
-`src/lib/rules.ts` compute it, `POST /api/subscriptions` enforces it, and
-`Packages.tsx` shows the breakdown. "First time" means no approved `Transaction`
-yet; a returning customer owes the fee alone and may send more.
+**Joining is one payment.** A first-time subscriber sends the fee,
+`JOINING_FLOAT_DAYS` (3) of meals from their package's menu, and the box
+deposit together — ৳821 on বেসিক and ৳1,043 on স্ট্যান্ডার্ড at the menu prices
+of 4 Nov 2026. `joiningMinimum()` / `joiningFoodTotal()` in `src/lib/rules.ts`
+compute it, `POST /api/subscriptions` enforces it, and `Packages.tsx` shows the
+breakdown. "First time" means no approved `Transaction` yet; a returning
+customer owes the fee alone and may send more.
+
+The food float is the menu's **daily average times the float**, not the days
+that happen to come next: Friday lunch is ৳130 against ৳55 the rest of the week,
+so pricing the next three days would quote two people who joined a day apart
+different amounts for the same thing. It was 7 days until 4 Nov 2026 (৳1,295 /
+৳1,680), which was a lot to ask before anyone had tasted the food.
 
 `Subscription.amount` stays the **fee alone** — it is what `profit-stats` counts
 as revenue, so putting the total there would book the customer's own food money as
@@ -443,7 +465,12 @@ Two figures sit in the "আলাদা হিসাব" box and are deliberatel
   in the pipeline.
 
 The cash-on-delivery figure is a slice *inside* `orderRevenue` (just the delivery
-charges on cash orders), not an addition to it.
+charges on cash orders), not an addition to it. The owner asked on 5 Nov 2026 to
+add it to revenue, reading the card as money that had been left out; it had not
+been. `sumOrders` is `totalAmount + deliveryCharge` over every delivered order,
+cash included, and `totalAmount` is the food alone (see how `Order.tsx` builds
+the payload), so the charge is already counted once. Adding it would count it
+twice.
 
 `GET /api/admin/stats` — the main dashboard's মোট রেভিনিউ — uses the same
 definition over all time, so the two cards always agree. Change one and change
@@ -451,6 +478,28 @@ the other.
 
 Menu days are Bengali strings in a fixed order — see `MENU_DAYS` in
 `src/server/models/WeeklyMenu.ts`. UI copy throughout is Bengali.
+
+**The server prices the meal, not the browser.** `POST /api/orders` ignores
+`items`, `totalAmount` and `deliveryCharge` in the request and looks all three
+up: the dish and its price from the `WeeklyMenu` row for that package and
+weekday, the rate from the `Zone`. It read them straight off the request until
+5 Nov 2026, so anyone able to edit it could have ordered a ৳70 dinner for ৳1 —
+and on a wallet order that ৳1 is what would have been reserved and charged. The
+day comes from `getUTCDay()`, because a delivery date is a calendar date stored
+as midnight UTC. A dish with no name, or no price, is refused rather than sold,
+and an unresolvable zone is refused rather than delivered free; both UIs hide
+those meals so the form and the server agree. The COD surcharge is applied in
+one place, `mealPrice()` — `ManualOrderForm` missed it until the same date and
+undercut the site by ৳5 a meal.
+
+**Which menu `/order` prices against.** A subscriber is locked to their own
+package. Everyone else picks one, from the tabs above the meal toggles, and
+`/api/packages` order decides the default (cheapest first). It was hard-coded to
+`'basic'` until 5 Nov 2026: a cash customer who had read স্ট্যান্ডার্ডের ৳70
+dinner on the weekly menu was quoted ৳55 on the form — বেসিকের ৳50 plus the cash
+surcharge — against বেসিকের food name. If you add a second place that orders
+food, give it the same choice; the price and the dish must come from the menu
+the customer was actually reading.
 
 **Zones have two names.** `Zone.name` is a lowercase English slug used as the
 unique key (`mymensingh_sadar`); `Zone.nameBn` is the Bengali label
