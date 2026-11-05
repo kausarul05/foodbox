@@ -1,5 +1,7 @@
 /** Seed rows used by POST /api/setup. Carried over from the Express setupRoutes. */
 
+import { BOX_DEPOSIT } from '@/lib/rules';
+
 export const mymensinghZones = [
   { name: 'mymensingh_sadar', nameBn: 'ময়মনসিংহ সদর', deliveryCharge: 30, isActive: true, isCustom: false },
   { name: 'kewatkhali', nameBn: 'কেওয়াটখালী', deliveryCharge: 35, isActive: true, isCustom: false },
@@ -25,7 +27,7 @@ export const mymensinghZones = [
 const PACKAGE_COMMON = [
   'খাবারের দাম ওয়ালেট থেকে — ডেলিভারির পরেই কাটা হয়',
   'ফ্রি হোম ডেলিভারি',
-  'খাবারের বক্স (১০০ টাকা ফেরতযোগ্য ডিপোজিট)',
+  `খাবারের বক্স (${BOX_DEPOSIT} টাকা ফেরতযোগ্য ডিপোজিট)`,
 ];
 
 export const defaultPackages = [
@@ -34,7 +36,7 @@ export const defaultPackages = [
     title: 'বেসিক প্যাকেজ',
     price: 70,
     originalPrice: 70,
-    features: ['৩০ দিনের সাবস্ক্রিপশন', 'বেসিক মেনু থেকে প্রতিদিন অর্ডার', ...PACKAGE_COMMON],
+    features: ['30 দিনের সাবস্ক্রিপশন', 'বেসিক মেনু থেকে প্রতিদিন অর্ডার', ...PACKAGE_COMMON],
     duration: 30,
     discount: 0,
     isActive: true,
@@ -45,7 +47,7 @@ export const defaultPackages = [
     price: 90,
     originalPrice: 90,
     features: [
-      '৩০ দিনের সাবস্ক্রিপশন',
+      '30 দিনের সাবস্ক্রিপশন',
       'স্ট্যান্ডার্ড মেনু — আরও বেশি পদ',
       ...PACKAGE_COMMON,
       'সাবস্ক্রাইবার হোয়াটসঅ্যাপ গ্রুপে মেনুর আপডেট',
@@ -60,7 +62,7 @@ export const defaultPackages = [
     price: 120,
     originalPrice: 120,
     features: [
-      '৩০ দিনের সাবস্ক্রিপশন',
+      '30 দিনের সাবস্ক্রিপশন',
       'প্রিমিয়াম মেনু — সবচেয়ে বেশি ও বিশেষ পদ',
       ...PACKAGE_COMMON,
       'সাবস্ক্রাইবার হোয়াটসঅ্যাপ গ্রুপে মেনুর আপডেট',

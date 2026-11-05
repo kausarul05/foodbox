@@ -3,8 +3,15 @@
  * client components can show the same numbers the server enforces.
  */
 
-/** Food-box security deposit held from a subscriber's wallet (src/server/deposit.ts). */
-export const BOX_DEPOSIT = 100;
+/**
+ * Food-box security deposit held from a subscriber's wallet (src/server/deposit.ts).
+ *
+ * ৳100 until 4 Nov 2026. Changing it only affects holds taken from here on:
+ * a refund or a deduction reads `User.depositAmount`, the figure that account
+ * was actually held at, so nobody's existing hold moves under them. No account
+ * was holding a box when this changed, so there are no accounts on ৳100.
+ */
+export const BOX_DEPOSIT = 200;
 
 /** Smallest wallet top-up. */
 export const MIN_RECHARGE = 50;
@@ -18,8 +25,13 @@ export const MIN_RECHARGE = 50;
  * fee, this many days of meals, and the refundable box deposit. The flat
  * ৳1,200 first-top-up minimum is gone with it; every later top-up is just
  * MIN_RECHARGE.
+ *
+ * It was 7 until 4 Nov 2026, which put joining at ৳1,295 on বেসিক and ৳1,680
+ * on স্ট্যান্ডার্ড — a lot to ask of someone who has not tasted the food yet.
+ * Three days is the owner's call. It is only a float: the money stays the
+ * customer's in their wallet, and they top up when it runs low.
  */
-export const JOINING_FLOAT_DAYS = 7;
+export const JOINING_FLOAT_DAYS = 3;
 
 /** One weekly-menu row, as much of it as the money rules need. */
 export interface MenuPrices {
@@ -31,16 +43,8 @@ export interface MenuPrices {
   dinnerPrice?: number;
 }
 
-/**
- * What every meal on a package's weekly menu costs, at wallet prices.
- *
- * The menu holds one row per day, so this is JOINING_FLOAT_DAYS worth of all
- * three meals. A meal with no name is not on the menu that day and cannot be
- * ordered, so it is not counted — the same test Order.tsx uses before offering
- * a meal. Wallet prices, with no COD surcharge: a subscriber pays from the
- * wallet.
- */
-export function weekMealTotal(menu: MenuPrices[]) {
+/** Every priced meal on a package's menu, at wallet prices — one full cycle. */
+function menuCycleTotal(menu: MenuPrices[]) {
   return menu.reduce(
     (sum, row) =>
       sum +
@@ -52,14 +56,34 @@ export function weekMealTotal(menu: MenuPrices[]) {
 }
 
 /**
+ * JOINING_FLOAT_DAYS of food on a package's menu, at wallet prices.
+ *
+ * The menu holds one row per day, so this is the daily average times the float
+ * — **not** the next three days. Friday lunch is ৳130 against ৳55 the rest of
+ * the week, so charging the days that happen to come next would hand two people
+ * who joined a day apart two different joining prices for the same thing. The
+ * average is the same figure for everyone and stays right if the owner adds or
+ * drops a day from the menu.
+ *
+ * A meal with no name is not on the menu that day and cannot be ordered, so it
+ * is not counted — the same test Order.tsx uses before offering a meal. Wallet
+ * prices, no COD surcharge: a subscriber pays from the wallet. Rounded up, so
+ * the float covers the days rather than falling a taka short of them.
+ */
+export function joiningFoodTotal(menu: MenuPrices[]) {
+  if (menu.length === 0) return 0;
+  return Math.ceil((menuCycleTotal(menu) / menu.length) * JOINING_FLOAT_DAYS);
+}
+
+/**
  * The least a customer may send with their first subscription request.
  *
  * Only the fee is non-refundable. The food float becomes their wallet balance
  * on approval and the deposit is released when they return the box, so most of
  * this is still the customer's money.
  */
-export function joiningMinimum(packagePrice: number, weekMeals: number) {
-  return packagePrice + weekMeals + BOX_DEPOSIT;
+export function joiningMinimum(packagePrice: number, foodFloat: number) {
+  return packagePrice + foodFloat + BOX_DEPOSIT;
 }
 
 /**

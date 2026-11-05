@@ -1,6 +1,6 @@
 import { bn } from '@/lib/format';
 import { isHandCash } from '@/lib/payment';
-import { joiningMinimum, weekMealTotal } from '@/lib/rules';
+import { joiningFoodTotal, joiningMinimum } from '@/lib/rules';
 import { baseUrlFrom, notifyAdminLater, subscriptionAlert } from '@/server/adminNotify';
 import { requireAdmin, requireUser } from '@/server/auth';
 import { body, fail, handler, ok } from '@/server/http';
@@ -61,7 +61,7 @@ export const POST = handler(async (req: Request) => {
     if (menu.length === 0) {
       return fail('এই প্যাকেজের সাপ্তাহিক মেনু এখনো যোগ করা হয়নি, তাই এখন সাবস্ক্রাইব করা যাচ্ছে না', 400);
     }
-    const minimum = joiningMinimum(packageData.price, weekMealTotal(menu));
+    const minimum = joiningMinimum(packageData.price, joiningFoodTotal(menu));
     if (!Number.isFinite(sent) || sent < minimum) {
       return fail(`প্রথমবার সাবস্ক্রাইব করতে সর্বনিম্ন ${bn(minimum)} টাকা পাঠাতে হবে`, 400, { minimum });
     }
