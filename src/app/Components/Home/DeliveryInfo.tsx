@@ -72,7 +72,7 @@ export default function DeliveryInfo() {
 
             <p className="mt-4 flex items-start gap-2.5 rounded-2xl bg-amber-50 p-4 text-sm leading-relaxed text-amber-900">
               <CalendarOff size={17} className="mt-0.5 shrink-0" />
-              প্রতি মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে। এছাড়া বিশেষ দিনে ডেলিভারি বন্ধ
+              প্রতি মাসের 2য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে। এছাড়া বিশেষ দিনে ডেলিভারি বন্ধ
               থাকলে অর্ডার পেজে আগে থেকেই দেখানো হবে।
             </p>
           </div>

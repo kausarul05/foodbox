@@ -139,7 +139,7 @@ export async function deductDeposit(
 
   const take = amount === undefined ? held : Math.round(amount);
   if (!Number.isFinite(take) || take <= 0 || take > held) {
-    return { ok: false, message: `কাটার পরিমাণ ১ থেকে ${held} টাকার মধ্যে হতে হবে` };
+    return { ok: false, message: `কাটার পরিমাণ 1 থেকে ${held} টাকার মধ্যে হতে হবে` };
   }
 
   // Conditional on the deposit still being exactly what was just read, so a

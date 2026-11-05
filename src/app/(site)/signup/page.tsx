@@ -41,13 +41,13 @@ export default function SignupPage() {
   const validateForm = () => {
     if (!formData.fullName) return 'দয়া করে আপনার নাম দিন';
     if (!formData.phoneNumber) return 'দয়া করে ফোন নাম্বার দিন';
-    if (formData.phoneNumber.length < 11) return 'ফোন নাম্বার কমপক্ষে ১১ ডিজিটের হতে হবে';
+    if (formData.phoneNumber.length < 11) return 'ফোন নাম্বার কমপক্ষে 11 ডিজিটের হতে হবে';
     if (!whatsapp) return 'দয়া করে হোয়াটসঅ্যাপ নাম্বার দিন';
-    if (whatsapp.length < 11) return 'হোয়াটসঅ্যাপ নাম্বার কমপক্ষে ১১ ডিজিটের হতে হবে';
+    if (whatsapp.length < 11) return 'হোয়াটসঅ্যাপ নাম্বার কমপক্ষে 11 ডিজিটের হতে হবে';
     // Email is optional now — only checked when something was typed.
     if (formData.email && !formData.email.includes('@')) return 'সঠিক ইমেইল ঠিকানা দিন';
     if (!formData.password) return 'দয়া করে পাসওয়ার্ড দিন';
-    if (formData.password.length < 6) return 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে';
+    if (formData.password.length < 6) return 'পাসওয়ার্ড কমপক্ষে 6 অক্ষরের হতে হবে';
     if (formData.password !== formData.confirmPassword) return 'পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না';
     if (!selectedZone) return 'দয়া করে জোন সিলেক্ট করুন';
     if (!formData.address) return 'দয়া করে ঠিকানা দিন';
@@ -202,7 +202,7 @@ export default function SignupPage() {
               <p className="-mt-2 mb-4 text-sm font-semibold tracking-wide text-ink-500 uppercase">পাসওয়ার্ড</p>
 
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="পাসওয়ার্ড" htmlFor="password" required hint="কমপক্ষে ৬ অক্ষর">
+                <Field label="পাসওয়ার্ড" htmlFor="password" required hint="কমপক্ষে 6 অক্ষর">
                   <PasswordInput
                     id="password"
                     name="password"

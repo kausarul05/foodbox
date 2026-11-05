@@ -128,22 +128,22 @@ function cancellability(order: Order): { canCancel: boolean; message: string } {
   if (delivery.toDateString() === now.toDateString()) {
     if (order.deliveryTime === 'lunch') {
       return minutesNow > 8 * 60 + 30
-        ? { canCancel: false, message: 'দুপুরের খাবার বাতিলের সময় শেষ (সকাল ৮:৩০ পর্যন্ত)' }
+        ? { canCancel: false, message: 'দুপুরের খাবার বাতিলের সময় শেষ (সকাল 8:30 পর্যন্ত)' }
         : { canCancel: true, message: '' };
     }
     if (order.deliveryTime === 'dinner') {
       return minutesNow > 13 * 60
-        ? { canCancel: false, message: 'রাতের খাবার বাতিলের সময় শেষ (দুপুর ১টা পর্যন্ত)' }
+        ? { canCancel: false, message: 'রাতের খাবার বাতিলের সময় শেষ (দুপুর 1টা পর্যন্ত)' }
         : { canCancel: true, message: '' };
     }
     if (order.deliveryTime === 'morning') {
-      return { canCancel: false, message: 'সকালের খাবার আগের দিন রাত ১০টার মধ্যে বাতিল করতে হয়' };
+      return { canCancel: false, message: 'সকালের খাবার আগের দিন রাত 10টার মধ্যে বাতিল করতে হয়' };
     }
   }
 
   if (delivery.toDateString() === tomorrow.toDateString() && order.deliveryTime === 'morning') {
     return minutesNow > 22 * 60
-      ? { canCancel: false, message: 'সকালের খাবার বাতিলের সময় শেষ (রাত ১০টা পর্যন্ত)' }
+      ? { canCancel: false, message: 'সকালের খাবার বাতিলের সময় শেষ (রাত 10টা পর্যন্ত)' }
       : { canCancel: true, message: '' };
   }
 
@@ -256,7 +256,7 @@ export default function OrdersPage() {
    * "মোট অর্ডার" counts live orders only.
    *
    * It used to be `orders.length`, so cancelling both of two orders still read
-   * "২" — the figure meant "rows ever created", which is not how anyone reads
+   * "2" — the figure meant "rows ever created", which is not how anyone reads
    * it. Cancelled ones get their own count instead.
    */
   const stats = useMemo(() => {

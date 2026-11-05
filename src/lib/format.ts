@@ -1,21 +1,25 @@
 /**
  * Display helpers for the Bengali customer site.
  *
- * Everything user-facing goes through here so numbers read as ৩,৫০০ rather than
- * 3,500 — mixing Latin digits into Bengali copy is the single most common way a
- * localised UI looks half-finished.
+ * Copy stays Bengali; **numbers are Latin digits** — "3,500", not the Bengali
+ * numerals this file used to render. The
+ * owner asked for that on 4 Nov 2026: customers read prices, phone numbers and
+ * transaction ids faster in the digits they type, and a figure that is copied
+ * out of the site into bKash or a bank app has to match what that app shows.
+ *
+ * Every number on the site still goes through here. `bn()` is kept as that one
+ * seam rather than deleted from a hundred call sites, so the decision can be
+ * reversed in this file alone.
  */
 
-const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-
-/** 1234 -> "১২৩৪". Leaves any non-digit character untouched. */
+/** 1234 -> "1234". Kept as the single place digit rendering is decided. */
 export function bn(value: string | number): string {
-  return String(value).replace(/\d/g, (d) => BN_DIGITS[Number(d)]);
+  return String(value);
 }
 
-/** 3500 -> "৳ ৩,৫০০" */
+/** 3500 -> "৳ 3,500" */
 export function taka(amount: number | undefined | null): string {
-  return `৳ ${bn((amount ?? 0).toLocaleString('en-US'))}`;
+  return `৳ ${(amount ?? 0).toLocaleString('en-US')}`;
 }
 
 /**
@@ -85,7 +89,7 @@ const BN_MONTHS = [
  *
  * Never use `toLocaleDateString('bn-BD')` for this. When the browser has no
  * bn-BD locale data it silently falls back to the system locale, which on most
- * machines prints month/day/year — so ৩রা ডিসেম্বর renders as ১২/৩, and dates
+ * machines prints month/day/year — so 3রা ডিসেম্বর renders as 12/3, and dates
  * appear scrambled for some visitors and not others.
  *
  * Delivery dates are stored as midnight UTC, i.e. a calendar date rather than
@@ -109,14 +113,14 @@ function parts(date: Date | string) {
     : { day: d.getDate(), month: d.getMonth(), year: d.getFullYear() };
 }
 
-/** "২ আগস্ট, ২০২৬" */
+/** "2 আগস্ট, 2026" */
 export function bengaliDate(date: Date | string): string {
   const p = parts(date);
   if (!p) return '—';
   return `${bn(p.day)} ${BN_MONTHS[p.month]}, ${bn(p.year)}`;
 }
 
-/** "০২/০৮/২০২৬" — always day/month/year, zero-padded. */
+/** "02/08/2026" — always day/month/year, zero-padded. */
 export function bengaliDateNumeric(date: Date | string): string {
   const p = parts(date);
   if (!p) return '—';
@@ -125,7 +129,7 @@ export function bengaliDateNumeric(date: Date | string): string {
   return `${bn(dd)}/${bn(mm)}/${bn(p.year)}`;
 }
 
-/** "২ আগস্ট, ২০২৬, ৮:৪১ PM" — for timestamps where the time matters. */
+/** "2 আগস্ট, 2026, 8:41 PM" — for timestamps where the time matters. */
 export function bengaliDateTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return '—';
@@ -166,12 +170,12 @@ export function isClosedFriday(date: Date): boolean {
  * to decide anything. The server remains the only authority on cut-offs.
  */
 export const MEAL_SLOTS = [
-  { key: 'morning', label: 'সকালের খাবার', window: 'সকাল ৭টা – ৯টা', cutoff: 'আগের দিন রাত ১০টা' },
-  { key: 'lunch', label: 'দুপুরের খাবার', window: 'দুপুর ১২টা – ২টা', cutoff: 'একই দিন সকাল ৮:৩০' },
-  { key: 'dinner', label: 'রাতের খাবার', window: 'রাত ৮টা – ১০টা', cutoff: 'একই দিন দুপুর ১টা' },
+  { key: 'morning', label: 'সকালের খাবার', window: 'সকাল 7টা – 9টা', cutoff: 'আগের দিন রাত 10টা' },
+  { key: 'lunch', label: 'দুপুরের খাবার', window: 'দুপুর 12টা – 2টা', cutoff: 'একই দিন সকাল 8:30' },
+  { key: 'dinner', label: 'রাতের খাবার', window: 'রাত 8টা – 10টা', cutoff: 'একই দিন দুপুর 1টা' },
 ] as const;
 
-/** "৮:৪১ PM" — clock only, for cut-off messages. */
+/** "8:41 PM" — clock only, for cut-off messages. */
 export function bengaliTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return '—';

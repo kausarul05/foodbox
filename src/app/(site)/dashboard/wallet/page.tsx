@@ -183,8 +183,8 @@ export default function WalletPage() {
 
         {/*
           How much went in versus how much is left. The page only ever showed
-          the balance, so there was no way to tell a ৳৫০০ balance that came
-          from a ৳৫০০ top-up from one left over after ৳২,০০০ of orders.
+          the balance, so there was no way to tell a ৳500 balance that came
+          from a ৳500 top-up from one left over after ৳2,000 of orders.
         */}
         <dl className="relative mt-6 grid grid-cols-2 gap-x-3 gap-y-4 border-t border-white/10 pt-5 sm:grid-cols-4">
           <div>
@@ -304,7 +304,7 @@ export default function WalletPage() {
               step={10}
               value={rechargeAmount}
               onChange={(e) => setRechargeAmount(e.target.value)}
-              placeholder="যেমন ৫০০"
+              placeholder="যেমন 500"
             />
             <div className="mt-2.5 grid grid-cols-4 gap-2">
               {quickAmounts.map((amount) => (

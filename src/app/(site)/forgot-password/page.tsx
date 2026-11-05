@@ -80,7 +80,7 @@ export default function ForgotPasswordPage() {
   const submitReset = async (e: FormEvent) => {
     e.preventDefault();
     if (!/^\d{6}$/.test(code.trim())) {
-      toast.error('ইমেইলে আসা ৬ সংখ্যার কোডটি দিন');
+      toast.error('ইমেইলে আসা 6 সংখ্যার কোডটি দিন');
       return;
     }
     if (password.length < MIN_PASSWORD) {
@@ -154,7 +154,7 @@ export default function ForgotPasswordPage() {
             <p className="mt-2 flex items-start gap-2 text-[15px] text-ink-600">
               <Mail size={18} className="mt-0.5 shrink-0 text-brand-600" />
               <span>
-                <b className="text-ink-900">{maskedEmail}</b> ঠিকানায় ৬ সংখ্যার একটি কোড পাঠানো হয়েছে। ইনবক্সে না
+                <b className="text-ink-900">{maskedEmail}</b> ঠিকানায় 6 সংখ্যার একটি কোড পাঠানো হয়েছে। ইনবক্সে না
                 পেলে স্প্যাম ফোল্ডার দেখুন।
               </span>
             </p>
@@ -168,7 +168,7 @@ export default function ForgotPasswordPage() {
                   maxLength={6}
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="১২৩৪৫৬"
+                  placeholder="123456"
                   className="tracking-[0.4em]"
                   required
                 />

@@ -160,7 +160,7 @@ export default function DepositsPage() {
       if (raw === null) return;
       amount = Number(raw);
       if (!Number.isFinite(amount) || amount <= 0 || amount > row.deposit.required) {
-        toast.error(`১ থেকে ${bn(row.deposit.required)} টাকার মধ্যে দিন`);
+        toast.error(`1 থেকে ${bn(row.deposit.required)} টাকার মধ্যে দিন`);
         return;
       }
       const why = await promptText({
@@ -284,7 +284,7 @@ export default function DepositsPage() {
       {/*
         Nobody's deposit is held until it is taken: new subscribers get it on
         approval, everyone who subscribed earlier needs the button. Said up
-        front, because a page of ৳০ looks broken rather than "not started".
+        front, because a page of ৳0 looks broken rather than "not started".
       */}
       {stats.active === 0 && rows.some((r) => r.deposit.status === 'none') && (
         <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -328,7 +328,7 @@ export default function DepositsPage() {
                 </div>
 
                 <dl className="grid grid-cols-3 gap-4 text-sm">
-                  {/* Only meaningful while a deposit is held; a "৳০" here read as a bug. */}
+                  {/* Only meaningful while a deposit is held; a "৳0" here read as a bug. */}
                   <div>
                     <dt className="text-[11px] text-ink-500">আটকানো</dt>
                     <dd className={`font-bold ${holding ? 'text-sky-800' : 'text-ink-300'}`}>

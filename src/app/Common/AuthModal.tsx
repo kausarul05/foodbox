@@ -84,7 +84,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             return;
         }
         if (registerData.password.length < 6) {
-            toast.error('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে');
+            toast.error('পাসওয়ার্ড কমপক্ষে 6 অক্ষরের হতে হবে');
             return;
         }
         if (registerData.password !== registerData.confirmPassword) {
@@ -275,7 +275,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                                         value={registerData.password}
                                         onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                                         className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] text-black"
-                                        placeholder="কমপক্ষে ৬ অক্ষর"
+                                        placeholder="কমপক্ষে 6 অক্ষর"
                                         required
                                     />
                                 </div>

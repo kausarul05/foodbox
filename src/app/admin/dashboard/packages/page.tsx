@@ -312,7 +312,7 @@ export default function PackagesPage() {
                   value={formData.features}
                   onChange={(e) => setFormData({ ...formData, features: e.target.value })}
                   rows={4}
-                  placeholder="যেমন: সপ্তাহের ৭ দিন ডেলিভারি, প্রতিদিন ৩ বেলা খাবার, ফ্রি হোম ডেলিভারি"
+                  placeholder="যেমন: সপ্তাহের 7 দিন ডেলিভারি, প্রতিদিন 3 বেলা খাবার, ফ্রি হোম ডেলিভারি"
                   className="w-full text-ink-900 px-4 py-2.5 border border-ink-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-base sm:text-sm"
                 />
               </div>

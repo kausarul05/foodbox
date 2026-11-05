@@ -113,7 +113,7 @@ export default function SettingsPage() {
     }
 
     if (passwordData.newPassword.length < 6) {
-      toast.error('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে');
+      toast.error('পাসওয়ার্ড কমপক্ষে 6 অক্ষরের হতে হবে');
       return;
     }
 

@@ -46,38 +46,38 @@ export function checkDeliveryDeadline(
         return current > LUNCH_DEADLINE_MINUTES
           ? {
               isWithinDeadline: false,
-              message: 'দুপুরের খাবারের জন্য আজ সকাল ৮:৩০ এর মধ্যে অর্ডার করতে হবে',
-              deadlineTime: 'সকাল ৮:৩০ টা',
+              message: 'দুপুরের খাবারের জন্য আজ সকাল 8:30 এর মধ্যে অর্ডার করতে হবে',
+              deadlineTime: 'সকাল 8:30 টা',
             }
-          : { isWithinDeadline: true, message: 'দুপুরের খাবার অর্ডার করা যাবে', deadlineTime: 'সকাল ৮:৩০ টা' };
+          : { isWithinDeadline: true, message: 'দুপুরের খাবার অর্ডার করা যাবে', deadlineTime: 'সকাল 8:30 টা' };
 
       case 'dinner':
         return current > DINNER_DEADLINE_MINUTES
           ? {
               isWithinDeadline: false,
-              message: 'রাতের খাবারের জন্য আজ দুপুর ১:০০ টার মধ্যে অর্ডার করতে হবে',
-              deadlineTime: 'দুপুর ১:০০ টা',
+              message: 'রাতের খাবারের জন্য আজ দুপুর 1:00 টার মধ্যে অর্ডার করতে হবে',
+              deadlineTime: 'দুপুর 1:00 টা',
             }
-          : { isWithinDeadline: true, message: 'রাতের খাবার অর্ডার করা যাবে', deadlineTime: 'দুপুর ১:০০ টা' };
+          : { isWithinDeadline: true, message: 'রাতের খাবার অর্ডার করা যাবে', deadlineTime: 'দুপুর 1:00 টা' };
 
       case 'morning':
         return {
           isWithinDeadline: false,
-          message: 'সকালের খাবারের জন্য আগের দিন রাত ১০টার মধ্যে অর্ডার করতে হবে',
-          deadlineTime: 'রাত ১০:০০ টা (আগের দিন)',
+          message: 'সকালের খাবারের জন্য আগের দিন রাত 10টার মধ্যে অর্ডার করতে হবে',
+          deadlineTime: 'রাত 10:00 টা (আগের দিন)',
         };
     }
   } else if (isTomorrow && deliveryTime === 'morning') {
     return current > MORNING_DEADLINE_MINUTES
       ? {
           isWithinDeadline: false,
-          message: 'সকালের খাবারের জন্য আজ রাত ১০:০০ টার মধ্যে অর্ডার করতে হবে',
-          deadlineTime: 'রাত ১০:০০ টা',
+          message: 'সকালের খাবারের জন্য আজ রাত 10:00 টার মধ্যে অর্ডার করতে হবে',
+          deadlineTime: 'রাত 10:00 টা',
         }
       : {
           isWithinDeadline: true,
           message: 'সকালের খাবার অর্ডার করা যাবে',
-          deadlineTime: 'রাত ১০:০০ টা (আগের দিন)',
+          deadlineTime: 'রাত 10:00 টা (আগের দিন)',
         };
   }
 
@@ -98,7 +98,7 @@ export function checkCancelDeadline(
         if (current > LUNCH_DEADLINE_MINUTES) {
           return {
             canCancel: false,
-            message: 'দুপুরের খাবার বাতিলের সময় পার হয়ে গেছে (সকাল ৮:৩০ এর মধ্যে বাতিল করতে হবে)',
+            message: 'দুপুরের খাবার বাতিলের সময় পার হয়ে গেছে (সকাল 8:30 এর মধ্যে বাতিল করতে হবে)',
           };
         }
         break;
@@ -106,14 +106,14 @@ export function checkCancelDeadline(
         if (current > DINNER_DEADLINE_MINUTES) {
           return {
             canCancel: false,
-            message: 'রাতের খাবার বাতিলের সময় পার হয়ে গেছে (দুপুর ১:০০ টার মধ্যে বাতিল করতে হবে)',
+            message: 'রাতের খাবার বাতিলের সময় পার হয়ে গেছে (দুপুর 1:00 টার মধ্যে বাতিল করতে হবে)',
           };
         }
         break;
       case 'morning':
         return {
           canCancel: false,
-          message: 'সকালের খাবার আজকের জন্য বাতিল করা যাবে না (আগের দিন রাত ১০টার মধ্যে বাতিল করতে হবে)',
+          message: 'সকালের খাবার আজকের জন্য বাতিল করা যাবে না (আগের দিন রাত 10টার মধ্যে বাতিল করতে হবে)',
         };
     }
   } else if (
@@ -123,7 +123,7 @@ export function checkCancelDeadline(
   ) {
     return {
       canCancel: false,
-      message: 'সকালের খাবার বাতিলের সময় পার হয়ে গেছে (রাত ১০:০০ টার মধ্যে বাতিল করতে হবে)',
+      message: 'সকালের খাবার বাতিলের সময় পার হয়ে গেছে (রাত 10:00 টার মধ্যে বাতিল করতে হবে)',
     };
   }
 

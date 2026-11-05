@@ -19,7 +19,7 @@ export const POST = handler(async (req: Request) => {
   const given = String(code ?? '').trim();
   const next = String(password ?? '');
 
-  if (!phone || !/^\d{6}$/.test(given)) return fail('৬ সংখ্যার কোডটি দিন', 400);
+  if (!phone || !/^\d{6}$/.test(given)) return fail('6 সংখ্যার কোডটি দিন', 400);
   if (next.length < MIN_PASSWORD_LENGTH) {
     return fail(`পাসওয়ার্ড কমপক্ষে ${MIN_PASSWORD_LENGTH} অক্ষরের হতে হবে`, 400);
   }
