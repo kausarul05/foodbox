@@ -35,18 +35,33 @@ export default function Navbar() {
     <nav className="border-b border-ink-200/70 bg-cream/90 backdrop-blur-md">
       <div className="container-page flex h-16 items-center justify-between gap-4 md:h-[4.5rem]">
         {/* Brand */}
-        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+        <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <Image
             src={logo}
             alt=""
             width={40}
             height={40}
-            className="size-9 rounded-xl object-cover ring-1 ring-ink-200 md:size-10"
+            className="size-9 shrink-0 rounded-xl object-cover ring-1 ring-ink-200 md:size-10"
             priority
           />
-          <span className="flex flex-col leading-none">
-            <span className="text-lg font-bold tracking-tight text-ink-900 md:text-xl">FCS Meal</span>
-            <span className="mt-0.5 text-[11px] font-medium text-ink-500">ঘরের মতো রান্না</span>
+          {/*
+            A phone leaves the brand about 105px once the order button and the
+            account icon have taken their side — not enough for the full name on
+            one line. So it is set as a lockup there: "FCS Meal" over a small
+            spaced "MANAGER", which reads as a deliberate second line rather
+            than a word that fell off the end. The Bengali tagline takes that
+            slot back from sm, where the name fits on one line again.
+          */}
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="text-lg leading-tight font-bold tracking-tight text-ink-900 md:text-xl">
+              FCS Meal<span className="hidden sm:inline"> Manager</span>
+            </span>
+            <span className="mt-1 text-[10px] leading-none font-bold tracking-[0.18em] text-brand-600 uppercase sm:hidden">
+              Manager
+            </span>
+            <span className="mt-0.5 hidden text-[11px] font-medium text-ink-500 sm:block">
+              ঘরের মতো রান্না
+            </span>
           </span>
         </Link>
 

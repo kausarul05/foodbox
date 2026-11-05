@@ -30,10 +30,9 @@ export default function Footer() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-12 lg:gap-8">
           {/* Brand */}
           <div className="lg:col-span-4">
-            <span className="text-2xl font-bold text-white">FCS Meal</span>
+            <span className="text-2xl font-bold text-white">FCS Meal Manager</span>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-400">
-              ময়মনসিংহে ঘরের মতো রান্না করা খাবারের সাবস্ক্রিপশন সার্ভিস। তাজা রান্না,
-              সাশ্রয়ী দাম, সময়মতো ডেলিভারি।
+              ময়মনসিংহ শহরে ঘরের মতো স্বাস্থ্যকর পরিবেশে রান্না করা খাবার হোম ডেলিভারি সার্ভিস। 
             </p>
             <div className="mt-6 space-y-3 text-sm">
               <a href="tel:+8801410906862" className="flex items-center gap-3 transition-colors hover:text-brand-400">
@@ -49,7 +48,7 @@ export default function Footer() {
               </a>
               <p className="flex items-start gap-3 text-ink-400">
                 <MapPin size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                Mile Quarter, Academic Road, Mymensingh Sadar
+                28 No. Ward, Akua chukaitola , Mymensingh Sadar
               </p>
             </div>
           </div>
@@ -89,7 +88,7 @@ export default function Footer() {
               ))}
             </ul>
             <p className="mt-3 text-xs text-ink-500">
-              প্রতি মাসের ২য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।
+              প্রতি মাসের 2য় ও শেষ শুক্রবার রান্নাঘর বন্ধ থাকে।
             </p>
           </div>
         </div>

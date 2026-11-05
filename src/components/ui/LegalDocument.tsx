@@ -25,7 +25,7 @@ export interface LegalSection {
 const CONTACT = {
   phone: '+8801410906862',
   email: 'ain19951995@gmail.com',
-  address: 'Mile Quarter, Academic Road, Mymensingh Sadar',
+  address: '28 No. Ward, Akua chukaitola, Mymensingh Sadar',
 };
 
 export default function LegalDocument({
