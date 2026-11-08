@@ -4,6 +4,10 @@ import Footer from '../Common/Footer';
 import NoticeBar from '../Common/NoticeBar';
 import MobileTabBar from '../Common/MobileTabBar';
 import DialogProvider from '@/components/ui/DialogProvider';
+// Trial voice assistant. Renders nothing unless NEXT_PUBLIC_ASSISTANT=true —
+// delete this import, the element below, and src/features/assistant/ to remove
+// the feature entirely (see that folder's README).
+import Assistant from '@/features/assistant';
 
 /**
  * Chrome for the customer-facing site. The admin panel does not use this.
@@ -27,6 +31,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
 
         <Footer />
         <MobileTabBar />
+        <Assistant />
         <Toaster
           position="top-center"
           toastOptions={{
