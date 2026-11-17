@@ -24,6 +24,7 @@ import {
 } from '@/lib/api';
 import type { SessionUser } from '@/lib/useSession';
 import { MAX_DAYS, MEALS, type MealKey } from './config';
+import { normalise } from './parse';
 
 /** One weekly-menu row, as much of it as this feature touches. */
 export interface MenuRow {
@@ -36,11 +37,37 @@ export interface MenuRow {
   dinnerPrice?: number;
 }
 
+/** One package a non-subscriber may read the menu from. */
+export interface PackageChoice {
+  slug: string;
+  title: string;
+}
+
 export interface Account {
+  /**
+   * True when nobody is logged in.
+   *
+   * The menu, the packages and the zones are public reads — the home page
+   * fetches all three without a token — so a visitor can be shown the food
+   * before signing up. Everything that touches money or an order checks this
+   * and asks them to log in first.
+   */
+  guest: boolean;
   subscribed: boolean;
-  /** Which package's menu applies — the subscriber's own, or the cheapest. */
+  /** Which package's menu is in play right now. */
   packageSlug: string;
   packageLabel: string;
+  /**
+   * Every active package, cheapest first — what a non-subscriber may switch
+   * between. The chat offered only the first one until 17 Nov 2026, so half the
+   * food on the site was invisible to anyone without a subscription.
+   */
+  packages: PackageChoice[];
+  /**
+   * True for a subscriber: the menu follows the package they pay for and the
+   * request does not get a say — the same rule POST /api/orders enforces.
+   */
+  packageLocked: boolean;
   walletAvailable: number;
   address: string;
   zoneId: string;
@@ -84,8 +111,32 @@ export interface Spend {
   cancelledCount: number;
 }
 
-/** Same fallback the order form uses when the zone list cannot be read. */
-const DEFAULT_DELIVERY_CHARGE = 15;
+/**
+ * What one delivery costs when this customer's own zone cannot be read.
+ *
+ * Never a hard-coded figure. A constant 15 sat here (and in the order form)
+ * long after every zone in the database had moved to 5, so a customer whose
+ * profile carried no zone was quoted a rate the server would never charge.
+ * The rate the zones themselves agree on is right by construction and follows
+ * the owner whenever they change it.
+ */
+function prevailingCharge(zones: { deliveryCharge?: number; isActive?: boolean }[]): number {
+  const counts = new Map<number, number>();
+  for (const zone of zones) {
+    if (zone.isActive === false) continue;
+    const charge = Number(zone.deliveryCharge ?? 0);
+    counts.set(charge, (counts.get(charge) ?? 0) + 1);
+  }
+  let best = 0;
+  let seen = 0;
+  for (const [charge, count] of counts) {
+    if (count > seen) {
+      best = charge;
+      seen = count;
+    }
+  }
+  return best;
+}
 
 /** JS getDay() is Sunday-first; mirrors WEEKDAY_BY_INDEX in src/lib/format.ts. */
 const WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
@@ -163,14 +214,16 @@ export async function loadAccount(user: SessionUser): Promise<Account> {
   }
 
   let packageLabel = '';
+  let packages: PackageChoice[] = [];
   try {
     const res = await packageAPI.getAllPackages();
     if (res.success) {
       const list = (res.data ?? []).filter(
         (p: { isActive?: boolean }) => p.isActive !== false
       ) as { name: string; title?: string }[];
-      // A subscriber is locked to their own package; everyone else gets the
-      // cheapest, because /api/packages sorts by price. Same rule as the form.
+      packages = list.map((p) => ({ slug: p.name, title: p.title || p.name }));
+      // A subscriber is locked to their own package; everyone else *starts* on
+      // the cheapest, because /api/packages sorts by price, and may switch.
       if (!packageSlug) packageSlug = list[0]?.name ?? 'basic';
       packageLabel = list.find((p) => p.name === packageSlug)?.title ?? packageSlug;
     }
@@ -187,7 +240,7 @@ export async function loadAccount(user: SessionUser): Promise<Account> {
   }
 
   const zoneId = typeof user.zone === 'string' ? user.zone : '';
-  let deliveryPerMeal = DEFAULT_DELIVERY_CHARGE;
+  let deliveryPerMeal = 0;
   let zoneNames: string[] = [];
   try {
     const res = await zoneAPI.getAllZones();
@@ -200,7 +253,7 @@ export async function loadAccount(user: SessionUser): Promise<Account> {
         isActive?: boolean;
       }[];
       deliveryPerMeal =
-        zones.find((z) => z._id === zoneId)?.deliveryCharge ?? DEFAULT_DELIVERY_CHARGE;
+        zones.find((z) => z._id === zoneId)?.deliveryCharge ?? prevailingCharge(zones);
       // Never `name` — that is the lowercase English slug (see CLAUDE.md).
       zoneNames = zones.filter((z) => z.isActive !== false).map((z) => zoneLabel(z));
     }
@@ -267,9 +320,12 @@ export async function loadAccount(user: SessionUser): Promise<Account> {
   }
 
   return {
+    guest: false,
     subscribed,
     packageSlug,
     packageLabel,
+    packages,
+    packageLocked: subscribed,
     walletAvailable,
     address: typeof user.address === 'string' ? user.address : '',
     zoneId,
@@ -281,6 +337,153 @@ export async function loadAccount(user: SessionUser): Promise<Account> {
     activeOrders,
     spend,
   };
+}
+
+/**
+ * The public half of an account, for a visitor who has not logged in.
+ *
+ * The greeting offered to show the menu long before anything could — every
+ * message from a logged-out visitor was answered with "log in first", the menu
+ * included. These three reads need no token (the home page makes all of them),
+ * so the food can be shown to someone deciding whether to sign up at all.
+ */
+export async function loadPublicAccount(): Promise<Account> {
+  let packages: PackageChoice[] = [];
+  let packageSlug = '';
+  let packageLabel = '';
+  try {
+    const res = await packageAPI.getAllPackages();
+    if (res.success) {
+      const list = (res.data ?? []).filter(
+        (p: { isActive?: boolean }) => p.isActive !== false
+      ) as { name: string; title?: string }[];
+      packages = list.map((p) => ({ slug: p.name, title: p.title || p.name }));
+      packageSlug = packages[0]?.slug ?? 'basic';
+      packageLabel = packages[0]?.title ?? packageSlug;
+    }
+  } catch {
+    packageSlug = 'basic';
+  }
+
+  let menu: MenuRow[] = [];
+  try {
+    const res = await menuAPI.getMenuByPackage(packageSlug);
+    if (res.success) menu = res.data ?? [];
+  } catch {
+    /* reported to the visitor as "menu load failed" */
+  }
+
+  let zoneNames: string[] = [];
+  let deliveryPerMeal = 0;
+  try {
+    const res = await zoneAPI.getAllZones();
+    if (res.success) {
+      const zones = (res.data ?? []) as {
+        nameBn?: string | null;
+        name?: string;
+        deliveryCharge?: number;
+        isActive?: boolean;
+      }[];
+      zoneNames = zones.filter((z) => z.isActive !== false).map((z) => zoneLabel(z));
+      deliveryPerMeal = prevailingCharge(zones);
+    }
+  } catch {
+    /* the delivery-charge answer falls back to "জোন অনুযায়ী আলাদা" */
+  }
+
+  return {
+    guest: true,
+    subscribed: false,
+    packageSlug,
+    packageLabel,
+    packages,
+    packageLocked: false,
+    walletAvailable: 0,
+    address: '',
+    zoneId: '',
+    deliveryPerMeal,
+    zoneNames,
+    menu,
+    blocked: new Map(),
+    taken: new Set(),
+    activeOrders: 0,
+    spend: {
+      placedTotal: 0,
+      placedCount: 0,
+      deliveredTotal: 0,
+      deliveredCount: 0,
+      cancelledCount: 0,
+    },
+  };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Choosing a package                                                     */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The same account reading a different package's menu.
+ *
+ * Only the menu changes, so the wallet, the zone, the blocked dates and the
+ * order history are not read again. Returns null when the menu cannot be
+ * loaded, so the caller can say so instead of quietly showing the old food
+ * under the new package's name.
+ */
+export async function withPackage(account: Account, slug: string): Promise<Account | null> {
+  if (account.packageLocked) return account;
+  const choice = account.packages.find((p) => p.slug === slug);
+  if (!choice) return account;
+  if (slug === account.packageSlug) return account;
+
+  let menu: MenuRow[] = [];
+  try {
+    const res = await menuAPI.getMenuByPackage(slug);
+    if (res.success) menu = res.data ?? [];
+  } catch {
+    return null;
+  }
+  if (menu.length === 0) return null;
+
+  return { ...account, packageSlug: slug, packageLabel: choice.title, menu };
+}
+
+/**
+ * A package named inside a sentence, and the sentence with that name taken out.
+ *
+ * The names are read from the database, never listed here — the owner can add
+ * a package tomorrow and "<new name> প্যাকেজের মেনু" works without a code
+ * change. Taking the name back out matters as much as finding it: "প্যাকেজ" is
+ * a subscription word, so leaving it in makes `findTopic` answer a menu
+ * question with the subscription overview.
+ */
+export function splitPackage(
+  packages: PackageChoice[],
+  input: string
+): { pkg: PackageChoice; rest: string } | null {
+  const text = normalise(input);
+
+  // Longest name first, so "স্ট্যান্ডার্ড" is not missed because some other
+  // package's name is a prefix of it.
+  const names = packages
+    .flatMap((pkg) => [
+      { pkg, name: normalise(pkg.title).replace(/\s*প্যাকেজ\s*$/, '').trim() },
+      { pkg, name: normalise(pkg.slug) },
+    ])
+    .filter((entry) => entry.name.length > 2)
+    .sort((a, b) => b.name.length - a.name.length);
+
+  for (const entry of names) {
+    const at = text.indexOf(entry.name);
+    if (at === -1) continue;
+    const rest = (text.slice(0, at) + ' ' + text.slice(at + entry.name.length))
+      // Whatever trailed the name: "প্যাকেজের", "প্যাকেজ থেকে", "package er".
+      .replace(/^\s*(প্যাকেজ\S*|package\S*)\s*/, ' ')
+      .replace(/^\s*(থেকে|থেকেই|এর|theke|thekei|from|er)\s*/, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return { pkg: entry.pkg, rest };
+  }
+  return null;
 }
 
 /* ---------------------------------------------------------------------- */

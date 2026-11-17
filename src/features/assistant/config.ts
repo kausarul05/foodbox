@@ -1,12 +1,17 @@
 /**
  * The one switch for the whole feature. See README.md in this folder.
  *
- * Off unless explicitly turned on, so a deploy that does not set the variable
- * ships the site exactly as it was — the owner can try this locally without it
- * appearing for customers. `NEXT_PUBLIC_*` is inlined at build time, so the dev
- * server has to be restarted after changing it, not just reloaded.
+ * On everywhere unless it is explicitly turned off. It was the other way round
+ * while this was a trial the owner wanted to see privately; on 17 Nov 2026 the
+ * feature went live, and a flag that has to be *remembered* on every host is a
+ * flag that eventually ships a site without its assistant.
+ *
+ * The kill switch stays: `NEXT_PUBLIC_ASSISTANT=false` removes the whole chat
+ * from the bundle, with no code change and no deploy of anything but the
+ * variable. `NEXT_PUBLIC_*` is inlined at build time, so changing it needs a
+ * rebuild — a restart or a reload is not enough.
  */
-export const ASSISTANT_ENABLED = process.env.NEXT_PUBLIC_ASSISTANT === 'true';
+export const ASSISTANT_ENABLED = process.env.NEXT_PUBLIC_ASSISTANT !== 'false';
 
 /** Meal keys, in the order a day runs. Mirrors MEAL_SLOTS in src/lib/format.ts. */
 export const MEALS = [

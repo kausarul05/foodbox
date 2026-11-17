@@ -35,17 +35,21 @@ import {
   loadAccount,
   loadCancellableOrders,
   loadGuestQuota,
+  loadPublicAccount,
   loadSubscriptionInfo,
   nextWeekday,
   placePlan,
   requestSubscription,
+  splitPackage,
   todayISO,
   weekdayOf,
   addDays,
   fromISO,
   toISO,
+  withPackage,
   type Account,
   type MyOrder,
+  type PackageChoice,
   type PackageOption,
   type Plan,
   type SubscriptionInfo,
@@ -74,8 +78,21 @@ interface Message {
   sub?: { info: SubscriptionInfo; canSubscribe: boolean };
   /** The subscription request form, inline in the conversation. */
   form?: { pkg: PackageOption; firstTime: boolean };
-  /** One day's menu, as a card. */
-  menu?: { iso: string; dayName: string; packageLabel: string; rows: MenuLine[] };
+  /**
+   * One day's menu, as a card.
+   *
+   * `packages` is non-empty only for a customer who may switch — a subscriber
+   * eats from the package they pay for, so offering the others would be
+   * offering food they cannot order.
+   */
+  menu?: {
+    iso: string;
+    dayName: string;
+    packageLabel: string;
+    packageSlug: string;
+    packages: PackageChoice[];
+    rows: MenuLine[];
+  };
   /** The orders that could still be cancelled, each with its own button. */
   cancelList?: MyOrder[];
   /** The order waiting on a yes before it is cancelled. */
@@ -102,6 +119,27 @@ const EMPTY_DRAFT: Draft = { meals: [], startISO: null, dayCount: null, exactISO
 /** Said whenever the honest answer is "ask a person". */
 const SUPPORT_LINE = '01410906862 নাম্বারে কল করুন, ওখান থেকে ঠিক উত্তরটা পাবেন।';
 
+/**
+ * Set once the customer has opened the chat even one time.
+ *
+ * The launcher pulses and offers a line about itself until then, and never
+ * again afterwards: a button that keeps waving at someone who has already used
+ * it is noise, and the second time it is ignored it stops being noticed at all.
+ * Browser storage can throw (private windows, blocked site data), so every
+ * read and write below is wrapped and a failure just means the nudge shows
+ * again on the next visit.
+ */
+const SEEN_KEY = 'fcs-assistant-seen';
+
+/**
+ * How many visits may offer the nudge before it gives up.
+ *
+ * Someone who has scrolled past it three times has decided. Holding the value
+ * in the same key keeps this to one piece of stored state: '1' once they have
+ * opened the chat, otherwise how many times it has been offered.
+ */
+const NUDGE_LIMIT = 3;
+
 const EMPTY_PAYMENT: PaymentDetails = {
   paymentMethod: 'bkash',
   transactionId: '',
@@ -114,6 +152,14 @@ const HOME_CHIPS: Chip[] = [
   { label: 'আমার ব্যালান্স', send: 'ব্যালান্স' },
   { label: 'আজ কী রান্না', send: 'আজ কী রান্না' },
   { label: 'সাবস্ক্রিপশন', send: 'সাবস্ক্রিপশন' },
+];
+
+/** Nobody logged in: only the things a visitor can actually get an answer to. */
+const GUEST_CHIPS: Chip[] = [
+  { label: 'আজ কী রান্না', send: 'আজ কী রান্না' },
+  { label: 'সাবস্ক্রিপশনের দাম', send: 'সাবস্ক্রিপশনের দাম কত' },
+  { label: 'ডেলিভারি চার্জ', send: 'ডেলিভারি চার্জ কত' },
+  { label: 'সাবস্ক্রিপশন ছাড়া অর্ডার', send: 'সাবস্ক্রিপশন ছাড়া অর্ডার করা যাবে' },
 ];
 
 const MEAL_CHIPS: Chip[] = [
@@ -158,6 +204,10 @@ export default function AssistantWidget() {
   /** The order a yes/no is being collected for. */
   const [pendingCancel, setPendingCancel] = useState<MyOrder | null>(null);
 
+  /** Whether this browser has opened the chat before, and the one-time nudge. */
+  const [seen, setSeen] = useState(true);
+  const [nudge, setNudge] = useState(false);
+
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState('');
   const [micNote, setMicNote] = useState('');
@@ -187,12 +237,35 @@ export default function AssistantWidget() {
   /* Conversation                                                         */
   /* -------------------------------------------------------------------- */
 
+  /**
+   * Said when a visitor asks for something only an account can do.
+   *
+   * Everything about the food and the rules is answered without a login; it is
+   * money, orders and anything belonging to one person that needs one.
+   */
+  const askLogin = useCallback(
+    (what: string) => {
+      say({
+        role: 'bot',
+        text: `${what} করতে আগে লগইন করতে হবে। অ্যাকাউন্ট না থাকলে এক মিনিটেই খোলা যায় — নাম, হোয়াটসঅ্যাপ নাম্বার আর ঠিকানা লাগে। মেনু আর নিয়মকানুনের কথা এখনই জিজ্ঞেস করতে পারেন।`,
+        link: { href: '/login', label: 'লগইন করুন' },
+        chips: [
+          { label: 'আজ কী রান্না', send: 'আজ কী রান্না' },
+          { label: 'সাবস্ক্রিপশনের দাম', send: 'সাবস্ক্রিপশনের দাম কত' },
+        ],
+      });
+    },
+    [say]
+  );
+
   /** Loads the account once per open panel, and reports a failure honestly. */
   const ensureAccount = useCallback(async (): Promise<Account | null> => {
     if (account) return account;
-    if (!user) return null;
     try {
-      const loaded = await loadAccount(user);
+      // Nobody logged in: the menu, the packages and the zones are still
+      // public, and showing them is the point of the chat being on a landing
+      // page at all.
+      const loaded = user ? await loadAccount(user) : await loadPublicAccount();
       setAccount(loaded);
       return loaded;
     } catch {
@@ -257,20 +330,113 @@ export default function AssistantWidget() {
           role: 'bot',
           text: `${bengaliDate(complete.exactISO)} তারিখে হবে না${
             why ? ` — ${why.slice((complete.exactISO as string).length).replace(/^\s*[—-]\s*/, '')}` : ''
-          }। তার পরের যে দিন পাওয়া গেল, সেটাই দেখালাম — ঠিক না হলে বাতিল করুন।`,
+          }। তার পরের যে দিন পাওয়া গেল, সেটাই দেখালাম — ঠিক না হলে বাতিল করুন।`,
         });
       }
 
       planRef.current = plan;
+      // Which menu the food and the price came from. A subscriber has only
+      // one, but anyone else could have been reading either.
+      const from = acc.packageLocked ? '' : ` (${acc.packageLabel}ের মেনু থেকে)`;
       const id = say({
         role: 'bot',
-        text: `${plan.lines.length}টি খাবার, সর্বমোট ${taka(plan.total)}। ঠিক থাকলে অর্ডার করুন বলুন বা বাটনে চাপ দিন।`,
+        text: `${plan.lines.length}টি খাবার, সর্বমোট ${taka(plan.total)}${from}। ঠিক থাকলে অর্ডার করুন বলুন বা বাটনে চাপ দিন।`,
         plan,
       });
       setPendingCard(id);
       setDraft(EMPTY_DRAFT);
     },
     [say]
+  );
+
+  /**
+   * One day's menu as a card, priced the way this customer would pay for it.
+   *
+   * Lifted out of the message handler on 17 Nov 2026 so the package buttons on
+   * the card can redraw the same day from a different menu without sending a
+   * sentence back through the parser.
+   */
+  const showMenu = useCallback(
+    (acc: Account, iso: string) => {
+      const dayName = weekdayOf(iso);
+      const row = acc.menu.find((m) => m.day === dayName);
+      if (!row) {
+        say({ role: 'bot', text: `${dayName}ের মেনু পাওয়া যায়নি।` });
+        return;
+      }
+
+      /*
+       * Priced as this customer would pay: the menu price from the wallet, or
+       * that plus the cash surcharge. `mealPrice()` in src/lib/rules.ts is the
+       * one place that rule lives, and the order route prices the meal with
+       * the same function.
+       */
+      const rows: MenuLine[] = MEALS.map((meal) => {
+        const dish = row[meal.key];
+        const menuPrice = row[`${meal.key}Price` as const] ?? 0;
+        const sellable = Boolean(dish) && menuPrice > 0;
+        return {
+          label: meal.label,
+          dish: dish ?? '',
+          price: sellable ? mealPrice(menuPrice, acc.subscribed ? 'wallet' : 'cash') : null,
+        };
+      });
+
+      const offered = rows.filter((line) => line.price !== null).length;
+      const day = Number(iso.slice(8));
+      say({
+        role: 'bot',
+        text:
+          offered > 0
+            ? `${dayName}, ${bengaliDate(iso)} — ${acc.packageLabel}ের মেনু।`
+            : `${dayName}, ${bengaliDate(iso)} — এখনো কোনো খাবার ঠিক করা হয়নি।`,
+        menu: {
+          iso,
+          dayName,
+          packageLabel: acc.packageLabel,
+          packageSlug: acc.packageSlug,
+          // A subscriber has nothing to choose between, and neither has anyone
+          // else when the site sells one package.
+          packages: acc.packageLocked ? [] : acc.packages,
+          rows,
+        },
+        chips:
+          offered > 0
+            ? [
+                { label: 'এই দিনের অর্ডার করব', send: `${day} তারিখে অর্ডার করব` },
+                { label: 'আগামীকালের মেনু', send: 'কাল কি রান্না' },
+              ]
+            : HOME_CHIPS,
+      });
+    },
+    [say]
+  );
+
+  /**
+   * The package buttons under a menu card: reload that package's menu and draw
+   * the same day again.
+   */
+  const pickPackage = useCallback(
+    async (slug: string, iso: string) => {
+      const acc = account;
+      if (!acc || slug === acc.packageSlug) return;
+      setBusy(true);
+      try {
+        const switched = await withPackage(acc, slug);
+        if (!switched) {
+          say({
+            role: 'bot',
+            text: 'ওই প্যাকেজের মেনু লোড করা যায়নি, তাই আগেরটাই রেখে দিলাম।',
+          });
+          return;
+        }
+        setAccount(switched);
+        showMenu(switched, iso);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [account, say, showMenu]
   );
 
   /** Asks for whatever the draft is still missing, or proposes the order. */
@@ -493,15 +659,6 @@ export default function AssistantWidget() {
       setInput('');
       setHeard('');
 
-      if (!user) {
-        say({
-          role: 'bot',
-          text: 'অর্ডার করতে আগে লগইন করতে হবে।',
-          link: { href: '/login', label: 'লগইন করুন' },
-        });
-        return;
-      }
-
       setBusy(true);
       try {
         // A pending cancellation owns the next word, the same way a review
@@ -539,10 +696,48 @@ export default function AssistantWidget() {
           planRef.current = null;
         }
 
-        const acc = await ensureAccount();
+        let acc = await ensureAccount();
         if (!acc) return;
 
-        const parsed = parse(text);
+        /*
+         * A package named in the sentence decides which menu the rest of it is
+         * about — "স্ট্যান্ডার্ড প্যাকেজের কাল রাতের খাবার" is an order from
+         * that menu, not from whichever one happened to be loaded.
+         *
+         * Until 17 Nov 2026 there was no way to say this at all: the chat
+         * loaded the cheapest package and a customer without a subscription
+         * never saw the rest of the food. The names come from the database, so
+         * a package added later works without a code change.
+         */
+        let said = text;
+        const picked = splitPackage(acc.packages, text);
+        if (picked && picked.pkg.slug !== acc.packageSlug) {
+          if (acc.packageLocked) {
+            say({
+              role: 'bot',
+              text: `আপনার ${acc.packageLabel} চালু আছে, তাই খাবার আর দাম ওই প্যাকেজের মেনু থেকেই আসে — ${picked.pkg.title} থেকে অর্ডার নেওয়া যাবে না। প্যাকেজ বদলাতে চাইলে ${SUPPORT_LINE}`,
+              link: { href: '/dashboard/profile', label: 'আমার সাবস্ক্রিপশন' },
+            });
+            return;
+          }
+          const switched = await withPackage(acc, picked.pkg.slug);
+          if (!switched) {
+            say({ role: 'bot', text: `${picked.pkg.title}ের মেনু লোড করা যায়নি। একটু পরে আবার চেষ্টা করুন।` });
+            return;
+          }
+          setAccount(switched);
+          acc = switched;
+        }
+        if (picked) {
+          // "স্ট্যান্ডার্ড প্যাকেজ" and nothing else is a request to see it.
+          if (picked.rest.length === 0) {
+            showMenu(acc, todayISO());
+            return;
+          }
+          said = picked.rest;
+        }
+
+        const parsed = parse(said);
 
         if (parsed.pastDay) {
           say({ role: 'bot', text: 'আগের দিনের জন্য অর্ডার করা যায় না। আজ বা আগামীকালের কথা বলুন।', chips: START_CHIPS });
@@ -563,7 +758,16 @@ export default function AssistantWidget() {
          * Cancelling is the one topic that does something rather than says
          * something, so it is handled here instead of in answers.ts.
          */
+        if (acc.guest && (parsed.topic === 'order-spend' || parsed.topic === 'order-status')) {
+          askLogin(parsed.topic === 'order-spend' ? 'নিজের অর্ডারের হিসাব দেখতে' : 'নিজের অর্ডার দেখতে');
+          return;
+        }
+
         if (parsed.topic === 'order-cancel') {
+          if (acc.guest) {
+            askLogin('অর্ডার বাতিল');
+            return;
+          }
           const list = await loadCancellableOrders();
           if (list.length === 0) {
             say({
@@ -578,6 +782,24 @@ export default function AssistantWidget() {
             text: 'কোন অর্ডারটা বাতিল করতে চান? নিচে থেকে বেছে নিন — সময়ের মধ্যে বাতিল করলে ওই দিনের টাকা কাটবে না।',
             cancelList: list,
           });
+          return;
+        }
+
+        /*
+         * "অন্য প্যাকেজের মেনু" — showing it beats describing it, and the card
+         * carries the buttons to move between packages. Only for someone who
+         * has a choice; answers.ts handles the rest.
+         */
+        if (
+          parsed.topic === 'menu-package' &&
+          !acc.packageLocked &&
+          acc.packages.length > 1
+        ) {
+          say({
+            role: 'bot',
+            text: `সাবস্ক্রিপশন ছাড়া ${acc.packages.length}টি প্যাকেজের যেকোনো মেনু থেকেই অর্ডার করতে পারবেন। নিচের বাটন থেকে প্যাকেজ বদলে দেখুন।`,
+          });
+          showMenu(acc, todayISO());
           return;
         }
 
@@ -607,7 +829,7 @@ export default function AssistantWidget() {
             link: answer.link,
             sub:
               answer.packages && info
-                ? { info, canSubscribe: Boolean(answer.canSubscribe) }
+                ? { info, canSubscribe: Boolean(answer.canSubscribe) && !acc.guest }
                 : undefined,
           });
           return;
@@ -615,6 +837,10 @@ export default function AssistantWidget() {
 
         switch (parsed.intent) {
           case 'order': {
+            if (acc.guest) {
+              askLogin('অর্ডার');
+              return;
+            }
             // Asking for a fortnight and quietly getting a week is its own
             // small lie, so the cap is said out loud before the card appears.
             if (parsed.dayCountCapped) {
@@ -648,6 +874,10 @@ export default function AssistantWidget() {
           }
 
           case 'wallet': {
+            if (acc.guest) {
+              askLogin('ব্যালান্স দেখতে');
+              return;
+            }
             if (!acc.subscribed) {
               say({
                 role: 'bot',
@@ -671,53 +901,15 @@ export default function AssistantWidget() {
               (parsed.weekday !== null
                 ? nextWeekday(parsed.weekday)
                 : toISO(addDays(fromISO(todayISO()), parsed.startOffset ?? 0)));
-            const dayName = weekdayOf(iso);
-            const row = acc.menu.find((m) => m.day === dayName);
-            if (!row) {
-              say({ role: 'bot', text: `${dayName}ের মেনু পাওয়া যায়নি।` });
-              return;
-            }
-
-            /*
-             * Priced as this customer would pay: the menu price from the
-             * wallet, or that plus the cash surcharge. `mealPrice()` in
-             * src/lib/rules.ts is the one place that rule lives, and the order
-             * route prices the meal with the same function.
-             */
-            const rows: MenuLine[] = MEALS.map((meal) => {
-              const dish = row[meal.key];
-              const menuPrice = row[`${meal.key}Price` as const] ?? 0;
-              const sellable = Boolean(dish) && menuPrice > 0;
-              return {
-                label: meal.label,
-                dish: dish ?? '',
-                price: sellable ? mealPrice(menuPrice, acc.subscribed ? 'wallet' : 'cash') : null,
-              };
-            });
-
-            const offered = rows.filter((line) => line.price !== null).length;
-            say({
-              role: 'bot',
-              text:
-                offered > 0
-                  ? `${dayName}, ${bengaliDate(iso)} — ${acc.packageLabel}ের মেনু।`
-                  : `${dayName}, ${bengaliDate(iso)} — এখনো কোনো খাবার ঠিক করা হয়নি।`,
-              menu: { iso, dayName, packageLabel: acc.packageLabel, rows },
-              chips:
-                offered > 0
-                  ? [
-                      {
-                        label: `এই দিনের অর্ডার করব`,
-                        send: `${Number(iso.slice(8))} তারিখে অর্ডার করব`,
-                      },
-                      { label: 'আগামীকালের মেনু', send: 'কাল কি রান্না' },
-                    ]
-                  : HOME_CHIPS,
-            });
+            showMenu(acc, iso);
             return;
           }
 
           case 'myorders': {
+            if (acc.guest) {
+              askLogin('নিজের অর্ডার দেখতে');
+              return;
+            }
             const upcoming = acc.activeOrders;
             say({
               role: 'bot',
@@ -731,6 +923,10 @@ export default function AssistantWidget() {
           }
 
           case 'subscribe': {
+            if (acc.guest) {
+              askLogin('সাবস্ক্রিপশন নিতে');
+              return;
+            }
             const info = await ensureSubInfo();
             if (!info) return;
 
@@ -791,12 +987,13 @@ export default function AssistantWidget() {
     },
     [
       busy,
-      user,
       pendingCard,
       draft,
       say,
+      askLogin,
       ensureAccount,
       advance,
+      showMenu,
       confirmOrder,
       ensureSubInfo,
       subInfo,
@@ -810,18 +1007,62 @@ export default function AssistantWidget() {
   /* Opening                                                              */
   /* -------------------------------------------------------------------- */
 
+  /*
+   * `seen` starts true so the first paint is the quiet button: assuming the
+   * nudge and then withdrawing it would flash at everyone, including the
+   * people who have already used this.
+   */
+  const counted = useRef(false);
+  useEffect(() => {
+    // React runs effects twice in development; without this the visit counter
+    // would burn through its three offers in two page loads.
+    if (counted.current) return;
+    counted.current = true;
+
+    let known = true;
+    try {
+      const stored = localStorage.getItem(SEEN_KEY);
+      if (stored === '1') {
+        known = true;
+      } else {
+        const offered = Number(stored ?? 0);
+        known = !Number.isFinite(offered) || offered >= NUDGE_LIMIT;
+        if (!known) localStorage.setItem(SEEN_KEY, String(offered + 1));
+      }
+    } catch {
+      /* storage unavailable: treat as seen, so nobody is nagged in a loop */
+    }
+    if (known) return;
+    setSeen(false);
+    // Not at the moment the page lands — it arrives once the page has settled,
+    // which is when it reads as an offer rather than a pop-up.
+    const timer = setTimeout(() => setNudge(true), 2600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const markSeen = useCallback(() => {
+    setSeen(true);
+    setNudge(false);
+    try {
+      localStorage.setItem(SEEN_KEY, '1');
+    } catch {
+      /* nothing to do; it will offer once more next time */
+    }
+  }, []);
+
   const openPanel = useCallback(() => {
+    markSeen();
     setOpen(true);
     if (messages.length === 0) {
       say({
         role: 'bot',
         text: user
           ? 'বলুন, কী করতে চান? লিখতে পারেন, মাইক চেপে বলতেও পারেন।'
-          : 'লগইন করলে এখান থেকেই অর্ডার করতে পারবেন। আপাতত মেনু দেখাতে পারি।',
-        chips: HOME_CHIPS,
+          : 'কী রান্না হচ্ছে, দাম কত, সাবস্ক্রিপশনে কী থাকে — যা জানতে চান জিজ্ঞেস করুন। অর্ডার করতে হলে শুধু একবার লগইন করে নিতে হবে।',
+        chips: user ? HOME_CHIPS : GUEST_CHIPS,
       });
     }
-  }, [messages.length, say, user]);
+  }, [markSeen, messages.length, say, user]);
 
   const closePanel = useCallback(() => {
     stopListening.current?.();
@@ -875,16 +1116,60 @@ export default function AssistantWidget() {
   if (!hydrated) return null;
 
   if (!open) {
+    /*
+     * The launcher, and the one thing it is allowed to say about itself.
+     *
+     * It sits above the mobile tab bar (`bottom-24`, which clears the bar's
+     * ~60px plus the safe area) and in the corner on a desktop. The ring and
+     * the bubble below only exist until the chat has been opened once — see
+     * SEEN_KEY. `motion-safe:` keeps both still for anyone who has asked their
+     * device for less movement.
+     */
     return (
-      <button
-        type="button"
-        onClick={openPanel}
-        aria-label="সহকারীর সাথে কথা বলুন"
-        className="fixed right-4 bottom-24 z-30 flex items-center gap-2 rounded-full bg-brand-600 py-3 pr-5 pl-4 text-sm font-semibold text-white shadow-lift transition-colors hover:bg-brand-700 lg:right-6 lg:bottom-6"
-      >
-        <MessageCircle size={18} />
-        সহকারী
-      </button>
+      <div className="fixed right-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-end gap-2 lg:right-6 lg:bottom-6">
+        {nudge && (
+          <div
+            role="status"
+            className="flex max-w-[15.5rem] items-start gap-2 rounded-2xl rounded-br-sm border border-ink-200 bg-white py-2.5 pr-2 pl-3.5 shadow-lift motion-safe:animate-rise"
+          >
+            <p className="text-[12.5px] leading-snug text-ink-700">
+              কী রান্না হচ্ছে, দাম কত, অর্ডার — <span className="font-semibold text-ink-900">এখানে জিজ্ঞেস করুন</span>।
+              লিখেও বলতে পারেন, মাইকে বলেও।
+            </p>
+            <button
+              type="button"
+              onClick={markSeen}
+              aria-label="বন্ধ করুন"
+              className="-mt-0.5 shrink-0 rounded-full p-1 text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-600"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
+        <span className="relative flex">
+          {!seen && (
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-full border-2 border-brand-400 opacity-75 motion-safe:animate-ping"
+            />
+          )}
+          <button
+            type="button"
+            onClick={openPanel}
+            aria-label="সহকারীর সাথে কথা বলুন"
+            className="relative flex min-h-12 items-center gap-2 rounded-full bg-brand-600 py-3 pr-5 pl-4 text-sm font-semibold text-white shadow-lift transition-colors hover:bg-brand-700"
+          >
+            <MessageCircle size={18} />
+            সহকারী
+            {!seen && (
+              <span className="rounded-full bg-white/25 px-1.5 py-0.5 text-[10px] font-bold">
+                নতুন
+              </span>
+            )}
+          </button>
+        </span>
+      </div>
     );
   }
 
@@ -892,7 +1177,7 @@ export default function AssistantWidget() {
     <div
       role="dialog"
       aria-label="FCS সহকারী"
-      className="fixed inset-x-2 bottom-20 z-50 flex max-h-[76vh] flex-col overflow-hidden rounded-3xl border border-ink-200 bg-cream shadow-lift sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[25rem] sm:max-h-[36rem]"
+      className="fixed inset-x-2 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex max-h-[76vh] flex-col overflow-hidden rounded-3xl border border-ink-200 bg-cream shadow-lift sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[25rem] sm:max-h-[36rem]"
     >
       {/* Header */}
       <div className="flex shrink-0 items-center gap-2 border-b border-ink-200 bg-white px-4 py-3">
@@ -901,7 +1186,7 @@ export default function AssistantWidget() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-ink-900">FCS সহকারী</p>
-          <p className="text-[11px] text-ink-500">পরীক্ষামূলক — বলে বা লিখে অর্ডার</p>
+          <p className="text-[11px] text-ink-500">বলে বা লিখে অর্ডার করুন</p>
         </div>
 
         <button
@@ -930,7 +1215,9 @@ export default function AssistantWidget() {
 
             {message.plan && <PlanCard plan={message.plan} />}
 
-            {message.menu && <MenuCard day={message.menu} />}
+            {message.menu && (
+              <MenuCard day={message.menu} busy={busy} onPick={pickPackage} />
+            )}
 
             {message.cancelList && message.cancelList.length > 0 && (
               <div className="mt-2 space-y-2">
@@ -1197,14 +1484,54 @@ function Row({ label, value }: { label: string; value: string }) {
 /** One day's menu: what is cooked, and what this customer would pay for it. */
 function MenuCard({
   day,
+  busy,
+  onPick,
 }: {
-  day: { iso: string; dayName: string; packageLabel: string; rows: MenuLine[] };
+  day: {
+    iso: string;
+    dayName: string;
+    packageLabel: string;
+    packageSlug: string;
+    packages: PackageChoice[];
+    rows: MenuLine[];
+  };
+  busy: boolean;
+  onPick: (slug: string, iso: string) => void;
 }) {
   return (
     <div className="mt-2 rounded-2xl border border-ink-200 bg-white p-3 shadow-card">
       <p className="text-[11px] font-semibold tracking-wide text-ink-500">
         {day.dayName} · {bengaliDate(day.iso)} · {day.packageLabel}
       </p>
+
+      {/*
+        The same choice the order form offers above its meal toggles: without a
+        subscription any package's menu may be ordered from, so all of them are
+        shown rather than just the cheapest.
+      */}
+      {day.packages.length > 1 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {day.packages.map((pkg) => {
+            const on = pkg.slug === day.packageSlug;
+            return (
+              <button
+                key={pkg.slug}
+                type="button"
+                aria-pressed={on}
+                disabled={busy || on}
+                onClick={() => onPick(pkg.slug, day.iso)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-70 ${
+                  on
+                    ? 'border-brand-300 bg-brand-50 text-brand-800'
+                    : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                }`}
+              >
+                {pkg.title}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="mt-1.5 space-y-1">
         {day.rows.map((line) => (
           <div key={line.label} className="flex items-baseline justify-between gap-3">

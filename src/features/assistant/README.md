@@ -13,20 +13,25 @@ one sounded out Bengali letters, and the answers are cards, tables and prices
 that do not read aloud usefully in any voice. `speech.ts` now holds the
 recogniser alone; there is no speaker button and no mute state.
 
-It was added on 7 Nov 2026 as something the owner could try privately before
-deciding whether customers should see it. **It is off unless
-`NEXT_PUBLIC_ASSISTANT=true`,** so a deploy without that variable ships the
-site exactly as it was.
+It was added on 7 Nov 2026 as something the owner could try privately, and
+went live for customers on 17 Nov 2026.
 
-## Turning it on and off
+## Turning it off
+
+It is **on** unless it is explicitly switched off:
 
 ```bash
-# .env.local  (gitignored, so this stays on your machine only)
-NEXT_PUBLIC_ASSISTANT=true
+# .env.local, or the host's environment variables
+NEXT_PUBLIC_ASSISTANT=false
 ```
 
-`NEXT_PUBLIC_*` is inlined at **build** time, so a running `npm run dev` has to
-be restarted after changing it — a page reload is not enough.
+That one variable drops the whole chat from the bundle — no code change, no
+markup, nothing shipped. It reads `!== 'false'` rather than `=== 'true'` on
+purpose: a flag that has to be *remembered* on every host is a flag that
+eventually ships a site without its assistant.
+
+`NEXT_PUBLIC_*` is inlined at **build** time, so changing it needs a rebuild —
+restarting the dev server, or a redeploy. A page reload is not enough.
 
 ## Removing it completely
 
@@ -40,6 +45,65 @@ Three steps, nothing else in the repository knows about this feature:
 `npx tsc --noEmit` then passes with nothing left behind. No API route, no
 database field, no dependency and no change to any existing component was
 needed, which is the whole reason it is laid out this way.
+
+## The launcher
+
+A pill in the bottom-right corner, above the mobile tab bar. It has to be
+noticed without becoming wallpaper, so it is loud exactly until it has been
+used once:
+
+- an expanding ring and a **নতুন** badge on the button;
+- a bubble, 2.6s after the page settles, saying what can be asked;
+- both stop for good the moment the chat is opened, and after three visits
+  either way — somebody who has scrolled past it three times has decided.
+
+One key in browser storage holds that (`fcs-assistant-seen`: `'1'` once opened,
+otherwise how many visits have offered it). Reads and writes are wrapped —
+private windows and blocked site data throw — and a failure only means the
+offer comes back next visit. `motion-safe:` keeps the ring and the bubble still
+for anyone whose device asks for less movement.
+
+On a phone the button and the panel both clear the tab bar *and* the home
+indicator (`calc(6rem + env(safe-area-inset-bottom))`), the tap target is 48px,
+and the bubble is capped at 15.5rem so it fits a 360px screen.
+
+No CSS was added for any of this: `animate-ping` is Tailwind's own and
+`animate-rise` is already in `globals.css`. The feature is still one folder.
+
+## Who it answers
+
+**Logged in** — everything below: the menu, the rules, their own wallet,
+orders and subscription, and ordering itself.
+
+**Not logged in** — the menu, the packages, the prices and every rule
+question, because `/api/packages`, `/api/weekly-menu` and `/api/zones` are
+public reads the home page already makes. Anything belonging to one person —
+an order, a balance, a cancellation, a subscription request — answers with a
+line asking them to log in, and says what *can* be asked meanwhile. The
+greeting used to offer the menu to visitors and then refuse every message with
+"log in first"; `loadPublicAccount()` is what makes the offer true.
+
+## Which menu the food comes from
+
+A **subscriber** eats from the package they pay for. The chat locks to it
+(`Account.packageLocked`), and naming another package gets a plain no rather
+than food they cannot order — the same rule `POST /api/orders` enforces, where
+a subscriber's `packageSlug` in the request is ignored.
+
+**Everyone else chooses.** The chat loaded the cheapest package and offered
+nothing else until 17 Nov 2026, so half the food on the site was invisible to
+anyone without a subscription — exactly what the owner reported. Now:
+
+- the menu card carries a button per package, the same choice the `/order`
+  form offers above its meal toggles;
+- a package named in a sentence decides what the rest of it is about, so
+  "স্ট্যান্ডার্ড প্যাকেজ থেকে কাল রাতের খাবার" orders from that menu;
+- the order card names the menu its prices came from.
+
+The names are read from the database, never listed in code, so a package added
+tomorrow works without a change here. `splitPackage()` also takes the name
+*out* of the sentence before it is parsed — "প্যাকেজ" is a subscription word,
+and leaving it in made a menu question answer with joining prices.
 
 ## How a message is read
 
@@ -101,12 +165,13 @@ Actions it carries out: "3 din ratre", "kal dupure", "আগামীকাল �
 "shukrobar sokale", "ei saptah", "amar balance koto", "aj ki ranna",
 "amar order dekhao", "subscribe korte chai".
 
-Questions it answers, 33 subjects as of 8 Nov 2026: subscriptions (what it is,
+Questions it answers, 36 subjects as of 17 Nov 2026: subscriptions (what it is,
 price, cheapest, changing, cancelling, expiry, renewal, how to join, what you
 get, your own status, skipping a day), money (box deposit, fee refund, wallet
-top-up, where to send money), ordering (how, without a subscription, how much
-you have ordered so far, cut-off times, cancelling, what happens to the money,
-the 7-day limit, delivery times,
+top-up, where to send money), ordering (how, without a subscription, which package's
+menu, changing an order already placed, whether one has been confirmed, how
+much you have ordered so far, cut-off times, cancelling, what happens to the
+money, the 7-day limit, delivery times,
 delivery charge, closed days, guest meals, zones, the service area, portions,
 cooking requests), and the account (sign-up, forgotten password, changing your
 details, support contact).
@@ -115,8 +180,8 @@ Deliberately not handled:
 
 - **Guest meals** and **multiple packages in one order** — the full form at
   `/order` keeps those.
-- **Cancelling** — it points at the dashboard instead. Cancelling releases
-  money, and a keyword parser is the wrong thing to hand that to.
+- **Editing a placed order** — no route edits one, so the answer is cancel and
+  order again, and the chat does both halves.
 - **Changing or renewing a live subscription** — an account that already has
   one, pending or active, is told where it stands and sent to the dashboard.
   The route refuses a second request anyway.

@@ -394,6 +394,63 @@ ${cutoffLines()}`,
       };
     }
 
+    case 'menu-package': {
+      /*
+       * The widget answers this one itself when it can, because showing the
+       * menu beats describing it. This is the reply for someone who has no
+       * choice to be shown.
+       */
+      const names = account?.packages ?? [];
+      if (account?.packageLocked) {
+        return {
+          text: `আপনার ${account.packageLabel} চালু আছে, তাই প্রতিদিনের খাবার আর দাম ওই প্যাকেজের মেনু থেকেই আসে — অন্য প্যাকেজের খাবার অর্ডার করা যায় না। প্যাকেজ বদলাতে চাইলে ${SUPPORT_PHONE} নাম্বারে কল করুন।`,
+          chips: [{ label: 'আজ কী রান্না', send: 'আজ কী রান্না' }],
+        };
+      }
+      if (names.length < 2) {
+        return {
+          text: 'এখন একটাই প্যাকেজের মেনু চালু আছে, তাই বেছে নেওয়ার মতো আর কিছু নেই।',
+          chips: [{ label: 'আজ কী রান্না', send: 'আজ কী রান্না' }],
+        };
+      }
+      return {
+        text: `এখন ${names.length}টি প্যাকেজের মেনু আছে — ${names
+          .map((pkg) => pkg.title)
+          .join(', ')}। সাবস্ক্রিপশন ছাড়া যেকোনো প্যাকেজের মেনু থেকেই অর্ডার করতে পারবেন। কোনটা দেখবেন বলুন।`,
+        chips: names.map((pkg) => ({ label: pkg.title, send: pkg.title })),
+      };
+    }
+
+    case 'order-change':
+      /*
+       * No customer route edits a placed order — /api/orders/[id] offers the
+       * owner a GET and a cancel, nothing else. So the honest answer is
+       * cancel-and-reorder, and the chat can do both halves itself.
+       */
+      return {
+        text: `অর্ডার দেওয়া হয়ে গেলে সেটা এডিট করার কোনো ব্যবস্থা নেই — দিন, বেলা কিংবা খাবার কিছুই বদলানো যায় না। যা করতে হয়: সময় থাকতে অর্ডারটা বাতিল করে নতুন করে অর্ডার করা — দুটোই আমি এখান থেকে করে দিতে পারি। সময়ের মধ্যে বাতিল করলে টাকা কাটে না। বাতিলের শেষ সময়:
+${cutoffLines()}
+ঠিকানা বা নাম্বার ভুল হলে অর্ডার বাতিল করতে হয় না — ${SUPPORT_PHONE} নাম্বারে বললেই হয়।`,
+        chips: [{ label: 'অর্ডার বাতিল করব', send: 'অর্ডার বাতিল করব' }],
+      };
+
+    case 'order-status': {
+      const running = account?.activeOrders ?? 0;
+      if (running === 0) {
+        return {
+          text: 'এই মুহূর্তে আপনার চলতি কোনো অর্ডার নেই — যেগুলো দিয়েছিলেন সব ডেলিভারি হয়ে গেছে।',
+          chips: [{ label: 'কাল রাতের খাবার', send: 'কাল রাতে' }],
+          link: { href: '/dashboard/orders', label: 'অর্ডারের তালিকা' },
+        };
+      }
+      return {
+        text: `আপনার ${running}টি খাবারের অর্ডার এখনও চলছে — ডেলিভারি হয়নি এখনও। অর্ডার দেওয়ার সঙ্গে সঙ্গেই সেটা তালিকায় চলে যায়, আলাদা করে কনফার্ম করতে হয় না। কোন খাবারটা কোন দিনে, সেটা অর্ডারের তালিকায় দেখা যাবে।
+খাবার পৌঁছানোর সময়:
+${windowLines()}`,
+        link: { href: '/dashboard/orders', label: 'অর্ডারের তালিকা' },
+      };
+    }
+
     case 'order-max':
       return {
         text: `আমি এক কথায় সর্বোচ্চ ${MAX_DAYS} দিনের অর্ডার নিতে পারি — পুরো মাসের অর্ডার একবারে নিই না, কারণ মেনু আর বন্ধের দিন বদলায়। ${MAX_DAYS} দিন করে করে নিতে পারেন, অথবা অর্ডার পেজ থেকে নিজের পছন্দের তারিখগুলো বেছে নিতে পারেন।`,

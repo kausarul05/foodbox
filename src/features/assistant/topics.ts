@@ -49,6 +49,12 @@ export type Topic =
   | 'order-how'
   | 'order-refund'
   | 'order-max'
+  /** "which package's menu am I seeing" / "show me the other one". */
+  | 'menu-package'
+  /** "can I change an order I already placed" — the answer is no, so say so. */
+  | 'order-change'
+  /** "has my order been confirmed", "where is my order". */
+  | 'order-status'
   /** "how much have I ordered so far" — the customer's own total. */
   | 'order-spend'
   // The account itself
@@ -101,7 +107,7 @@ const REFUND = /ফেরত|রিফান্ড|\b(ferot|ferot\w*|pherot|refu
 const WALLET = /ওয়ালেট|ব্যালান্স|ব্যালেন্স|\b(wallet|balance|ballance)\b/;
 
 /** Putting money in, as opposed to asking what is in there. */
-const TOPUP = /রিচার্জ|টাকা\s*ঢোকা|টাকা\s*দিব|টাকা\s*জমা|যোগ\s*কর|ভর|\b(recharge|rechareg|top\s*up|topup|add\s*(money|taka)|taka\s*add|add\s*kor\w*|taka\s*jomma|taka\s*dibo|jomma\s*kor\w*|fund)\b/;
+const TOPUP = /রিচার্জ|ঢোকাব|ঢুকাব|ঢোকানো|ঢুকানো|টাকা\s*ঢোকা|টাকা\s*দিব|টাকা\s*জমা|যোগ\s*কর|ভর|\b(recharge|rechareg|top\s*up|topup|add\s*(money|taka)|taka\s*add|add\s*kor\w*|taka\s*jomma|taka\s*dibo|jomma\s*kor\w*|fund)\b/;
 
 const PAYMENT = /বিকাশ|নগদ|রকেট|ক্যাশ|পেমেন্ট|টাকা\s*পাঠা|কোথায়\s*পাঠা|কোন\s*নাম্বারে|\b(bkash|bikash|nagad|nogod|rocket|cash|payment|taka\s*patha\w*|send\s*money|kothay\s*pathabo)\b/;
 
@@ -145,6 +151,15 @@ const LONG_RUN = /এক\s*মাস|পুরো\s*মাস|মাসের|�
  */
 const SPENT = /কত টাকার|কতটাকার|কত টাকা অর্ডার|খরচ করেছি|খরচ হয়েছে|মোট কত|\b(koto\s*takar|kto\s*takar|koto\s*taka\s*(order|khoroch)|khoroch\s*korechi|total\s*(koto|kemon|order)|mot\s*koto|how\s*much\s*(spent|ordered))\b/;
 
+/** The food list itself, as opposed to the package that sells it. */
+const MENU_WORD = /মেনু|খাবারের\s*তালিকা|\b(menu|menyu|khabarer\s*talika)\b/;
+
+/** Asking for a menu other than the one on screen. */
+const OTHER_PKG = /অন্য\s*প্যাকেজ|আরেক\s*প্যাকেজ|আরেকটা\s*প্যাকেজ|কোন\s*কোন\s*প্যাকেজ|\b(onno\s*package|onno\s*packager|other\s*package|another\s*package)\b/;
+
+/** How far along a placed order is. */
+const PROGRESS = /কনফার্ম|অর্ডার\s*হয়েছে|অর্ডার\s*কোথায়|কতদূর|কত\s*দূর|প্রসেস|রান্না\s*হয়েছে|\b(confirm\w*|order\s*hoyeche|kothay\s*ache|kotodur|koto\s*dur|process\w*)\b/;
+
 const ACCOUNT = /একাউন্ট|অ্যাকাউন্ট|রেজিস্ট্রেশন|রেজিস্টার|সাইন\s*আপ|নতুন\s*আইডি|\b(account|register|registration|signup|sign\s*up|notun\s*id)\b/;
 
 const PASSWORD = /পাসওয়ার্ড|পাসোয়ার্ড|পাসওয়ার্ড|\b(password|pass\s*word|pin\s*vule|login\s*korte\s*parchi\s*na)\b/;
@@ -164,6 +179,13 @@ const PORTION = /পরিমাণ|পরিমান|কতটুকু|কত
  * miss a meal is not asking to lose their subscription.
  */
 const RULES: { topic: Topic; test: (s: string) => boolean }[] = [
+  /*
+   * "স্ট্যান্ডার্ড প্যাকেজের মেনু" is a question about food, but it carries a
+   * package word, so without this first rule every subscription rule below
+   * would take it and answer with joining prices.
+   */
+  { topic: 'menu-package', test: (s) => OTHER_PKG.test(s) || (MENU_WORD.test(s) && SUB.test(s)) },
+
   // Subscription, most specific question first
   { topic: 'sub-pause', test: (s) => PAUSE.test(s) },
   // Before every other subscription rule: this one is about *not* having one.
@@ -200,6 +222,17 @@ const RULES: { topic: Topic; test: (s: string) => boolean }[] = [
   // Before the ordering rules: this one is about orders already placed.
   { topic: 'order-spend', test: (s) => SPENT.test(s) },
   { topic: 'order-max', test: (s) => LONG_RUN.test(s) },
+  /*
+   * Changing a placed order, before the "how do I order" rule: "অর্ডারটা
+   * কিভাবে বদলাব" carries both, and the honest answer is the one about
+   * changing, because no route edits a placed order.
+   */
+  { topic: 'order-change', test: (s) => ORDER_WORD.test(s) && UPDATE.test(s) },
+  /* "অর্ডার কনফার্ম হয়েছে?" — about one already placed, not how to place one. */
+  {
+    topic: 'order-status',
+    test: (s) => ORDER_WORD.test(s) && (PROGRESS.test(s) || STATUS.test(s)),
+  },
   { topic: 'order-how', test: (s) => ORDER_WORD.test(s) && HOW.test(s) },
   { topic: 'delivery-time', test: (s) => DELIVERY_TIME.test(s) },
   { topic: 'delivery-charge', test: (s) => DELIVERY_CHARGE.test(s) },
