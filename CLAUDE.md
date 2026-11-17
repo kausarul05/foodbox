@@ -501,6 +501,17 @@ surcharge — against বেসিকের food name. If you add a second place
 food, give it the same choice; the price and the dish must come from the menu
 the customer was actually reading.
 
+**The delivery charge is the zone's, everywhere.** `Zone.deliveryCharge` is the
+only source — every zone in the live database is on ৳5 as of 17 Nov 2026. Three
+places carried a hard-coded ৳15 long after that stopped being true, and all
+three are gone: the `/order` summary quoted 15 per meal until a zone was picked
+(it now shows the rate the live zones agree on), the assistant did the same for
+a customer whose profile had no zone, and `POST /api/admin/manual-orders` stored
+`deliveryCharge || 15` on every staff-entered order — the form never sends one,
+so every phone order would have been booked at 15 while the site charged 5. It
+now reads the zone like `POST /api/orders` does. If a default is ever needed
+again, derive it from the zones; do not type a number.
+
 **Zones have two names.** `Zone.name` is a lowercase English slug used as the
 unique key (`mymensingh_sadar`); `Zone.nameBn` is the Bengali label
 (`ময়মনসিংহ সদর`). Never render `name` — always `zoneLabel(zone)` from

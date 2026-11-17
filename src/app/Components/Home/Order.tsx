@@ -83,11 +83,28 @@ const MEALS = [
 ] as const satisfies readonly { key: MealKey; label: string; full: string; icon: typeof Coffee; tint: string }[];
 
 /**
- * Delivery is charged per meal (each bela is its own delivery), at the chosen zone's rate. This is
- * only the fallback for a zone with no rate yet (a customer-proposed zone that
- * is still waiting for admin approval).
+ * Delivery is charged per meal (each bela is its own delivery), at the chosen
+ * zone's rate.
+ *
+ * What to show before a zone is chosen, or for a customer-proposed zone that
+ * has no rate yet, is read from the zones themselves — never a constant. A
+ * hard-coded 15 sat here long after every zone in the database had moved to 5,
+ * so the summary quoted 15 per meal until a zone was picked and the server
+ * charged 5. The rate the live zones agree on cannot drift that way.
  */
-const DEFAULT_DELIVERY_CHARGE = 15;
+function prevailingCharge(charges: Map<string, number>): number {
+  const counts = new Map<number, number>();
+  for (const charge of charges.values()) counts.set(charge, (counts.get(charge) ?? 0) + 1);
+  let best = 0;
+  let seen = 0;
+  for (const [charge, count] of counts) {
+    if (count > seen) {
+      best = charge;
+      seen = count;
+    }
+  }
+  return best;
+}
 
 /** JS getDay() is Sunday-first. */
 const WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
@@ -208,7 +225,8 @@ export default function Order() {
           );
         }
       } catch {
-        // Falls back to DEFAULT_DELIVERY_CHARGE; ZoneSelect reports the failure.
+        // Nothing to fall back to, and nothing invented: ZoneSelect reports the
+        // failure, and without a zone the order route refuses the order anyway.
       }
     })();
     return () => {
@@ -217,7 +235,7 @@ export default function Order() {
   }, []);
 
   /** What one delivery (one meal) costs in the chosen zone. */
-  const deliveryPerMeal = zoneCharges.get(selectedZone) ?? DEFAULT_DELIVERY_CHARGE;
+  const deliveryPerMeal = zoneCharges.get(selectedZone) ?? prevailingCharge(zoneCharges);
 
   /* ---------------------------------------------------------------------- */
   /* Load subscription + menu                                               */

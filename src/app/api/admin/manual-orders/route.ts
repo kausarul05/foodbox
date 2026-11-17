@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/server/auth';
 import { body, handler, ok } from '@/server/http';
 import ManualOrder from '@/server/models/ManualOrder';
+import Zone from '@/server/models/Zone';
 
 // POST /api/admin/manual-orders — phone/walk-in orders entered by staff
 export const POST = handler(async (req: Request) => {
@@ -19,6 +20,18 @@ export const POST = handler(async (req: Request) => {
     specialInstructions,
   } = await body(req);
 
+  /*
+   * The delivery charge is the zone's, exactly as POST /api/orders reads it.
+   * It was `deliveryCharge || 15` until 17 Nov 2026, and the staff form never
+   * sends one — so every phone order would have been recorded at 15 while the
+   * site charged the zone's rate (5 in every zone today). A hard-coded rate in
+   * one of two places that sell the same food is a number that drifts.
+   */
+  const zoneDoc = zone ? await Zone.findById(zone).catch(() => null) : null;
+  const charge = Number.isFinite(Number(deliveryCharge))
+    ? Number(deliveryCharge)
+    : (zoneDoc?.deliveryCharge ?? 0);
+
   const order = await ManualOrder.create({
     customerName,
     phoneNumber,
@@ -26,7 +39,7 @@ export const POST = handler(async (req: Request) => {
     zone,
     items,
     totalAmount,
-    deliveryCharge: deliveryCharge || 15,
+    deliveryCharge: charge,
     paymentMethod: paymentMethod || 'cash',
     deliveryDate,
     deliveryTime,

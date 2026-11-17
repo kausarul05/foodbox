@@ -32,7 +32,8 @@ const manualOrderSchema = new Schema<IManualOrder>(
     zone: { type: String, required: true },
     items: [{ name: String, price: Number, quantity: Number }],
     totalAmount: { type: Number, required: true },
-    deliveryCharge: { type: Number, default: 15 },
+    // No default rate: the route reads it from the zone, like POST /api/orders.
+    deliveryCharge: { type: Number, default: 0 },
     paymentMethod: { type: String, enum: ['cash', 'bkash', 'nagad'], default: 'cash' },
     status: {
       type: String,
